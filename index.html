@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CM Assortment Admin</title>
+</head>
+<body>
+  <h1>CM Assortment Admin</h1>
+
+  <h2>Заявка товару</h2>
+
+  <form>
+    <label>
+      Категорія
+      <select>
+        <option>Товари для дому</option>
+        <option>Кухня</option>
+        <option>Ванна кімната</option>
+        <option>Декор</option>
+        <option>Побутова хімія</option>
+      </select>
+    </label>
+
+    <br><br>
+
+    <label>
+      Назва товару
+      <input type="text" placeholder="Наприклад: органайзер для спецій">
+    </label>
+
+    <br><br>
+
+    <label>
+      Бренд / постачальник
+      <input type="text" placeholder="Назва бренду або постачальника">
+    </label>
+
+    <br><br>
+
+    <label>
+      Закупівельна ціна, грн
+      <input type="number" placeholder="0.00">
+    </label>
+
+    <br><br>
+
+    <label>
+      Посилання на товар
+      <input type="url" placeholder="https://...">
+    </label>
+
+    <br><br>
+
+    <button type="button">Обробити</button>
+  </form>
+
+  <h2>Результат обробки</h2>
+
+  <p><strong>Найнижча ціна:</strong> -</p>
+  <p><strong>Середня ціна:</strong> -</p>
+  <p><strong>Найвища ціна:</strong> -</p>
+
+  <h2>Огляд ШІ</h2>
+  <p>Після обробки тут буде висновок щодо актуальності товару, ринкової ціни, ризиків і рекомендації для комітету.</p>
+</body>
+</html>
