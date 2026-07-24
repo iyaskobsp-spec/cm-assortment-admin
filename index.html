@@ -70,6 +70,52 @@
     <button type="button">Обробити</button>
   </form>
 
+    <hr>
+
+  <h2>Пошук новинок / трендів</h2>
+
+  <form>
+    <label>
+      Що шукаємо
+      <input id="trendSearchInput" type="text" placeholder="Наприклад: іграшки, органайзери, декор">
+    </label>
+
+    <br><br>
+
+    <label>
+      Тип пошуку
+      <select id="trendSearchType">
+        <option value="all">Новинки + тренди + популярне</option>
+        <option value="new">Тільки новинки</option>
+        <option value="trends">Тільки тренди</option>
+        <option value="popular">Тільки популярне</option>
+      </select>
+    </label>
+
+    <br><br>
+
+    <label>
+      Ціна від, грн
+      <input id="trendMinPrice" type="number" placeholder="0">
+    </label>
+
+    <br><br>
+
+    <label>
+      Ціна до, грн
+      <input id="trendMaxPrice" type="number" placeholder="1000">
+    </label>
+
+    <br><br>
+
+    <button type="button" id="trendSearchButton">Шукати новинки</button>
+  </form>
+
+  <h2>Результат пошуку новинок</h2>
+  <p id="trendSearchResult">
+    Тут буде результат пошуку: трендові товари, новинки, орієнтовні ціни, джерела і короткий огляд ШІ.
+  </p>
+  
   <h2>Результат обробки</h2>
 
   <p><strong>Найнижча ціна:</strong> -</p>
