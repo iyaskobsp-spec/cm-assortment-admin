@@ -8,123 +8,80 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-  <h1>CM Assortment Admin</h1>
+  <main class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Асортиментний комітет</p>
+        <h1>CM Assortment Admin</h1>
+        <p class="hero-text">Оцінка товарів, пошук трендів і короткий висновок ШІ в одному робочому просторі.</p>
+      </div>
+    </header>
 
-  <h2>Заявка товару</h2>
+    <section class="work-section">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Блок 1</p>
+          <h2>Заявка товару</h2>
+        </div>
+        <span class="status-pill">Для комітету</span>
+      </div>
 
-  <form>
-    <label>
-      Сегмент
-      <select id="segmentSelect">
-        <option value="">Оберіть сегмент</option>
-      </select>
-    </label>
+      <div class="section-grid">
+        <form class="panel form-grid">
+          <label>Сегмент<select id="segmentSelect"><option value="">Оберіть сегмент</option></select></label>
+          <label>Категорія<select id="categorySelect" disabled><option value="">Спочатку оберіть сегмент</option></select></label>
+          <label>Вид<select id="typeSelect" disabled><option value="">Спочатку оберіть категорію</option></select></label>
+          <label>Назва товару<input type="text" placeholder="Наприклад: органайзер для спецій"></label>
+          <label>Бренд / постачальник<input type="text" placeholder="Назва бренду або постачальника"></label>
+          <label>Закупівельна ціна, грн<input type="number" placeholder="0.00"></label>
+          <label class="wide">Посилання на товар<input type="url" placeholder="https://..."></label>
+          <button type="button" class="primary-btn wide">Обробити заявку</button>
+        </form>
 
-    <br><br>
+        <aside class="panel result-panel">
+          <h3>Результат обробки</h3>
+          <div class="metric-grid">
+            <div><span>Найнижча ціна</span><strong>-</strong></div>
+            <div><span>Середня ціна</span><strong>-</strong></div>
+            <div><span>Найвища ціна</span><strong>-</strong></div>
+          </div>
 
-    <label>
-      Категорія
-      <select id="categorySelect" disabled>
-        <option value="">Спочатку оберіть сегмент</option>
-      </select>
-    </label>
+          <div class="ai-card">
+            <p class="ai-title">Огляд ШІ</p>
+            <p>Після обробки тут буде висновок щодо актуальності товару, ринкової ціни, ризиків і рекомендації для комітету.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
 
-    <br><br>
+    <section class="work-section">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Блок 2</p>
+          <h2>Пошук новинок / трендів</h2>
+        </div>
+        <span class="status-pill">Для аналітики</span>
+      </div>
 
-    <label>
-      Вид
-      <select id="typeSelect" disabled>
-        <option value="">Спочатку оберіть категорію</option>
-      </select>
-    </label>
+      <div class="section-grid">
+        <form class="panel form-grid">
+          <label class="wide">Що шукаємо<input id="trendSearchInput" type="text" placeholder="Наприклад: іграшки, органайзери, декор"></label>
+          <label>Тип пошуку<select id="trendSearchType"><option value="all">Новинки + тренди + популярне</option><option value="new">Тільки новинки</option><option value="trends">Тільки тренди</option><option value="popular">Тільки популярне</option></select></label>
+          <label>Ціна від, грн<input id="trendMinPrice" type="number" placeholder="0"></label>
+          <label>Ціна до, грн<input id="trendMaxPrice" type="number" placeholder="1000"></label>
+          <button type="button" id="trendSearchButton" class="primary-btn wide">Шукати новинки</button>
+        </form>
 
-    <br><br>
-
-    <label>
-      Назва товару
-      <input type="text" placeholder="Наприклад: органайзер для спецій">
-    </label>
-
-    <br><br>
-
-    <label>
-      Бренд / постачальник
-      <input type="text" placeholder="Назва бренду або постачальника">
-    </label>
-
-    <br><br>
-
-    <label>
-      Закупівельна ціна, грн
-      <input type="number" placeholder="0.00">
-    </label>
-
-    <br><br>
-
-    <label>
-      Посилання на товар
-      <input type="url" placeholder="https://...">
-    </label>
-
-    <br><br>
-
-    <button type="button">Обробити</button>
-  </form>
-
-    <hr>
-
-  <h2>Пошук новинок / трендів</h2>
-
-  <form>
-    <label>
-      Що шукаємо
-      <input id="trendSearchInput" type="text" placeholder="Наприклад: іграшки, органайзери, декор">
-    </label>
-
-    <br><br>
-
-    <label>
-      Тип пошуку
-      <select id="trendSearchType">
-        <option value="all">Новинки + тренди + популярне</option>
-        <option value="new">Тільки новинки</option>
-        <option value="trends">Тільки тренди</option>
-        <option value="popular">Тільки популярне</option>
-      </select>
-    </label>
-
-    <br><br>
-
-    <label>
-      Ціна від, грн
-      <input id="trendMinPrice" type="number" placeholder="0">
-    </label>
-
-    <br><br>
-
-    <label>
-      Ціна до, грн
-      <input id="trendMaxPrice" type="number" placeholder="1000">
-    </label>
-
-    <br><br>
-
-    <button type="button" id="trendSearchButton">Шукати новинки</button>
-  </form>
-
-  <h2>Результат пошуку новинок</h2>
-  <p id="trendSearchResult">
-    Тут буде результат пошуку: трендові товари, новинки, орієнтовні ціни, джерела і короткий огляд ШІ.
-  </p>
-  
-  <h2>Результат обробки</h2>
-
-  <p><strong>Найнижча ціна:</strong> -</p>
-  <p><strong>Середня ціна:</strong> -</p>
-  <p><strong>Найвища ціна:</strong> -</p>
-
-  <h2>Огляд ШІ</h2>
-  <p>Після обробки тут буде висновок щодо актуальності товару, ринкової ціни, ризиків і рекомендації для комітету.</p>
+        <aside class="panel result-panel">
+          <h3>Результат пошуку</h3>
+          <div class="ai-card">
+            <p class="ai-title">Огляд ШІ</p>
+            <p id="trendSearchResult">Тут буде результат пошуку: трендові товари, новинки, орієнтовні ціни, джерела і короткий висновок ШІ.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
 
   <script>
     const segmentSelect = document.getElementById("segmentSelect");
@@ -135,9 +92,7 @@
 
     function getUniqueValues(rows, field, filters = {}) {
       const values = rows
-        .filter(row => {
-          return Object.entries(filters).every(([key, value]) => row[key] === value);
-        })
+        .filter(row => Object.entries(filters).every(([key, value]) => row[key] === value))
         .map(row => row[field])
         .filter(Boolean);
 
@@ -166,8 +121,7 @@
       const response = await fetch("classifier.xlsx");
       const buffer = await response.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
-      const firstSheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[firstSheetName];
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
       classifierRows = XLSX.utils.sheet_to_json(sheet, { defval: "" }).map(row => ({
         segment: String(row["Сегмент"] || "").trim(),
@@ -175,24 +129,19 @@
         type: String(row["Вид"] || "").trim()
       })).filter(row => row.segment && row.category && row.type);
 
-      const segments = getUniqueValues(classifierRows, "segment");
-      fillSelect(segmentSelect, segments, "Оберіть сегмент");
+      fillSelect(segmentSelect, getUniqueValues(classifierRows, "segment"), "Оберіть сегмент");
     }
 
     segmentSelect.addEventListener("change", () => {
       const segment = segmentSelect.value;
-      const categories = getUniqueValues(classifierRows, "category", { segment });
-
-      fillSelect(categorySelect, categories, "Оберіть категорію");
+      fillSelect(categorySelect, getUniqueValues(classifierRows, "category", { segment }), "Оберіть категорію");
       fillSelect(typeSelect, [], "Спочатку оберіть категорію");
     });
 
     categorySelect.addEventListener("change", () => {
       const segment = segmentSelect.value;
       const category = categorySelect.value;
-      const types = getUniqueValues(classifierRows, "type", { segment, category });
-
-      fillSelect(typeSelect, types, "Оберіть вид");
+      fillSelect(typeSelect, getUniqueValues(classifierRows, "type", { segment, category }), "Оберіть вид");
     });
 
     loadClassifier();
