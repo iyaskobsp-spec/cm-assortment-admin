@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CM Assortment Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
   <h1>CM Assortment Admin</h1>
@@ -12,13 +13,27 @@
 
   <form>
     <label>
+      Сегмент
+      <select id="segmentSelect">
+        <option value="">Оберіть сегмент</option>
+      </select>
+    </label>
+
+    <br><br>
+
+    <label>
       Категорія
-      <select>
-        <option>Товари для дому</option>
-        <option>Кухня</option>
-        <option>Ванна кімната</option>
-        <option>Декор</option>
-        <option>Побутова хімія</option>
+      <select id="categorySelect" disabled>
+        <option value="">Спочатку оберіть сегмент</option>
+      </select>
+    </label>
+
+    <br><br>
+
+    <label>
+      Вид
+      <select id="typeSelect" disabled>
+        <option value="">Спочатку оберіть категорію</option>
       </select>
     </label>
 
@@ -63,5 +78,77 @@
 
   <h2>Огляд ШІ</h2>
   <p>Після обробки тут буде висновок щодо актуальності товару, ринкової ціни, ризиків і рекомендації для комітету.</p>
+
+  <script>
+    const segmentSelect = document.getElementById("segmentSelect");
+    const categorySelect = document.getElementById("categorySelect");
+    const typeSelect = document.getElementById("typeSelect");
+
+    let classifierRows = [];
+
+    function getUniqueValues(rows, field, filters = {}) {
+      const values = rows
+        .filter(row => {
+          return Object.entries(filters).every(([key, value]) => row[key] === value);
+        })
+        .map(row => row[field])
+        .filter(Boolean);
+
+      return [...new Set(values)];
+    }
+
+    function fillSelect(select, values, placeholder) {
+      select.innerHTML = "";
+
+      const defaultOption = document.createElement("option");
+      defaultOption.value = "";
+      defaultOption.textContent = placeholder;
+      select.appendChild(defaultOption);
+
+      values.forEach(value => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      });
+
+      select.disabled = values.length === 0;
+    }
+
+    async function loadClassifier() {
+      const response = await fetch("classifier.xlsx");
+      const buffer = await response.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheetName];
+
+      classifierRows = XLSX.utils.sheet_to_json(sheet, { defval: "" }).map(row => ({
+        segment: String(row["Сегмент"] || "").trim(),
+        category: String(row["Категория"] || "").trim(),
+        type: String(row["Вид"] || "").trim()
+      })).filter(row => row.segment && row.category && row.type);
+
+      const segments = getUniqueValues(classifierRows, "segment");
+      fillSelect(segmentSelect, segments, "Оберіть сегмент");
+    }
+
+    segmentSelect.addEventListener("change", () => {
+      const segment = segmentSelect.value;
+      const categories = getUniqueValues(classifierRows, "category", { segment });
+
+      fillSelect(categorySelect, categories, "Оберіть категорію");
+      fillSelect(typeSelect, [], "Спочатку оберіть категорію");
+    });
+
+    categorySelect.addEventListener("change", () => {
+      const segment = segmentSelect.value;
+      const category = categorySelect.value;
+      const types = getUniqueValues(classifierRows, "type", { segment, category });
+
+      fillSelect(typeSelect, types, "Оберіть вид");
+    });
+
+    loadClassifier();
+  </script>
 </body>
 </html>
