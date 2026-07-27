@@ -1,24 +1,24 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap");
 
 * {
   box-sizing: border-box;
 }
 
 :root {
-  --page: #07080b;
-  --panel: rgba(17, 19, 25, 0.86);
-  --panel-soft: rgba(24, 27, 35, 0.74);
-  --panel-strong: rgba(10, 11, 15, 0.94);
-  --text: #f6f1e8;
-  --muted: #a9adb5;
-  --muted-soft: #777f8d;
-  --line: rgba(255, 255, 255, 0.12);
-  --line-strong: rgba(232, 200, 115, 0.36);
-  --accent: #e8c873;
-  --accent-2: #8fdccf;
+  --page: #171a22;
+  --panel: rgba(38, 42, 54, 0.88);
+  --panel-soft: rgba(48, 53, 67, 0.78);
+  --panel-strong: rgba(28, 31, 40, 0.94);
+  --text: #fbf7ee;
+  --muted: #c2c7d0;
+  --muted-soft: #969daa;
+  --line: rgba(255, 255, 255, 0.16);
+  --line-strong: rgba(232, 200, 115, 0.42);
+  --accent: #e7c66f;
+  --accent-2: #8fd6cb;
   --danger: #ffb4a8;
-  --shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
-  --shadow-soft: 0 18px 46px rgba(0, 0, 0, 0.28);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  --shadow-soft: 0 16px 38px rgba(0, 0, 0, 0.22);
 }
 
 html {
@@ -31,9 +31,11 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--text);
-  font-family: "Inter", Arial, sans-serif;
+  font-family: "Montserrat", "Segoe UI", sans-serif;
   background:
-    linear-gradient(145deg, #07080b 0%, #101116 46%, #16181d 100%);
+    radial-gradient(circle at 16% 8%, rgba(232, 200, 115, 0.11), transparent 28%),
+    radial-gradient(circle at 84% 4%, rgba(143, 214, 203, 0.1), transparent 26%),
+    linear-gradient(145deg, #171a22 0%, #202530 48%, #2a2f3b 100%);
 }
 
 body::before {
@@ -75,8 +77,8 @@ select {
   border: 1px solid var(--line);
   border-radius: 8px;
   background:
-    linear-gradient(120deg, rgba(255, 255, 255, 0.1), transparent 34%),
-    linear-gradient(135deg, #111318 0%, #08090d 58%, #191b22 100%);
+    linear-gradient(120deg, rgba(255, 255, 255, 0.14), transparent 36%),
+    linear-gradient(135deg, #303543 0%, #222733 58%, #383d49 100%);
   box-shadow: var(--shadow);
 }
 
@@ -236,7 +238,7 @@ select {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   color: var(--text);
-  background-color: rgba(7, 8, 11, 0.56);
+  background-color: rgba(21, 24, 32, 0.62);
   outline: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
