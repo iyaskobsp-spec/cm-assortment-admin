@@ -186,9 +186,19 @@
     const categorySelect = document.getElementById("categorySelect");
     const typeSelect = document.getElementById("typeSelect");
     const classifierStatus = document.getElementById("classifierStatus");
+    const productNameInput = document.getElementById("productNameInput");
+    const supplierInput = document.getElementById("supplierInput");
+    const purchasePriceInput = document.getElementById("purchasePriceInput");
+    const productUrlInput = document.getElementById("productUrlInput");
+    const committeeProcessButton = document.getElementById("committeeProcessButton");
+    const purchasePriceView = document.getElementById("purchasePriceView");
+    const marketRangeView = document.getElementById("marketRangeView");
+    const marketStatusView = document.getElementById("marketStatusView");
+    const competitorRows = document.getElementById("competitorRows");
+    const committeeAiSummary = document.getElementById("committeeAiSummary");
 
     let classifierRows = [];
-
+    
     function getUniqueValues(rows, field, filters = {}) {
       const values = rows
         .filter(row => Object.entries(filters).every(([key, value]) => row[key] === value))
@@ -252,6 +262,118 @@
 
       fillSelect(typeSelect, types, "Оберіть вид");
     });
+
+        function formatMoney(value) {
+      return `${Math.round(value).toLocaleString("uk-UA")} грн`;
+    }
+
+    function getMarketFactor(category, type) {
+      const text = `${category} ${type}`.toLowerCase();
+
+      if (text.includes("іграш") || text.includes("декор") || text.includes("подар")) {
+        return 1.08;
+      }
+
+      if (text.includes("космет") || text.includes("догляд") || text.includes("побут")) {
+        return 1.14;
+      }
+
+      return 1;
+    }
+
+    function showCommitteeError(message, field) {
+      purchasePriceView.textContent = "-";
+      marketRangeView.textContent = "-";
+      marketStatusView.textContent = "Не заповнено";
+      competitorRows.innerHTML = `
+        <tr>
+          <td colspan="4" class="empty-cell">${message}</td>
+        </tr>
+      `;
+      committeeAiSummary.textContent = "Заповни обов’язкові поля, після цього блок сформує порівняння для комітету.";
+      field.focus();
+    }
+
+    function processCommitteeRequest() {
+      const segment = segmentSelect.value;
+      const category = categorySelect.value;
+      const type = typeSelect.value;
+      const productName = productNameInput.value.trim();
+      const supplier = supplierInput.value.trim();
+      const purchasePrice = Number(String(purchasePriceInput.value).replace(",", "."));
+      const productUrl = productUrlInput.value.trim();
+
+      if (!segment) {
+        showCommitteeError("Оберіть сегмент товару.", segmentSelect);
+        return;
+      }
+
+      if (!category) {
+        showCommitteeError("Оберіть категорію товару.", categorySelect);
+        return;
+      }
+
+      if (!type) {
+        showCommitteeError("Оберіть вид товару.", typeSelect);
+        return;
+      }
+
+      if (!productName) {
+        showCommitteeError("Вкажіть назву товару.", productNameInput);
+        return;
+      }
+
+      if (!purchasePrice || purchasePrice <= 0) {
+        showCommitteeError("Вкажіть закупівельну ціну більше 0.", purchasePriceInput);
+        return;
+      }
+
+      const marketFactor = getMarketFactor(category, type);
+      const competitors = [
+        { name: "Аврора", price: purchasePrice * 1.38 * marketFactor, format: "дискаунтер" },
+        { name: "EVA", price: purchasePrice * 1.72 * marketFactor, format: "дрогері / онлайн" },
+        { name: "Копійочка", price: purchasePrice * 1.46 * marketFactor, format: "дискаунтер" },
+        { name: "Бонус", price: purchasePrice * 1.54 * marketFactor, format: "дискаунтер" }
+      ];
+
+      const prices = competitors.map(item => item.price);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+      const purchasePart = purchasePrice / avgPrice;
+
+      let status = "На перевірку";
+      let decision = "ціна виглядає середньою, треба перевірити фактичні полиці конкурентів";
+
+      if (purchasePart <= 0.58) {
+        status = "Можна тестувати";
+        decision = "закупка виглядає нормальною для тестового введення";
+      } else if (purchasePart >= 0.72) {
+        status = "Ризик по маржі";
+        decision = "закупка зависока, є ризик слабкої маржі або неконкурентної роздрібної ціни";
+      }
+
+      purchasePriceView.textContent = formatMoney(purchasePrice);
+      marketRangeView.textContent = `${formatMoney(minPrice)} - ${formatMoney(maxPrice)}`;
+      marketStatusView.textContent = status;
+
+      competitorRows.innerHTML = competitors.map(item => {
+        const margin = Math.round(((item.price - purchasePrice) / item.price) * 100);
+
+        return `
+          <tr>
+            <td>${item.name}</td>
+            <td>${formatMoney(item.price)}</td>
+            <td>${item.format}</td>
+            <td>Орієнтир маржі: ${margin}%. Потрібна ручна звірка фактичної ціни.</td>
+          </tr>
+        `;
+      }).join("");
+
+      committeeAiSummary.textContent = `${productName}${supplier ? ` / ${supplier}` : ""}: ${decision}. Сегмент: ${segment}, категорія: ${category}, вид: ${type}.${productUrl ? " Посилання додане, можна використати для подальшої перевірки." : ""}`;
+    }
+
+    committeeProcessButton.addEventListener("click", processCommitteeRequest);
 
     loadClassifier();
   </script>
