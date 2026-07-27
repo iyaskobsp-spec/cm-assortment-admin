@@ -65,6 +65,11 @@
             <input id="purchasePriceInput" type="number" placeholder="0.00">
           </div>
 
+          <div class="field">
+            <label for="plannedRetailPriceInput">Планова роздрібна ціна, грн</label>
+            <input id="plannedRetailPriceInput" type="number" placeholder="0.00">
+          </div>
+
           <div class="field field-wide">
             <label for="productUrlInput">Посилання на товар</label>
             <input id="productUrlInput" type="url" placeholder="https://...">
@@ -84,6 +89,17 @@
               <span>Закупка</span>
               <strong id="purchasePriceView">-</strong>
             </div>
+
+            <div>
+              <span>Планова роздрібна</span>
+              <strong id="plannedRetailPriceView">-</strong>
+            </div>
+
+            <div>
+              <span>Маржа</span>
+              <strong id="plannedMarginView">-</strong>
+            </div>
+            
             <div>
               <span>Ринок</span>
               <strong id="marketRangeView">-</strong>
@@ -189,9 +205,12 @@
     const productNameInput = document.getElementById("productNameInput");
     const supplierInput = document.getElementById("supplierInput");
     const purchasePriceInput = document.getElementById("purchasePriceInput");
+    const plannedRetailPriceInput = document.getElementById("plannedRetailPriceInput");    
     const productUrlInput = document.getElementById("productUrlInput");
     const committeeProcessButton = document.getElementById("committeeProcessButton");
     const purchasePriceView = document.getElementById("purchasePriceView");
+    const plannedRetailPriceView = document.getElementById("plannedRetailPriceView");
+    const plannedMarginView = document.getElementById("plannedMarginView");    
     const marketRangeView = document.getElementById("marketRangeView");
     const marketStatusView = document.getElementById("marketStatusView");
     const competitorRows = document.getElementById("competitorRows");
@@ -283,6 +302,8 @@
 
     function showCommitteeError(message, field) {
       purchasePriceView.textContent = "-";
+      plannedRetailPriceView.textContent = "-";
+      plannedMarginView.textContent = "-";
       marketRangeView.textContent = "-";
       marketStatusView.textContent = "Не заповнено";
       competitorRows.innerHTML = `
@@ -301,6 +322,7 @@
       const productName = productNameInput.value.trim();
       const supplier = supplierInput.value.trim();
       const purchasePrice = Number(String(purchasePriceInput.value).replace(",", "."));
+      const plannedRetailPrice = Number(String(plannedRetailPriceInput.value).replace(",", "."));
       const productUrl = productUrlInput.value.trim();
 
       if (!segment) {
@@ -328,6 +350,11 @@
         return;
       }
 
+      if (!plannedRetailPrice || plannedRetailPrice <= 0) {
+        showCommitteeError("Вкажіть планову роздрібну ціну більше 0.", plannedRetailPriceInput);
+        return;
+      }      
+
       const marketFactor = getMarketFactor(category, type);
       const competitors = [
         { name: "Аврора", price: purchasePrice * 1.38 * marketFactor, format: "дискаунтер" },
@@ -353,7 +380,11 @@
         decision = "закупка зависока, є ризик слабкої маржі або неконкурентної роздрібної ціни";
       }
 
+      const plannedMargin = ((plannedRetailPrice - purchasePrice) / plannedRetailPrice) * 100;
+
       purchasePriceView.textContent = formatMoney(purchasePrice);
+      plannedRetailPriceView.textContent = formatMoney(plannedRetailPrice);
+      plannedMarginView.textContent = `${Math.round(plannedMargin)}%`;
       marketRangeView.textContent = `${formatMoney(minPrice)} - ${formatMoney(maxPrice)}`;
       marketStatusView.textContent = status;
 
@@ -370,7 +401,7 @@
         `;
       }).join("");
 
-      committeeAiSummary.textContent = `${productName}${supplier ? ` / ${supplier}` : ""}: ${decision}. Сегмент: ${segment}, категорія: ${category}, вид: ${type}.${productUrl ? " Посилання додане, можна використати для подальшої перевірки." : ""}`;
+      committeeAiSummary.textContent = `${productName}${supplier ? ` / ${supplier}` : ""}: ${decision}. Планова роздрібна ціна ${formatMoney(plannedRetailPrice)}, маржа від планової роздрібної ${Math.round(plannedMargin)}%. Сегмент: ${segment}, категорія: ${category}, вид: ${type}.${productUrl ? " Посилання додане, можна використати для подальшої перевірки." : ""}`;
     }
 
     committeeProcessButton.addEventListener("click", processCommitteeRequest);
