@@ -45,7 +45,7 @@ body::after {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: url("images/admin-bg.png") center center / min(100vw, 178vh) auto no-repeat;
+  background: url("images/admin-bg.png") center top / 100vw auto no-repeat;
   opacity: 0.5;
 }
 
