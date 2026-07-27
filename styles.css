@@ -36,14 +36,24 @@ body {
     linear-gradient(180deg, rgba(23, 26, 34, 0.76), rgba(23, 26, 34, 0.86)),
     radial-gradient(circle at 16% 8%, rgba(232, 200, 115, 0.13), transparent 28%),
     radial-gradient(circle at 84% 4%, rgba(143, 214, 203, 0.12), transparent 26%),
-    url("images/admin-bg.png") center top / min(1680px, 88vw) auto no-repeat,
     linear-gradient(145deg, #171a22 0%, #202530 48%, #2a2f3b 100%);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url("images/admin-bg.png") center center / min(100vw, 178vh) auto no-repeat;
+  opacity: 0.5;
 }
 
 body::before {
   content: "";
   position: fixed;
   inset: 0;
+  z-index: 1;
   pointer-events: none;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
@@ -61,7 +71,7 @@ select {
 
 .admin-shell {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   width: min(1240px, calc(100% - 40px));
   margin: 0 auto;
   padding: 34px 0 56px;
