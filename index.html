@@ -74,33 +74,51 @@
             <input id="productUrlInput" type="url" placeholder="https://...">
           </div>
 
-          <button type="button" class="primary-btn field-wide">Обробити заявку</button>
+          <button type="button" id="committeeProcessButton" class="primary-btn field-wide">Обробити заявку</button>
         </form>
 
-        <aside class="insight-panel">
+        <aside class="insight-panel result-panel">
           <div class="insight-head">
-            <span>Результат</span>
-            <h3>Оцінка для комітету</h3>
+            <span>Результат для комітету</span>
+            <h3>Ціни конкурентів і рішення</h3>
           </div>
 
-          <div class="metric-grid">
-            <div class="metric-card">
-              <span>Найнижча ціна</span>
-              <strong>-</strong>
+          <div class="price-summary">
+            <div>
+              <span>Закупка</span>
+              <strong id="purchasePriceView">-</strong>
             </div>
-            <div class="metric-card">
-              <span>Середня ціна</span>
-              <strong>-</strong>
+            <div>
+              <span>Ринок</span>
+              <strong id="marketRangeView">-</strong>
             </div>
-            <div class="metric-card">
-              <span>Найвища ціна</span>
-              <strong>-</strong>
+            <div>
+              <span>Статус</span>
+              <strong id="marketStatusView">Очікує обробки</strong>
             </div>
+          </div>
+
+          <div class="competitor-table-wrap">
+            <table class="competitor-table">
+              <thead>
+                <tr>
+                  <th>Конкурент</th>
+                  <th>Ціна</th>
+                  <th>Формат</th>
+                  <th>Коментар</th>
+                </tr>
+              </thead>
+              <tbody id="competitorRows">
+                <tr>
+                  <td colspan="4" class="empty-cell">Після обробки тут буде порівняння цін: Аврора, EVA, Копійочка, Бонус та інші джерела.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           <div class="ai-card">
             <p class="ai-title">Огляд ШІ</p>
-            <p>Після обробки тут буде короткий висновок щодо актуальності товару, ринкової ціни, ризиків і рекомендації для комітету.</p>
+            <p id="committeeAiSummary">Тут має бути короткий висновок: чи проходить товар по ціні, чи є сенс тестувати, які ризики і що саме показати комітету.</p>
           </div>
         </aside>
       </div>
@@ -145,30 +163,22 @@
           <button type="button" id="trendSearchButton" class="primary-btn field-wide">Шукати новинки</button>
         </form>
 
-        <aside class="insight-panel">
+        <aside class="insight-panel result-panel">
           <div class="insight-head">
-            <span>Результат</span>
-            <h3>Підбірка новинок</h3>
+            <span>Результат пошуку</span>
+            <h3>Що реально шукати</h3>
           </div>
 
-          <div class="trend-preview">
-            <div>
-              <span>Новинки</span>
-              <strong>-</strong>
-            </div>
-            <div>
-              <span>Тренди</span>
-              <strong>-</strong>
-            </div>
-            <div>
-              <span>Ціновий зріз</span>
-              <strong>-</strong>
-            </div>
+          <div class="ideas-list" id="trendIdeasList">
+            <article class="idea-card empty-state">
+              <strong>Поки немає результатів</strong>
+              <p>Після пошуку тут має бути список конкретних ідей: назва товару, чому актуально, де шукати, орієнтир ціни і рішення.</p>
+            </article>
           </div>
 
           <div class="ai-card">
             <p class="ai-title">Огляд ШІ</p>
-            <p id="trendSearchResult">Тут буде результат пошуку: що зараз актуальне, які є новинки, орієнтовні ціни, джерела і короткий висновок для асортиментної аналітики.</p>
+            <p id="trendSearchResult">Замість кубиків тут буде нормальний висновок: що варто перевірити, які позиції можуть зайти в асортимент і що відсіяти.</p>
           </div>
         </aside>
       </div>
