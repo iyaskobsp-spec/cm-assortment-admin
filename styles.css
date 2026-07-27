@@ -36,7 +36,7 @@ body {
     linear-gradient(180deg, rgba(23, 26, 34, 0.76), rgba(23, 26, 34, 0.86)),
     radial-gradient(circle at 16% 8%, rgba(232, 200, 115, 0.13), transparent 28%),
     radial-gradient(circle at 84% 4%, rgba(143, 214, 203, 0.12), transparent 26%),
-    url("images/admin-bg.png") center top / cover no-repeat,
+    url("images/admin-bg.png") center top / min(1680px, 88vw) auto no-repeat,
     linear-gradient(145deg, #171a22 0%, #202530 48%, #2a2f3b 100%);
 }
 
