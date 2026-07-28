@@ -940,13 +940,19 @@ async function monitorProduct(requestBody) {
     return result;
   }
 
-  const [promState, foraState, auroraState, evaState] =
-    await Promise.allSettled([
-      monitorProm(productName, supplier),
-      monitorFora(),
-      monitorAurora(),
-      monitorEva()
-    ]);
+  const [
+    promState,
+    foraState,
+    auroraState,
+    evaState,
+    silpoState
+  ] = await Promise.allSettled([
+    monitorProm(productName, supplier),
+    monitorFora(),
+    monitorAurora(),
+    monitorEva(),
+    monitorSilpo()
+  ]);
 
   let promResult;
   let promSource;
@@ -1011,6 +1017,17 @@ async function monitorProduct(requestBody) {
     console.error("[EVA]", evaState.reason);
   }
 
+  const silpoSource = silpoState.status === "fulfilled"
+    ? silpoState.value
+    : buildErrorSource(
+      "Сільпо",
+      "Сільпо тимчасово не відповідає."
+    );
+
+  if (silpoState.status === "rejected") {
+    console.error("[Сільпо]", silpoState.reason);
+  }
+
   return {
     query,
     checkedAt: new Date().toISOString(),
@@ -1018,7 +1035,8 @@ async function monitorProduct(requestBody) {
       promResult.cached &&
       foraSource.cached &&
       auroraSource.cached &&
-      evaSource.cached
+      evaSource.cached &&
+      silpoSource.cached
     ),
     provider: "multi-source",
     offers: promResult.offers,
@@ -1027,7 +1045,8 @@ async function monitorProduct(requestBody) {
       promSource,
       foraSource,
       auroraSource,
-      evaSource
+      evaSource,
+      silpoSource
     ]
   };
 }
@@ -1050,7 +1069,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, 200, {
       status: "ok",
       monitoringConfigured: true,
-      sources: ["Prom.ua", "Фора", "Аврора", "EVA"]
+      sources: ["Prom.ua", "Фора", "Аврора", "EVA", "Сільпо"]
     });
     return;
   }
