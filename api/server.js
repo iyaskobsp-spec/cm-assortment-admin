@@ -2,7 +2,7 @@ import http from "node:http";
 import { URL } from "node:url";
 
 const PORT = Number.parseInt(process.env.PORT || "3000", 10);
-const SERPAPI_KEY = process.env.SERPAPI_KEY || "";
+
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
   .map(value => value.trim())
@@ -10,8 +10,11 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
 
 const MAX_BODY_SIZE = 10 * 1024;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
-const MAX_REQUESTS_PER_WINDOW = 20;
+const MAX_REQUESTS_PER_WINDOW = 30;
+const CACHE_TTL_MS = 15 * 60 * 1000;
+
 const requestLog = new Map();
+const monitoringCache = new Map();
 
 function setCorsHeaders(request, response) {
   const origin = request.headers.origin;
@@ -95,11 +98,27 @@ function readJsonBody(request) {
   });
 }
 
-function cleanText(value, maxLength = 180) {
+function cleanText(value, maxLength = 240) {
   return String(value || "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
+}
+
+function decodeHtml(value) {
+  const entities = {
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": '"',
+    "&#039;": "'",
+    "&#39;": "'"
+  };
+
+  return String(value || "").replace(
+    /&(amp|lt|gt|quot|#039|#39);/gi,
+    entity => entities[entity.toLowerCase()] || entity
+  );
 }
 
 function parsePrice(value) {
@@ -115,37 +134,189 @@ function parsePrice(value) {
     return null;
   }
 
-  const parsed = Number(match[0].replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : null;
+  const price = Number(match[0].replace(",", "."));
+  return Number.isFinite(price) ? price : null;
 }
 
-function makeOffer(item) {
-  const price = parsePrice(item.extracted_price ?? item.price);
+function safeUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
 
-  if (!price || price <= 0) {
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.toString()
+      : null;
+  } catch {
     return null;
   }
-
-  const link = [item.link, item.product_link].find(value =>
-    typeof value === "string" && value.startsWith("http")
-  ) || null;
-
-  return {
-    title: cleanText(item.title, 240) || "Без назви",
-    source: cleanText(item.source, 100) || "Невідомий магазин",
-    price: Math.round(price * 100) / 100,
-    link,
-    delivery: cleanText(item.delivery, 120) || null
-  };
 }
 
-async function monitorProduct(requestBody) {
-  if (!SERPAPI_KEY) {
-    const error = new Error("SERPAPI_KEY_MISSING");
-    error.statusCode = 503;
+function flattenJsonLd(value) {
+  if (Array.isArray(value)) {
+    return value.flatMap(flattenJsonLd);
+  }
+
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+
+  const items = [value];
+
+  if (Array.isArray(value["@graph"])) {
+    items.push(...value["@graph"]);
+  }
+
+  return items;
+}
+
+function isProduct(value) {
+  const type = value?.["@type"];
+
+  return type === "Product" ||
+    (Array.isArray(type) && type.includes("Product"));
+}
+
+function availabilityLabel(value) {
+  const availability = String(value || "").toLowerCase();
+
+  if (availability.includes("instock")) {
+    return "В наявності";
+  }
+
+  if (availability.includes("outofstock")) {
+    return "Немає в наявності";
+  }
+
+  if (availability.includes("preorder")) {
+    return "Передзамовлення";
+  }
+
+  return "Статус не вказано";
+}
+
+function extractPromOffers(html) {
+  const products = [];
+  const scriptPattern =
+    /<script\b[^>]*type=(["'])application\/ld\+json\1[^>]*>([\s\S]*?)<\/script>/gi;
+
+  for (const match of html.matchAll(scriptPattern)) {
+    try {
+      const parsed = JSON.parse(match[2].trim());
+
+      flattenJsonLd(parsed)
+        .filter(isProduct)
+        .forEach(product => products.push(product));
+    } catch {
+      // Пропускаємо службовий або некоректний JSON-LD.
+    }
+  }
+
+  const offers = products
+    .flatMap(product => {
+      const productOffers = Array.isArray(product.offers)
+        ? product.offers
+        : product.offers
+          ? [product.offers]
+          : [];
+
+      return productOffers.map(offer => {
+        const price = parsePrice(offer.price ?? offer.lowPrice);
+
+        if (!price || price <= 0) {
+          return null;
+        }
+
+        return {
+          source: "Prom",
+          title: cleanText(decodeHtml(product.name), 260) || "Без назви",
+          price: Math.round(price * 100) / 100,
+          currency: cleanText(offer.priceCurrency, 10) || "UAH",
+          link: safeUrl(offer.url || product.url),
+          format: "Маркетплейс",
+          comment: availabilityLabel(offer.availability)
+        };
+      });
+    })
+    .filter(Boolean)
+    .sort((first, second) => first.price - second.price);
+
+  const uniqueOffers = [];
+  const seen = new Set();
+
+  for (const offer of offers) {
+    const key = offer.link || `${offer.title}|${offer.price}`;
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueOffers.push(offer);
+    }
+  }
+
+  return uniqueOffers.slice(0, 10);
+}
+
+async function monitorProm(productName, supplier) {
+  const query = [supplier, productName]
+    .filter(Boolean)
+    .join(" ");
+
+  const cacheKey = query.toLowerCase();
+  const cached = monitoringCache.get(cacheKey);
+
+  if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+    return {
+      ...cached.result,
+      cached: true
+    };
+  }
+
+  const promUrl = new URL("https://prom.ua/ua/search");
+  promUrl.searchParams.set("search_term", query);
+
+  const providerResponse = await fetch(promUrl, {
+    headers: {
+      Accept: "text/html,application/xhtml+xml",
+      "Accept-Language": "uk-UA,uk;q=0.9"
+    },
+    signal: AbortSignal.timeout(20000)
+  });
+
+  if (!providerResponse.ok) {
+    const error = new Error("PROM_REQUEST_FAILED");
+    error.statusCode = 502;
     throw error;
   }
 
+  const html = await providerResponse.text();
+  const offers = extractPromOffers(html);
+  const prices = offers.map(offer => offer.price);
+
+  const result = {
+    query,
+    checkedAt: new Date().toISOString(),
+    cached: false,
+    provider: "Prom.ua",
+    offers,
+    market: {
+      currency: "UAH",
+      lowestPrice: prices.length ? prices[0] : null,
+      averagePrice: prices.length
+        ? Math.round(
+          (prices.reduce((sum, price) => sum + price, 0) / prices.length) * 100
+        ) / 100
+        : null,
+      highestPrice: prices.length ? prices[prices.length - 1] : null
+    }
+  };
+
+  monitoringCache.set(cacheKey, {
+    savedAt: Date.now(),
+    result
+  });
+
+  return result;
+}
+
+async function monitorProduct(requestBody) {
   const productName = cleanText(requestBody.productName);
   const supplier = cleanText(requestBody.supplier, 120);
 
@@ -155,64 +326,7 @@ async function monitorProduct(requestBody) {
     throw error;
   }
 
-  const query = [supplier, productName].filter(Boolean).join(" ");
-
-  const searchParams = new URLSearchParams({
-    engine: "google_shopping",
-    q: query,
-    gl: "ua",
-    hl: "uk",
-    num: "20",
-    api_key: SERPAPI_KEY
-  });
-
-  const providerResponse = await fetch(
-    `https://serpapi.com/search.json?${searchParams.toString()}`,
-    {
-      headers: {
-        Accept: "application/json"
-      },
-      signal: AbortSignal.timeout(20000)
-    }
-  );
-
-  if (!providerResponse.ok) {
-    const error = new Error("PROVIDER_REQUEST_FAILED");
-    error.statusCode = 502;
-    throw error;
-  }
-
-  const providerData = await providerResponse.json();
-
-  if (providerData.error) {
-    const error = new Error("PROVIDER_RETURNED_ERROR");
-    error.statusCode = 502;
-    throw error;
-  }
-
-  const offers = (providerData.shopping_results || [])
-    .map(makeOffer)
-    .filter(Boolean)
-    .sort((first, second) => first.price - second.price)
-    .slice(0, 20);
-
-  const prices = offers.map(offer => offer.price);
-  const averagePrice = prices.length
-    ? Math.round((prices.reduce((sum, price) => sum + price, 0) / prices.length) * 100) / 100
-    : null;
-
-  return {
-    query,
-    checkedAt: providerData.search_metadata?.processed_at || new Date().toISOString(),
-    provider: "Google Shopping через SerpApi",
-    offers,
-    market: {
-      currency: "UAH",
-      lowestPrice: prices.length ? prices[0] : null,
-      averagePrice,
-      highestPrice: prices.length ? prices[prices.length - 1] : null
-    }
-  };
+  return monitorProm(productName, supplier);
 }
 
 const server = http.createServer(async (request, response) => {
@@ -232,7 +346,8 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && requestUrl.pathname === "/health") {
     sendJson(response, 200, {
       status: "ok",
-      monitoringConfigured: Boolean(SERPAPI_KEY)
+      monitoringConfigured: true,
+      sources: ["Prom.ua"]
     });
     return;
   }
@@ -268,17 +383,9 @@ const server = http.createServer(async (request, response) => {
           statusCode: 400,
           message: "Вкажіть назву товару."
         },
-        SERPAPI_KEY_MISSING: {
-          statusCode: 503,
-          message: "Моніторинг ще не налаштований."
-        },
-        PROVIDER_REQUEST_FAILED: {
+        PROM_REQUEST_FAILED: {
           statusCode: 502,
-          message: "Сервіс моніторингу тимчасово недоступний."
-        },
-        PROVIDER_RETURNED_ERROR: {
-          statusCode: 502,
-          message: "Сервіс моніторингу не зміг виконати пошук."
+          message: "Prom тимчасово не відповідає."
         }
       };
 
