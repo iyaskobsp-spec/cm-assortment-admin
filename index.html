@@ -453,6 +453,15 @@ async function processCommitteeRequest() {
         ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${sourceName}</a>`
         : sourceName;
 
+      const matchText =
+        `${matchLabel}${offersCount ? ` · ${offersCount} поз.` : ""}`;
+
+      const searchLink = String(source.searchLink || "");
+
+      const matchCell = searchLink && source.status === "ok"
+        ? `<a href="${escapeHtml(searchLink)}" target="_blank" rel="noopener noreferrer">${matchText}</a>`
+        : matchText;
+
       const priceCell = value =>
         Number(value) > 0 ? formatMoney(Number(value)) : "—";
 
@@ -461,7 +470,7 @@ async function processCommitteeRequest() {
           <td>${sourceCell}</td>
           <td>
             <strong>${title}</strong><br>
-            <small>${matchLabel}${offersCount ? ` · ${offersCount} поз.` : ""}</small>
+            <small>${matchCell}</small>
           </td>
           <td>${priceCell(market.lowestPrice)}</td>
           <td>${priceCell(market.averagePrice)}</td>
