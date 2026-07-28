@@ -518,9 +518,116 @@ async function monitorProduct(requestBody) {
     return result;
   }
 
-  const [promState, foraState] = await Promise.allSettled([
+  async function monitorAurora() {
+    const cacheKey = `aurora:${query.toLocaleLowerCase("uk-UA")}`;
+    const cached = monitoringCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+      return {
+        ...cached.result,
+        cached: true
+      };
+    }
+
+    const ignoredTokens = new Set([
+      "для", "та", "і", "з", "у", "в", "на", "по",
+      "мл", "л", "г", "кг", "шт",
+      "шампунь", "бальзам", "крем", "гель", "засіб",
+      "набір", "серветки", "порошок", "мило"
+    ]);
+
+    const productTokens = tokenizeSearchText(productName)
+      .filter(token =>
+        !ignoredTokens.has(token) &&
+        !/^\d+(?:[.,]\d+)?$/.test(token)
+      );
+
+    const latinToken = productTokens.find(token => /[a-z]/i.test(token));
+
+    const auroraQuery = latinToken ||
+      [...productTokens]
+        .sort((first, second) => second.length - first.length)[0] ||
+      productName;
+
+    const auroraUrl = new URL("https://avrora.ua/");
+
+    const searchParams = {
+      subcats: "Y",
+      status: "A",
+      pshort: "Y",
+      pfull: "Y",
+      pname: "Y",
+      pkeywords: "Y",
+      pcode_from_q: "Y",
+      search_performed: "Y",
+      q: auroraQuery,
+      dispatch: "products.search"
+    };
+
+    Object.entries(searchParams).forEach(([name, value]) => {
+      auroraUrl.searchParams.set(name, value);
+    });
+
+    const auroraResponse = await fetch(auroraUrl, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "uk-UA,uk;q=0.9",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
+      },
+      signal: AbortSignal.timeout(20000)
+    });
+
+    if (!auroraResponse.ok) {
+      throw new Error("AURORA_REQUEST_FAILED");
+    }
+
+    const html = await auroraResponse.text();
+    const offers = [];
+
+    const productPattern =
+      /<a\b[^>]*href="([^"]+)"[^>]*class="[^"]*\bproduct-title\b[^"]*"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<span\b[^>]*class="[^"]*\bty-price-num\b[^"]*"[^>]*>([\d\s.,]+)<\/span>/gi;
+
+    for (const match of html.matchAll(productPattern)) {
+      const price = parsePrice(match[3]);
+
+      const title = cleanText(
+        decodeHtml(match[2].replace(/<[^>]*>/g, " ")),
+        260
+      );
+
+      if (!price || price <= 0 || !title) {
+        continue;
+      }
+
+      offers.push({
+        source: "Аврора",
+        title,
+        price: Math.round(price * 100) / 100,
+        currency: "UAH",
+        link: safeUrl(decodeHtml(match[1])),
+        availability: "Онлайн-каталог"
+      });
+    }
+
+    const result = buildSourceSummary("Аврора", query, offers, {
+      cached: false,
+      searchQuery: auroraQuery,
+      searchLink: auroraUrl.toString()
+    });
+
+    monitoringCache.set(cacheKey, {
+      savedAt: Date.now(),
+      result
+    });
+
+    return result;
+  }
+
+  const [promState, foraState, auroraState] = await Promise.allSettled([
     monitorProm(productName, supplier),
-    monitorFora()
+    monitorFora(),
+    monitorAurora()
   ]);
 
   let promResult;
@@ -564,14 +671,29 @@ async function monitorProduct(requestBody) {
     console.error("[Фора]", foraState.reason);
   }
 
+  const auroraSource = auroraState.status === "fulfilled"
+    ? auroraState.value
+    : buildErrorSource(
+      "Аврора",
+      "Аврора тимчасово не відповідає."
+    );
+
+  if (auroraState.status === "rejected") {
+    console.error("[Аврора]", auroraState.reason);
+  }
+
   return {
     query,
     checkedAt: new Date().toISOString(),
-    cached: Boolean(promResult.cached && foraSource.cached),
+    cached: Boolean(
+      promResult.cached &&
+      foraSource.cached &&
+      auroraSource.cached
+    ),
     provider: "multi-source",
     offers: promResult.offers,
     market: promResult.market,
-    sources: [promSource, foraSource]
+    sources: [promSource, foraSource, auroraSource]
   };
 }
 
@@ -593,7 +715,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, 200, {
       status: "ok",
       monitoringConfigured: true,
-      sources: ["Prom.ua", "Фора"]
+      sources: ["Prom.ua", "Фора", "Аврора"]
     });
     return;
   }
