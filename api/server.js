@@ -886,7 +886,13 @@ async function monitorProduct(requestBody) {
     );
 
     if (!silpoResponse.ok) {
-      throw new Error("SILPO_REQUEST_FAILED");
+      const errorBody = await silpoResponse
+        .text()
+        .catch(() => "");
+
+      throw new Error(
+        `SILPO_REQUEST_FAILED: HTTP ${silpoResponse.status} ${cleanText(errorBody, 300)}`
+      );
     }
 
     const silpoData = await silpoResponse.json();
