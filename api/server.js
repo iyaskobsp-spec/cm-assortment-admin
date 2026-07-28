@@ -545,8 +545,7 @@ async function monitorProduct(requestBody) {
     const latinToken = productTokens.find(token => /[a-z]/i.test(token));
 
     const auroraQuery = latinToken ||
-      [...productTokens]
-        .sort((first, second) => second.length - first.length)[0] ||
+      productTokens[0] ||
       productName;
 
     const auroraUrl = new URL("https://avrora.ua/");
