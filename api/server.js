@@ -319,6 +319,9 @@ async function monitorProm(productName, supplier) {
 async function monitorProduct(requestBody) {
   const productName = cleanText(requestBody.productName);
   const supplier = cleanText(requestBody.supplier, 120);
+  const segment = cleanText(requestBody.segment, 160);
+  const category = cleanText(requestBody.category, 160);
+  const type = cleanText(requestBody.type, 160);
 
   if (!productName) {
     const error = new Error("PRODUCT_NAME_REQUIRED");
@@ -424,6 +427,37 @@ async function monitorProduct(requestBody) {
       )
     ) {
       return 0;
+    }
+
+    const classificationTokens = getMeaningfulTokens(
+      `${category} ${type}`
+    ).filter(classificationToken =>
+      !productTokens.some(productToken =>
+        tokensMatch(classificationToken, productToken)
+      )
+    );
+
+    const matchedClassificationTokens =
+      countMatchedTokens(classificationTokens);
+
+    if (productTokens.length === 1) {
+      const productToken = productTokens[0];
+
+      const productAppearsNearStart = titleTokens
+        .slice(0, 2)
+        .some(titleToken =>
+          tokensMatch(productToken, titleToken)
+        );
+
+      const hasStrongClassificationMatch =
+        matchedClassificationTokens >= 2;
+
+      if (
+        !productAppearsNearStart &&
+        !hasStrongClassificationMatch
+      ) {
+        return 0;
+      }
     }
 
     const extractPackages = value => {
