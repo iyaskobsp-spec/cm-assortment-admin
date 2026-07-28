@@ -114,15 +114,16 @@
             <table class="competitor-table">
               <thead>
                 <tr>
-                  <th>Конкурент</th>
-                  <th>Ціна</th>
-                  <th>Формат</th>
-                  <th>Коментар</th>
+                  <th>Джерело</th>
+                  <th>Знайдений товар</th>
+                  <th>Найнижча ціна</th>
+                  <th>Середня ціна</th>
+                  <th>Найвища ціна</th>
                 </tr>
               </thead>
               <tbody id="competitorRows">
                 <tr>
-                  <td colspan="4" class="empty-cell">Після обробки тут буде порівняння цін: Аврора, EVA, Копійочка, Бонус та інші джерела.</td>
+                  <td colspan="5" class="empty-cell">Після обробки тут буде порівняння цін із підключених джерел.</td>
                 </tr>
               </tbody>
             </table>
@@ -308,7 +309,7 @@
       marketStatusView.textContent = "Не заповнено";
       competitorRows.innerHTML = `
         <tr>
-          <td colspan="4" class="empty-cell">${message}</td>
+          <td colspan="5" class="empty-cell">${message}</td>
         </tr>
       `;
       committeeAiSummary.textContent = "Заповни обов’язкові поля, після цього блок сформує порівняння для комітету.";
@@ -353,16 +354,16 @@ async function processCommitteeRequest() {
   plannedRetailPriceView.textContent = plannedRetailPrice ? formatMoney(plannedRetailPrice) : "-";
   plannedMarginView.textContent = plannedMargin !== null ? `${Math.round(plannedMargin)}%` : "-";
   marketRangeView.textContent = "Завантаження...";
-  marketStatusView.textContent = "Перевіряємо Prom";
+  marketStatusView.textContent = "Перевіряємо джерела";
 
   competitorRows.innerHTML = `
     <tr>
-      <td colspan="4" class="empty-cell">Шукаємо фактичні пропозиції на Prom...</td>
+      <td colspan="5" class="empty-cell">Шукаємо фактичні пропозиції у підключених джерелах...</td>
     </tr>
   `;
 
   committeeAiSummary.textContent =
-    `${productName}: виконуємо перевірку Prom.` +
+    `${productName}: виконуємо перевірку джерел.` +
     `${classification ? ` Класифікація: ${classification}.` : ""}`;
 
   const buttonText = committeeProcessButton.textContent;
@@ -397,46 +398,74 @@ async function processCommitteeRequest() {
       throw new Error(data.message || "Не вдалося виконати моніторинг.");
     }
 
-    const offers = Array.isArray(data.offers) ? data.offers : [];
-    const market = data.market || {};
+    const sources = Array.isArray(data.sources) ? data.sources : [];
+    const matchedSources = sources.filter(source =>
+      source.status === "ok" &&
+      Number(source.market?.lowestPrice) > 0
+    );
 
-    if (!offers.length) {
+    if (!sources.length) {
       marketRangeView.textContent = "-";
-      marketStatusView.textContent = "Збігів немає";
+      marketStatusView.textContent = "Джерела не відповіли";
       competitorRows.innerHTML = `
         <tr>
-          <td colspan="4" class="empty-cell">
-            Prom не повернув релевантних пропозицій. Спробуй уточнити назву товару або постачальника.
+          <td colspan="5" class="empty-cell">
+            Не вдалося отримати дані з підключених джерел.
           </td>
         </tr>
       `;
       committeeAiSummary.textContent =
-        `${productName}: за цим запитом Prom не знайшов релевантних позицій.` +
-        `${classification ? ` Класифікація: ${classification}.` : ""}`;
+        `${productName}: джерела не повернули результатів. Повтори перевірку трохи пізніше.`;
       return;
     }
 
-    marketRangeView.textContent =
-      `${formatMoney(market.lowestPrice)} — ${formatMoney(market.highestPrice)}`;
-    marketStatusView.textContent = `Prom: ${offers.length} поз.`;
+    const lowestPrices = matchedSources.map(source =>
+      Number(source.market.lowestPrice)
+    );
+    const highestPrices = matchedSources.map(source =>
+      Number(source.market.highestPrice)
+    );
 
-    competitorRows.innerHTML = offers.map(offer => {
-      const title = escapeHtml(offer.title);
-      const source = escapeHtml(offer.source || "Prom");
-      const format = escapeHtml(offer.format || "Маркетплейс");
-      const comment = escapeHtml(offer.comment || "—");
-      const link = String(offer.link || "");
+    marketRangeView.textContent = matchedSources.length
+      ? `${formatMoney(Math.min(...lowestPrices))} — ${formatMoney(Math.max(...highestPrices))}`
+      : "-";
+
+    marketStatusView.textContent = matchedSources.length
+      ? `Знайдено: ${matchedSources.length} із ${sources.length}`
+      : "Збігів немає";
+
+    competitorRows.innerHTML = sources.map(source => {
+      const sourceName = escapeHtml(source.source || "Джерело");
+      const title = escapeHtml(source.productTitle || "Товар не знайдено");
+      const link = String(source.link || "");
+      const offersCount = Number(source.offersCount) || 0;
+      const market = source.market || {};
+
+      const matchLabel = source.status === "error"
+        ? escapeHtml(source.message || "Помилка джерела")
+        : source.matchType === "full"
+          ? "Повний збіг"
+          : source.matchType === "partial"
+            ? "Частковий збіг"
+            : "Збігів немає";
 
       const sourceCell = link
-        ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${source}</a><br><small>${title}</small>`
-        : `${source}<br><small>${title}</small>`;
+        ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${sourceName}</a>`
+        : sourceName;
+
+      const priceCell = value =>
+        Number(value) > 0 ? formatMoney(Number(value)) : "—";
 
       return `
         <tr>
           <td>${sourceCell}</td>
-          <td>${formatMoney(offer.price)}</td>
-          <td>${format}</td>
-          <td>${comment}</td>
+          <td>
+            <strong>${title}</strong><br>
+            <small>${matchLabel}${offersCount ? ` · ${offersCount} поз.` : ""}</small>
+          </td>
+          <td>${priceCell(market.lowestPrice)}</td>
+          <td>${priceCell(market.averagePrice)}</td>
+          <td>${priceCell(market.highestPrice)}</td>
         </tr>
       `;
     }).join("");
@@ -446,35 +475,49 @@ async function processCommitteeRequest() {
       timeStyle: "short"
     });
 
+    const averagePrices = matchedSources
+      .map(source => Number(source.market.averagePrice))
+      .filter(price => price > 0);
+
+    const marketAverage = averagePrices.length
+      ? averagePrices.reduce((sum, price) => sum + price, 0) / averagePrices.length
+      : null;
+
     let economicsText = "";
 
-    if (plannedRetailPrice) {
-      const difference = plannedRetailPrice - market.averagePrice;
-      const differenceText = `${Math.abs(Math.round(difference)).toLocaleString("uk-UA")} грн`;
+    if (plannedRetailPrice && marketAverage) {
+      const difference = plannedRetailPrice - marketAverage;
+      const differenceText =
+        `${Math.abs(Math.round(difference)).toLocaleString("uk-UA")} грн`;
 
       economicsText = difference >= 0
-        ? ` Планова роздрібна на ${differenceText} вища за середню ціну Prom.`
-        : ` Планова роздрібна на ${differenceText} нижча за середню ціну Prom.`;
+        ? ` Планова роздрібна на ${differenceText} вища за середню ціну знайдених джерел.`
+        : ` Планова роздрібна на ${differenceText} нижча за середню ціну знайдених джерел.`;
     } else if (plannedMargin !== null) {
       economicsText = ` Планова маржа: ${Math.round(plannedMargin)}%.`;
     }
 
-    committeeAiSummary.textContent =
-      `${productName}${supplier ? ` / ${supplier}` : ""}: Prom знайшов ${offers.length} пропозицій. ` +
-      `Діапазон: ${formatMoney(market.lowestPrice)} — ${formatMoney(market.highestPrice)}, ` +
-      `середня: ${formatMoney(market.averagePrice)}.${economicsText} ` +
-      `Перевірено: ${checkedAt}.` +
-      `${data.cached ? " Показано збережений результат перевірки." : ""}`;
+    const matchedSourceNames = matchedSources
+      .map(source => source.source)
+      .join(", ");
+
+    committeeAiSummary.textContent = matchedSources.length
+      ? `${productName}${supplier ? ` / ${supplier}` : ""}: збіги знайдено у ${matchedSourceNames}. ` +
+        `Загальний діапазон: ${marketRangeView.textContent}.${economicsText} ` +
+        `Перевірено: ${checkedAt}.` +
+        `${data.cached ? " Показано збережений результат перевірки." : ""}`
+      : `${productName}: підключені джерела не знайшли релевантних позицій. ` +
+        `Спробуй уточнити бренд, фасування або назву товару. Перевірено: ${checkedAt}.`;
   } catch (error) {
     marketRangeView.textContent = "-";
     marketStatusView.textContent = "Помилка перевірки";
     competitorRows.innerHTML = `
       <tr>
-        <td colspan="4" class="empty-cell">${escapeHtml(error.message || "Не вдалося отримати ціни Prom.")}</td>
+        <td colspan="5" class="empty-cell">${escapeHtml(error.message || "Не вдалося отримати ціни.")}</td>
       </tr>
     `;
     committeeAiSummary.textContent =
-      "Prom зараз не вдалося перевірити. Повтори запит трохи пізніше.";
+      "Джерела зараз не вдалося перевірити. Повтори запит трохи пізніше.";
   } finally {
     committeeProcessButton.disabled = false;
     committeeProcessButton.textContent = buttonText;
