@@ -849,6 +849,97 @@ async function monitorProduct(requestBody) {
     return result;
   }
 
+  async function monitorSilpo() {
+    const cacheKey = `silpo:${query.toLocaleLowerCase("uk-UA")}`;
+    const cached = monitoringCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+      return {
+        ...cached.result,
+        cached: true
+      };
+    }
+
+    const silpoResponse = await fetch(
+      "https://api.catalog.ecom.silpo.ua/api/2.0/exec/EcomCatalogGlobal",
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Origin: "https://silpo.ua",
+          Referer: "https://silpo.ua/"
+        },
+        body: JSON.stringify({
+          method: "GetSimpleCatalogItems",
+          data: {
+            merchantId: 1,
+            customFilter: query,
+            deliveryType: 2,
+            filialId: 2043,
+            From: 1,
+            To: 30
+          }
+        }),
+        signal: AbortSignal.timeout(20000)
+      }
+    );
+
+    if (!silpoResponse.ok) {
+      throw new Error("SILPO_REQUEST_FAILED");
+    }
+
+    const silpoData = await silpoResponse.json();
+    const items = Array.isArray(silpoData.items)
+      ? silpoData.items
+      : [];
+
+    const offers = items
+      .map(item => {
+        const price = parsePrice(item.price);
+
+        const title = cleanText(
+          [item.name, item.unit].filter(Boolean).join(", "),
+          260
+        );
+
+        if (!price || price <= 0 || !title) {
+          return null;
+        }
+
+        return {
+          source: "Сільпо",
+          title,
+          price: Math.round(price * 100) / 100,
+          currency: "UAH",
+          link: item.slug
+            ? `https://silpo.ua/product/${encodeURIComponent(item.slug)}`
+            : null,
+          availability:
+            Number(item.calcStoreQuantity ?? item.quantity ?? 0) > 0
+              ? "В наявності"
+              : "Немає в наявності"
+        };
+      })
+      .filter(Boolean);
+
+    const result = buildSourceSummary("Сільпо", query, offers, {
+      cached: false,
+      location: "базовий онлайн-каталог",
+      totalFound:
+        Number(silpoData.itemsCount) || items.length,
+      searchLink:
+        `https://silpo.ua/search?find=${encodeURIComponent(query)}`
+    });
+
+    monitoringCache.set(cacheKey, {
+      savedAt: Date.now(),
+      result
+    });
+
+    return result;
+  }
+
   const [promState, foraState, auroraState, evaState] =
     await Promise.allSettled([
       monitorProm(productName, supplier),
