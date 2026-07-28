@@ -326,7 +326,253 @@ async function monitorProduct(requestBody) {
     throw error;
   }
 
-  return monitorProm(productName, supplier);
+  const query = [supplier, productName]
+    .filter(Boolean)
+    .join(" ");
+
+  function normalizeSearchText(value) {
+    return cleanText(value, 500)
+      .toLocaleLowerCase("uk-UA")
+      .replace(/[’'`"]/g, "")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+  }
+
+  function tokenizeSearchText(value) {
+    return [
+      ...new Set(
+        normalizeSearchText(value)
+          .split(" ")
+          .filter(token => token.length >= 2)
+      )
+    ];
+  }
+
+  function getMatchScore(title, searchQuery) {
+    const titleText = normalizeSearchText(title);
+    const queryTokens = tokenizeSearchText(searchQuery);
+
+    if (!titleText || !queryTokens.length) {
+      return 0;
+    }
+
+    const matchedTokens = queryTokens.filter(token => titleText.includes(token));
+    return matchedTokens.length / queryTokens.length;
+  }
+
+  function calculateMarket(offers) {
+    const prices = offers
+      .map(offer => Number(offer.price))
+      .filter(price => Number.isFinite(price) && price > 0)
+      .sort((first, second) => first - second);
+
+    return {
+      currency: "UAH",
+      lowestPrice: prices.length ? prices[0] : null,
+      averagePrice: prices.length
+        ? Math.round(
+          (prices.reduce((sum, price) => sum + price, 0) / prices.length) * 100
+        ) / 100
+        : null,
+      highestPrice: prices.length ? prices[prices.length - 1] : null
+    };
+  }
+
+  function buildSourceSummary(source, sourceQuery, offers, extra = {}) {
+    const scoredOffers = offers
+      .map(offer => ({
+        ...offer,
+        matchScore: getMatchScore(offer.title, sourceQuery)
+      }))
+      .filter(offer => offer.matchScore > 0)
+      .sort((first, second) =>
+        second.matchScore - first.matchScore ||
+        first.price - second.price
+      );
+
+    const queryTokens = tokenizeSearchText(sourceQuery);
+    const minimumScore = queryTokens.length <= 1 ? 1 : 0.5;
+    const fullOffers = scoredOffers.filter(offer => offer.matchScore === 1);
+
+    const matchedOffers = fullOffers.length
+      ? fullOffers
+      : scoredOffers.filter(offer => offer.matchScore >= minimumScore);
+
+    const bestOffer = matchedOffers[0] || null;
+
+    return {
+      source,
+      status: matchedOffers.length ? "ok" : "no_matches",
+      matchType: bestOffer
+        ? bestOffer.matchScore === 1 && queryTokens.length >= 2
+          ? "full"
+          : "partial"
+        : "none",
+      productTitle: bestOffer?.title || null,
+      link: bestOffer?.link || extra.searchLink || null,
+      offersCount: matchedOffers.length,
+      market: calculateMarket(matchedOffers),
+      offers: matchedOffers.slice(0, 10),
+      ...extra
+    };
+  }
+
+  function buildErrorSource(source, message) {
+    return {
+      source,
+      status: "error",
+      matchType: "none",
+      productTitle: null,
+      link: null,
+      offersCount: 0,
+      market: calculateMarket([]),
+      offers: [],
+      message
+    };
+  }
+
+  async function monitorFora() {
+    const cacheKey = `fora:${query.toLocaleLowerCase("uk-UA")}`;
+    const cached = monitoringCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+      return {
+        ...cached.result,
+        cached: true
+      };
+    }
+
+    const foraResponse = await fetch(
+      "https://api.catalog.ecom.fora.ua/api/2.0/exec/EcomCatalogGlobal",
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Origin: "https://fora.ua",
+          Referer: "https://fora.ua/"
+        },
+        body: JSON.stringify({
+          method: "GetSimpleCatalogItems",
+          data: {
+            merchantId: 4,
+            customFilter: query,
+            deliveryType: 0,
+            filialId: 310,
+            From: 1,
+            To: 30
+          }
+        }),
+        signal: AbortSignal.timeout(20000)
+      }
+    );
+
+    if (!foraResponse.ok) {
+      throw new Error("FORA_REQUEST_FAILED");
+    }
+
+    const foraData = await foraResponse.json();
+    const items = Array.isArray(foraData.items) ? foraData.items : [];
+
+    const offers = items
+      .map(item => {
+        const price = parsePrice(item.price);
+
+        if (!price || price <= 0) {
+          return null;
+        }
+
+        const title = cleanText(
+          [item.name, item.unit].filter(Boolean).join(", "),
+          260
+        );
+
+        return {
+          source: "Фора",
+          title: title || "Без назви",
+          price: Math.round(price * 100) / 100,
+          currency: "UAH",
+          link: item.slug
+            ? `https://fora.ua/product/${encodeURIComponent(item.slug)}`
+            : null,
+          availability:
+            Number(item.calcStoreQuantity ?? item.quantity ?? 0) > 0
+              ? "В наявності"
+              : "Немає в наявності"
+        };
+      })
+      .filter(Boolean);
+
+    const result = buildSourceSummary("Фора", query, offers, {
+      cached: false,
+      location: "базовий онлайн-каталог",
+      totalFound: Number(foraData.itemsCount) || items.length,
+      searchLink: `https://fora.ua/search/all?find=${encodeURIComponent(query)}`
+    });
+
+    monitoringCache.set(cacheKey, {
+      savedAt: Date.now(),
+      result
+    });
+
+    return result;
+  }
+
+  const [promState, foraState] = await Promise.allSettled([
+    monitorProm(productName, supplier),
+    monitorFora()
+  ]);
+
+  let promResult;
+  let promSource;
+
+  if (promState.status === "fulfilled") {
+    promResult = promState.value;
+
+    promSource = buildSourceSummary(
+      "Prom.ua",
+      query,
+      Array.isArray(promResult.offers) ? promResult.offers : [],
+      {
+        cached: Boolean(promResult.cached),
+        searchLink: `https://prom.ua/ua/search?search_term=${encodeURIComponent(query)}`
+      }
+    );
+  } else {
+    console.error("[Prom.ua]", promState.reason);
+
+    promResult = {
+      offers: [],
+      market: calculateMarket([]),
+      cached: false
+    };
+
+    promSource = buildErrorSource(
+      "Prom.ua",
+      "Prom тимчасово не відповідає."
+    );
+  }
+
+  const foraSource = foraState.status === "fulfilled"
+    ? foraState.value
+    : buildErrorSource(
+      "Фора",
+      "Фора тимчасово не відповідає."
+    );
+
+  if (foraState.status === "rejected") {
+    console.error("[Фора]", foraState.reason);
+  }
+
+  return {
+    query,
+    checkedAt: new Date().toISOString(),
+    cached: Boolean(promResult.cached && foraSource.cached),
+    provider: "multi-source",
+    offers: promResult.offers,
+    market: promResult.market,
+    sources: [promSource, foraSource]
+  };
 }
 
 const server = http.createServer(async (request, response) => {
@@ -347,7 +593,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, 200, {
       status: "ok",
       monitoringConfigured: true,
-      sources: ["Prom.ua"]
+      sources: ["Prom.ua", "Фора"]
     });
     return;
   }
