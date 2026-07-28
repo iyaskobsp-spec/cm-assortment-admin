@@ -763,11 +763,99 @@ async function monitorProduct(requestBody) {
     return result;
   }
 
-  const [promState, foraState, auroraState] = await Promise.allSettled([
-    monitorProm(productName, supplier),
-    monitorFora(),
-    monitorAurora()
-  ]);
+  async function monitorEva() {
+    const cacheKey = `eva:${query.toLocaleLowerCase("uk-UA")}`;
+    const cached = monitoringCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+      return {
+        ...cached.result,
+        cached: true
+      };
+    }
+
+    const evaUrl = new URL("https://search.eva.ua/");
+
+    evaUrl.searchParams.set("id", "10779");
+    evaUrl.searchParams.set("query", query);
+    evaUrl.searchParams.set("lang", "uk");
+    evaUrl.searchParams.set("autocomplete", "true");
+    evaUrl.searchParams.set("group", "true");
+
+    const evaResponse = await fetch(evaUrl, {
+      headers: {
+        Accept: "application/json",
+        "Accept-Language": "uk-UA,uk;q=0.9",
+        Origin: "https://eva.ua",
+        Referer: "https://eva.ua/",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
+      },
+      signal: AbortSignal.timeout(20000)
+    });
+
+    if (!evaResponse.ok) {
+      throw new Error("EVA_REQUEST_FAILED");
+    }
+
+    const evaData = await evaResponse.json();
+
+    const groups = Array.isArray(evaData?.results?.items)
+      ? evaData.results.items
+      : [];
+
+    const items = groups.flatMap(group =>
+      Array.isArray(group?.items) ? group.items : []
+    );
+
+    const offers = items
+      .map(item => {
+        const price = parsePrice(
+          item.price_min || item.price
+        );
+
+        const title = cleanText(item.name, 260);
+        const link = safeUrl(item.url);
+
+        if (!price || price <= 0 || !title) {
+          return null;
+        }
+
+        return {
+          source: "EVA",
+          title,
+          price: Math.round(price * 100) / 100,
+          currency: "UAH",
+          link,
+          availability: item.is_presence
+            ? "В наявності"
+            : "Немає в наявності"
+        };
+      })
+      .filter(Boolean);
+
+    const result = buildSourceSummary("EVA", query, offers, {
+      cached: false,
+      totalFound: Number(evaData.total) || items.length,
+      searchLink:
+        `https://eva.ua/ua/search/?q=${encodeURIComponent(query)}`
+    });
+
+    monitoringCache.set(cacheKey, {
+      savedAt: Date.now(),
+      result
+    });
+
+    return result;
+  }
+
+  const [promState, foraState, auroraState, evaState] =
+    await Promise.allSettled([
+      monitorProm(productName, supplier),
+      monitorFora(),
+      monitorAurora(),
+      monitorEva()
+    ]);
 
   let promResult;
   let promSource;
@@ -821,18 +909,35 @@ async function monitorProduct(requestBody) {
     console.error("[Аврора]", auroraState.reason);
   }
 
+  const evaSource = evaState.status === "fulfilled"
+    ? evaState.value
+    : buildErrorSource(
+      "EVA",
+      "EVA тимчасово не відповідає."
+    );
+
+  if (evaState.status === "rejected") {
+    console.error("[EVA]", evaState.reason);
+  }
+
   return {
     query,
     checkedAt: new Date().toISOString(),
     cached: Boolean(
       promResult.cached &&
       foraSource.cached &&
-      auroraSource.cached
+      auroraSource.cached &&
+      evaSource.cached
     ),
     provider: "multi-source",
     offers: promResult.offers,
     market: promResult.market,
-    sources: [promSource, foraSource, auroraSource]
+    sources: [
+      promSource,
+      foraSource,
+      auroraSource,
+      evaSource
+    ]
   };
 }
 
@@ -854,7 +959,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, 200, {
       status: "ok",
       monitoringConfigured: true,
-      sources: ["Prom.ua", "Фора", "Аврора"]
+      sources: ["Prom.ua", "Фора", "Аврора", "EVA"]
     });
     return;
   }
