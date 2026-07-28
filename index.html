@@ -387,7 +387,10 @@ async function processCommitteeRequest() {
         },
         body: JSON.stringify({
           productName,
-          supplier
+          supplier,
+          segment,
+          category,
+          type
         })
       }
     );
