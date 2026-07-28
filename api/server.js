@@ -334,7 +334,9 @@ async function monitorProduct(requestBody) {
     return cleanText(value, 500)
       .toLocaleLowerCase("uk-UA")
       .replace(/[’'`"]/g, "")
-      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .replace(/(\d)\s*[-/]\s*(\d)/g, "$1.$2")
+      .replace(/(\d)\s*,\s*(\d)/g, "$1.$2")
+      .replace(/[^\p{L}\p{N}.]+/gu, " ")
       .trim();
   }
 
@@ -343,21 +345,159 @@ async function monitorProduct(requestBody) {
       ...new Set(
         normalizeSearchText(value)
           .split(" ")
-          .filter(token => token.length >= 2)
+          .filter(token =>
+            token.length >= 2 ||
+            /^\d$/.test(token)
+          )
       )
     ];
   }
 
-  function getMatchScore(title, searchQuery) {
-    const titleText = normalizeSearchText(title);
-    const queryTokens = tokenizeSearchText(searchQuery);
+  function getMatchScore(title) {
+    const stopWords = new Set([
+      "для", "та", "і", "й", "з", "із", "зі",
+      "у", "в", "на", "по", "до", "від", "при", "або"
+    ]);
 
-    if (!titleText || !queryTokens.length) {
+    const unitInfo = {
+      мл: ["volume", 1],
+      ml: ["volume", 1],
+      л: ["volume", 1000],
+      liter: ["volume", 1000],
+      litre: ["volume", 1000],
+      г: ["weight", 1],
+      гр: ["weight", 1],
+      gr: ["weight", 1],
+      кг: ["weight", 1000],
+      kg: ["weight", 1000],
+      шт: ["count", 1],
+      pcs: ["count", 1],
+      табл: ["count", 1],
+      капс: ["count", 1],
+      пак: ["count", 1]
+    };
+
+    const createPackagePattern = () =>
+      /(\d+(?:\.\d+)?)\s*(мл|ml|л|liter|litre|г|гр|gr|кг|kg|шт|pcs|табл|капс|пак)(?=$|\s)/giu;
+
+    const getMeaningfulTokens = value =>
+      tokenizeSearchText(
+        normalizeSearchText(value)
+          .replace(createPackagePattern(), " ")
+      ).filter(token =>
+        !stopWords.has(token) &&
+        !unitInfo[token]
+      );
+
+    const titleTokens = getMeaningfulTokens(title);
+    const productTokens = getMeaningfulTokens(productName);
+    const supplierTokens = getMeaningfulTokens(supplier);
+
+    if (!titleTokens.length || !productTokens.length) {
       return 0;
     }
 
-    const matchedTokens = queryTokens.filter(token => titleText.includes(token));
-    return matchedTokens.length / queryTokens.length;
+    const tokensMatch = (queryToken, titleToken) =>
+      queryToken === titleToken ||
+      (
+        queryToken.length >= 5 &&
+        titleToken.length >= 5 &&
+        queryToken.slice(0, 5) === titleToken.slice(0, 5)
+      );
+
+    const countMatchedTokens = tokens =>
+      tokens.filter(queryToken =>
+        titleTokens.some(titleToken =>
+          tokensMatch(queryToken, titleToken)
+        )
+      ).length;
+
+    const matchedProductTokens = countMatchedTokens(productTokens);
+    const productCoverage =
+      matchedProductTokens / productTokens.length;
+
+    if (
+      productCoverage < 0.7 ||
+      (
+        productTokens.length >= 2 &&
+        matchedProductTokens < 2
+      )
+    ) {
+      return 0;
+    }
+
+    const extractPackages = value => {
+      const packages = [];
+
+      for (
+        const match of normalizeSearchText(value)
+          .matchAll(createPackagePattern())
+      ) {
+        const [kind, multiplier] =
+          unitInfo[match[2].toLocaleLowerCase("uk-UA")];
+
+        const amount = Number(match[1]) * multiplier;
+
+        if (Number.isFinite(amount) && amount > 0) {
+          packages.push(
+            `${kind}:${Math.round(amount * 100) / 100}`
+          );
+        }
+      }
+
+      return [...new Set(packages)];
+    };
+
+    const queryPackages = extractPackages(productName);
+    const titlePackages = extractPackages(title);
+
+    const hasExactPackage = queryPackages.some(queryPackage =>
+      titlePackages.includes(queryPackage)
+    );
+
+    if (
+      queryPackages.length &&
+      titlePackages.length &&
+      !hasExactPackage
+    ) {
+      return 0;
+    }
+
+    const matchedSupplierTokens =
+      countMatchedTokens(supplierTokens);
+
+    const supplierCoverage = supplierTokens.length
+      ? matchedSupplierTokens / supplierTokens.length
+      : 1;
+
+    const isFullMatch =
+      productCoverage === 1 &&
+      supplierCoverage === 1 &&
+      (
+        !queryPackages.length ||
+        hasExactPackage
+      );
+
+    if (isFullMatch) {
+      return 1;
+    }
+
+    let score = supplierTokens.length
+      ? productCoverage * 0.85 +
+        supplierCoverage * 0.15
+      : productCoverage;
+
+    if (
+      queryPackages.length &&
+      !titlePackages.length
+    ) {
+      score *= 0.9;
+    }
+
+    return Math.min(
+      Math.round(score * 1000) / 1000,
+      0.99
+    );
   }
 
   function calculateMarket(offers) {
@@ -391,7 +531,7 @@ async function monitorProduct(requestBody) {
       );
 
     const queryTokens = tokenizeSearchText(sourceQuery);
-    const minimumScore = queryTokens.length <= 1 ? 1 : 0.5;
+    const minimumScore = queryTokens.length <= 1 ? 1 : 0.7;
     const fullOffers = scoredOffers.filter(offer => offer.matchScore === 1);
 
     const matchedOffers = fullOffers.length
