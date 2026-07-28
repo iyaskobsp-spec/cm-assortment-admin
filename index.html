@@ -315,71 +315,171 @@
       field.focus();
     }
 
-    function processCommitteeRequest() {
-      const segment = segmentSelect.value;
-      const category = categorySelect.value;
-      const type = typeSelect.value;
-      const productName = productNameInput.value.trim();
-      const supplier = supplierInput.value.trim();
-      const productUrl = productUrlInput.value.trim();
+async function processCommitteeRequest() {
+  const segment = segmentSelect.value;
+  const category = categorySelect.value;
+  const type = typeSelect.value;
+  const productName = productNameInput.value.trim();
+  const supplier = supplierInput.value.trim();
 
-      const purchasePriceRaw = purchasePriceInput.value.trim().replace(",", ".");
-      const plannedRetailPriceRaw = plannedRetailPriceInput.value.trim().replace(",", ".");
+  const purchasePriceRaw = purchasePriceInput.value.trim().replace(",", ".");
+  const plannedRetailPriceRaw = plannedRetailPriceInput.value.trim().replace(",", ".");
 
-      const purchasePrice = purchasePriceRaw ? Number(purchasePriceRaw) : null;
-      const plannedRetailPrice = plannedRetailPriceRaw ? Number(plannedRetailPriceRaw) : null;
+  const purchasePrice = purchasePriceRaw ? Number(purchasePriceRaw) : null;
+  const plannedRetailPrice = plannedRetailPriceRaw ? Number(plannedRetailPriceRaw) : null;
 
-      if (!productName) {
-        showCommitteeError("Вкажіть назву товару.", productNameInput);
-        return;
+  if (!productName) {
+    showCommitteeError("Вкажіть назву товару.", productNameInput);
+    return;
+  }
+
+  if (purchasePriceRaw && (!Number.isFinite(purchasePrice) || purchasePrice <= 0)) {
+    showCommitteeError("Закупівельна ціна має бути більшою за 0.", purchasePriceInput);
+    return;
+  }
+
+  if (plannedRetailPriceRaw && (!Number.isFinite(plannedRetailPrice) || plannedRetailPrice <= 0)) {
+    showCommitteeError("Планова роздрібна ціна має бути більшою за 0.", plannedRetailPriceInput);
+    return;
+  }
+
+  const plannedMargin = purchasePrice && plannedRetailPrice
+    ? ((plannedRetailPrice - purchasePrice) / plannedRetailPrice) * 100
+    : null;
+
+  const classification = [segment, category, type].filter(Boolean).join(" → ");
+
+  purchasePriceView.textContent = purchasePrice ? formatMoney(purchasePrice) : "-";
+  plannedRetailPriceView.textContent = plannedRetailPrice ? formatMoney(plannedRetailPrice) : "-";
+  plannedMarginView.textContent = plannedMargin !== null ? `${Math.round(plannedMargin)}%` : "-";
+  marketRangeView.textContent = "Завантаження...";
+  marketStatusView.textContent = "Перевіряємо Prom";
+
+  competitorRows.innerHTML = `
+    <tr>
+      <td colspan="4" class="empty-cell">Шукаємо фактичні пропозиції на Prom...</td>
+    </tr>
+  `;
+
+  committeeAiSummary.textContent =
+    `${productName}: виконуємо перевірку Prom.` +
+    `${classification ? ` Класифікація: ${classification}.` : ""}`;
+
+  const buttonText = committeeProcessButton.textContent;
+  committeeProcessButton.disabled = true;
+  committeeProcessButton.textContent = "Перевіряємо...";
+
+  const escapeHtml = value => String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+  try {
+    const response = await fetch(
+      "https://cm-assortment-admin-production.up.railway.app/api/monitor",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          productName,
+          supplier
+        })
       }
+    );
 
-      if (purchasePriceRaw && (!Number.isFinite(purchasePrice) || purchasePrice <= 0)) {
-        showCommitteeError("Закупівельна ціна має бути більшою за 0.", purchasePriceInput);
-        return;
-      }
+    const data = await response.json();
 
-      if (plannedRetailPriceRaw && (!Number.isFinite(plannedRetailPrice) || plannedRetailPrice <= 0)) {
-        showCommitteeError("Планова роздрібна ціна має бути більшою за 0.", plannedRetailPriceInput);
-        return;
-      }
+    if (!response.ok) {
+      throw new Error(data.message || "Не вдалося виконати моніторинг.");
+    }
 
-      const plannedMargin = purchasePrice && plannedRetailPrice
-        ? ((plannedRetailPrice - purchasePrice) / plannedRetailPrice) * 100
-        : null;
+    const offers = Array.isArray(data.offers) ? data.offers : [];
+    const market = data.market || {};
 
-      purchasePriceView.textContent = purchasePrice ? formatMoney(purchasePrice) : "-";
-      plannedRetailPriceView.textContent = plannedRetailPrice ? formatMoney(plannedRetailPrice) : "-";
-      plannedMarginView.textContent = plannedMargin !== null ? `${Math.round(plannedMargin)}%` : "-";
-      marketRangeView.textContent = "Очікує моніторингу";
-      marketStatusView.textContent = "Запит сформовано";
-
+    if (!offers.length) {
+      marketRangeView.textContent = "-";
+      marketStatusView.textContent = "Збігів немає";
       competitorRows.innerHTML = `
         <tr>
           <td colspan="4" class="empty-cell">
-            Заявка на перевірку сформована. Фактичні ціни конкурентів підтягуватимуться після підключення Railway API.
+            Prom не повернув релевантних пропозицій. Спробуй уточнити назву товару або постачальника.
           </td>
         </tr>
       `;
-
-      const classification = [segment, category, type].filter(Boolean).join(" → ");
-
-      let economicsText = "Економіка не розрахована.";
-
-      if (plannedMargin !== null) {
-        economicsText = `Планова маржа: ${Math.round(plannedMargin)}%.`;
-      } else if (purchasePrice) {
-        economicsText = `Закупка: ${formatMoney(purchasePrice)}.`;
-      } else if (plannedRetailPrice) {
-        economicsText = `Планова роздрібна: ${formatMoney(plannedRetailPrice)}.`;
-      }
-
       committeeAiSummary.textContent =
-        `${productName}${supplier ? ` / ${supplier}` : ""}: запит на моніторинг сформовано. ` +
-        `${economicsText}` +
-        `${classification ? ` Класифікація: ${classification}.` : ""}` +
-        `${productUrl ? " Посилання на товар додано." : ""}`;
+        `${productName}: за цим запитом Prom не знайшов релевантних позицій.` +
+        `${classification ? ` Класифікація: ${classification}.` : ""}`;
+      return;
     }
+
+    marketRangeView.textContent =
+      `${formatMoney(market.lowestPrice)} — ${formatMoney(market.highestPrice)}`;
+    marketStatusView.textContent = `Prom: ${offers.length} поз.`;
+
+    competitorRows.innerHTML = offers.map(offer => {
+      const title = escapeHtml(offer.title);
+      const source = escapeHtml(offer.source || "Prom");
+      const format = escapeHtml(offer.format || "Маркетплейс");
+      const comment = escapeHtml(offer.comment || "—");
+      const link = String(offer.link || "");
+
+      const sourceCell = link
+        ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${source}</a><br><small>${title}</small>`
+        : `${source}<br><small>${title}</small>`;
+
+      return `
+        <tr>
+          <td>${sourceCell}</td>
+          <td>${formatMoney(offer.price)}</td>
+          <td>${format}</td>
+          <td>${comment}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const checkedAt = new Date(data.checkedAt).toLocaleString("uk-UA", {
+      dateStyle: "short",
+      timeStyle: "short"
+    });
+
+    let economicsText = "";
+
+    if (plannedRetailPrice) {
+      const difference = plannedRetailPrice - market.averagePrice;
+      const differenceText = `${Math.abs(Math.round(difference)).toLocaleString("uk-UA")} грн`;
+
+      economicsText = difference >= 0
+        ? ` Планова роздрібна на ${differenceText} вища за середню ціну Prom.`
+        : ` Планова роздрібна на ${differenceText} нижча за середню ціну Prom.`;
+    } else if (plannedMargin !== null) {
+      economicsText = ` Планова маржа: ${Math.round(plannedMargin)}%.`;
+    }
+
+    committeeAiSummary.textContent =
+      `${productName}${supplier ? ` / ${supplier}` : ""}: Prom знайшов ${offers.length} пропозицій. ` +
+      `Діапазон: ${formatMoney(market.lowestPrice)} — ${formatMoney(market.highestPrice)}, ` +
+      `середня: ${formatMoney(market.averagePrice)}.${economicsText} ` +
+      `Перевірено: ${checkedAt}.` +
+      `${data.cached ? " Показано збережений результат перевірки." : ""}`;
+  } catch (error) {
+    marketRangeView.textContent = "-";
+    marketStatusView.textContent = "Помилка перевірки";
+    competitorRows.innerHTML = `
+      <tr>
+        <td colspan="4" class="empty-cell">${escapeHtml(error.message || "Не вдалося отримати ціни Prom.")}</td>
+      </tr>
+    `;
+    committeeAiSummary.textContent =
+      "Prom зараз не вдалося перевірити. Повтори запит трохи пізніше.";
+  } finally {
+    committeeProcessButton.disabled = false;
+    committeeProcessButton.textContent = buttonText;
+  }
+}
 
     committeeProcessButton.addEventListener("click", processCommitteeRequest);
 
