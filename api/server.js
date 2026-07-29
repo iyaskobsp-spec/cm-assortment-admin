@@ -414,7 +414,6 @@ async function generateAiBusinessReview({
   segment,
   category,
   type,
-  purchasePrice,
   plannedRetailPrice,
   sources
 }) {
@@ -424,61 +423,93 @@ async function generateAiBusinessReview({
     throw new Error("GROQ_API_KEY_MISSING");
   }
 
-  const metrics = calculateBusinessMetrics({
-    purchasePrice,
-    plannedRetailPrice,
-    sources
-  });
+  const round = value =>
+    Number.isFinite(value)
+      ? Math.round(value * 100) / 100
+      : null;
 
-  const reviewApproaches = [
-    "Почни з головного ризику. Якщо суттєвого ризику немає — з головної переваги.",
-    "Почни з практичної умови, за якої товар має сенс вводити.",
-    "Почни з порівняння планової ціни з ринком, а рішення сформулюй далі.",
-    "Почни з короткого рішення, але не використовуй шаблонні фрази «доцільно заводити» або «доцільно тестувати».",
-    "Почни з конкретної наступної дії для закупівельника, а потім поясни її цифрами."
-  ];
+  const plannedPrice = parsePrice(plannedRetailPrice);
 
-  const reviewApproach =
-    reviewApproaches[
-      Math.floor(Math.random() * reviewApproaches.length)
-    ];
+  const relevantSources = (Array.isArray(sources) ? sources : [])
+    .filter(source =>
+      source?.status === "ok" &&
+      Array.isArray(source.offers) &&
+      source.offers.length
+    );
 
-  const hasPurchaseLimit =
-    Number.isFinite(metrics.purchasePrice) &&
-    Number.isFinite(metrics.maxPurchaseAtMarketMedian);
+  const marketOffers = relevantSources
+    .flatMap(source =>
+      source.offers.slice(0, 5).map(offer => ({
+        source: cleanText(source.source, 80),
+        title: cleanText(offer.title, 240),
+        price: round(Number(offer.price))
+      }))
+    )
+    .filter(offer =>
+      offer.title &&
+      Number.isFinite(offer.price) &&
+      offer.price > 0
+    );
 
-  const mayRecommendLowerPurchase =
-    hasPurchaseLimit &&
-    Number.isFinite(metrics.requiredPurchaseReduction) &&
-    metrics.requiredPurchaseReduction > 0;
+  const marketPrices = marketOffers
+    .map(offer => offer.price)
+    .sort((first, second) => first - second);
 
-  let purchaseAssessment;
+  const lowestPrice =
+    marketPrices.length ? marketPrices[0] : null;
 
-  if (!hasPurchaseLimit) {
-    purchaseAssessment = {
-      mayRecommendLowerPurchase: false,
-      mandatoryInterpretation:
-        "Недостатньо даних для висновку про необхідність змінювати орієнтовну закупівельну ціну."
-    };
-  } else if (mayRecommendLowerPurchase) {
-    purchaseAssessment = {
-      mayRecommendLowerPurchase: true,
-      mandatoryInterpretation:
-        `Орієнтовна закупівельна ціна ${metrics.purchasePrice} грн перевищує ` +
-        `граничну закупівельну ціну ${metrics.maxPurchaseAtMarketMedian} грн ` +
-        `на ${metrics.requiredPurchaseReduction} грн. Лише в цьому випадку можна ` +
-        "зазначити, що цінову модель варто переглянути."
-    };
-  } else {
-    purchaseAssessment = {
-      mayRecommendLowerPurchase: false,
-      mandatoryInterpretation:
-        `Орієнтовна закупівельна ціна ${metrics.purchasePrice} грн не перевищує ` +
-        `граничну закупівельну ціну ${metrics.maxPurchaseAtMarketMedian} грн. ` +
-        "Не можна радити знижувати закупівельну ціну, торгуватися з постачальником " +
-        "або стверджувати, що закупівельна ціна завищена."
-    };
+  const highestPrice =
+    marketPrices.length
+      ? marketPrices[marketPrices.length - 1]
+      : null;
+
+  const averagePrice = marketPrices.length
+    ? round(
+      marketPrices.reduce((sum, price) => sum + price, 0) /
+      marketPrices.length
+    )
+    : null;
+
+  let plannedPricePosition = "недостатньо даних";
+
+  if (
+    Number.isFinite(plannedPrice) &&
+    Number.isFinite(lowestPrice) &&
+    Number.isFinite(highestPrice)
+  ) {
+    if (plannedPrice < lowestPrice) {
+      plannedPricePosition =
+        "нижче знайденого ринкового діапазону";
+    } else if (plannedPrice > highestPrice) {
+      plannedPricePosition =
+        "вище знайденого ринкового діапазону";
+    } else if (lowestPrice === highestPrice) {
+      plannedPricePosition =
+        "на рівні знайдених пропозицій";
+    } else {
+      const position =
+        (plannedPrice - lowestPrice) /
+        (highestPrice - lowestPrice);
+
+      plannedPricePosition =
+        position <= 0.33
+          ? "у нижній частині знайденого діапазону"
+          : position <= 0.67
+            ? "у середній частині знайденого діапазону"
+            : "у верхній частині знайденого діапазону";
+    }
   }
+
+  const marketEvidence = {
+    matchedSourcesCount: relevantSources.length,
+    offersCount: marketOffers.length,
+    plannedRetailPrice: round(plannedPrice),
+    lowestFoundPrice: lowestPrice,
+    averageFoundPrice: averagePrice,
+    highestFoundPrice: highestPrice,
+    plannedPricePosition,
+    offers: marketOffers
+  };
 
   const groqResponse = await fetch(
     "https://api.groq.com/openai/v1/chat/completions",
@@ -490,27 +521,27 @@ async function generateAiBusinessReview({
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        temperature: 0.55,
-        max_completion_tokens: 420,
+        temperature: 0.45,
+        max_completion_tokens: 360,
         messages: [
           {
             role: "system",
             content:
-              "Ти бізнес-аналітик асортиментного комітету роздрібної мережі. " +
-              "Проаналізуй комерційний сенс конкретної заявки українською мовою у 3–5 природних реченнях. " +
-              "Усі розрахунки вже виконав сервер — не перераховуй їх самостійно та не переставляй цифри між показниками. " +
-              "Закупівельна ціна є орієнтовною ціною для попередньої оцінки, а не підтвердженою договірною ціною постачальника. " +
-              "Обов’язково виконай інструкцію purchaseAssessment.mandatoryInterpretation. " +
-              "Якщо purchaseAssessment.mayRecommendLowerPurchase дорівнює false, заборонено радити знижувати закупку, " +
-              "домовлятися з постачальником про нижчу ціну або називати закупівельну ціну завищеною. " +
-              "Не плутай ролі показників: purchasePrice — орієнтовна закупівельна ціна; " +
-              "plannedRetailPrice — планова роздрібна ціна; marketMedianPrice — медіанна роздрібна ціна ринку; " +
-              "maxPurchaseAtMarketMedian — гранична закупівельна ціна, а не роздрібна ціна. " +
-              "Від’ємне plannedPriceVsMedianPercent означає, що планова роздрібна ціна нижча за медіану ринку. " +
-              "Не називай маржу низькою, високою, недостатньою або прийнятною, оскільки норматив цільової маржі не заданий. " +
-              "Можна лише назвати її розрахункове значення та пояснити взаємозв’язок із ціною. " +
-              "Використовуй цифри вибірково, але точно. Не вигадуй попит, продажі, якість товару, " +
-              "умови постачання чи надійність постачальника. Не згадуй технічні поля, джерела або дату перевірки."
+              "Ти аналітик асортиментного комітету роздрібної мережі. " +
+              "Дай простий практичний огляд товару українською мовою у 3–4 природних реченнях суцільним текстом. " +
+              "Оціни: чи представлений товар на ринку за кількістю знайдених релевантних пропозицій; " +
+              "чи вписується планова роздрібна ціна у ціни справді схожих товарів; " +
+              "наскільки надійне це порівняння; і чи варто товар розглядати, тестувати або спочатку уточнити дані. " +
+              "Перед висновком обов’язково порівняй назви знайдених товарів. Якщо вони відрізняються за видом, " +
+              "матеріалом, розміром, фасуванням або призначенням, прямо скажи, що цінове порівняння орієнтовне. " +
+              "Широкий діапазон цін сам по собі не означає високу ринкову ціну — він може означати різні товари. " +
+              "Актуальність оцінюй лише як ринкову представленість у знайдених пропозиціях, " +
+              "а не як доведений попит, популярність або тренд. " +
+              "Не аналізуй закупівельну ціну, маржу, націнку, граничну закупку чи переговори з постачальником. " +
+              "Не вигадуй продажі, попит, якість, сезонність або характеристики, яких немає у вхідних даних. " +
+              "Не використовуй назви технічних полів, службові інструкції чи англомовні терміни. " +
+              "Не переказуй усі цифри: назви лише планову роздрібну ціну та доречний ринковий орієнтир. " +
+              "Заверш короткою конкретною рекомендацією без канцеляризмів."
           },
           {
             role: "user",
@@ -522,27 +553,7 @@ async function generateAiBusinessReview({
                 category: category || null,
                 type: type || null
               },
-              metrics,
-              purchaseAssessment,
-              reviewApproach,
-              metricMeaning: {
-                purchasePrice:
-                  "Орієнтовна умовна закупівельна ціна, введена для попереднього розрахунку.",
-                plannedRetailPrice:
-                  "Планова роздрібна ціна товару.",
-                marketMedianPrice:
-                  "Медіанна роздрібна ціна серед знайдених ринкових пропозицій.",
-                plannedMarginPercent:
-                  "Розрахункова валова маржа за орієнтовною закупівельною та плановою роздрібною цінами.",
-                marginAtMarketMedianPercent:
-                  "Розрахункова маржа за тієї самої закупівельної ціни, якщо продавати за медіанною ціною ринку.",
-                plannedPriceVsMedianPercent:
-                  "Відхилення планової роздрібної ціни від медіани ринку. Від’ємне значення означає ціну нижче медіани.",
-                maxPurchaseAtMarketMedian:
-                  "Гранична закупівельна ціна при продажу за медіанною роздрібною ціною. Це не роздрібна ціна.",
-                requiredPurchaseReduction:
-                  "Необхідне зниження закупівельної ціни. Значення 0 означає, що знижувати її не потрібно."
-              }
+              marketEvidence
             })
           }
         ]
@@ -574,7 +585,7 @@ async function generateAiBusinessReview({
 
   return {
     review,
-    metrics,
+    marketEvidence,
     model:
       cleanText(groqData.model, 100) ||
       "llama-3.3-70b-versatile"
