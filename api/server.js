@@ -703,24 +703,26 @@ async function monitorProduct(requestBody) {
       };
     }
 
-    const ignoredTokens = new Set([
-      "для", "та", "і", "з", "у", "в", "на", "по",
-      "мл", "л", "г", "кг", "шт",
-      "шампунь", "бальзам", "крем", "гель", "засіб",
-      "набір", "серветки", "порошок", "мило"
+    const auroraStopWords = new Set([
+      "для", "та", "і", "й", "з", "із", "зі",
+      "у", "в", "на", "по", "до", "від", "при", "або"
     ]);
 
-    const productTokens = tokenizeSearchText(productName)
+    const auroraUnits = new Set([
+      "мл", "ml", "л", "liter", "litre",
+      "г", "гр", "gr", "кг", "kg",
+      "шт", "pcs", "табл", "капс", "пак"
+    ]);
+
+    const auroraQueryTokens = tokenizeSearchText(productName)
       .filter(token =>
-        !ignoredTokens.has(token) &&
+        !auroraStopWords.has(token) &&
+        !auroraUnits.has(token) &&
         !/^\d+(?:[.,]\d+)?$/.test(token)
       );
 
-    const latinToken = productTokens.find(token => /[a-z]/i.test(token));
-
-    const auroraQuery = latinToken ||
-      productTokens[0] ||
-      productName;
+    const auroraQuery =
+      auroraQueryTokens.join(" ") || productName;
 
     const auroraUrl = new URL("https://avrora.ua/");
 
@@ -1066,7 +1068,7 @@ async function monitorProduct(requestBody) {
 
     const items = groups.flatMap(group =>
       Array.isArray(group?.items)
-        ? group.items
+        ? group.items.flat()
         : []
     );
 
