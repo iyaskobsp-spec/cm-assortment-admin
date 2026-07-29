@@ -70,12 +70,45 @@
             <input id="plannedRetailPriceInput" type="number" placeholder="0.00">
           </div>
 
-          <div class="field field-wide">
-            <label for="productUrlInput">Посилання на товар</label>
-            <input id="productUrlInput" type="url" placeholder="https://...">
+          <div class="field field-wide batch-upload-field">
+            <label for="monitoringFileInput">Список товарів для групового моніторингу</label>
+
+            <input
+              id="monitoringFileInput"
+              type="file"
+              accept=".xlsx,.xls,.csv"
+            >
+
+            <div class="batch-upload-help">
+              <span id="monitoringFileStatus">
+                Excel або CSV, до 20 товарів
+              </span>
+
+              <a
+                href="monitoring-template.xlsx"
+                class="template-download-link"
+                download
+              >
+                Завантажити шаблон
+              </a>
+            </div>
           </div>
 
-          <button type="button" id="committeeProcessButton" class="primary-btn field-wide">Обробити заявку</button>
+          <button
+            type="button"
+            id="batchMonitorButton"
+            class="primary-btn field-wide"
+          >
+            Обробити список товарів
+          </button>
+
+          <button
+            type="button"
+            id="committeeProcessButton"
+            class="primary-btn field-wide"
+          >
+            Обробити один товар
+          </button>
         </form>
 
         <aside class="insight-panel result-panel">
@@ -207,7 +240,9 @@
     const supplierInput = document.getElementById("supplierInput");
     const purchasePriceInput = document.getElementById("purchasePriceInput");
     const plannedRetailPriceInput = document.getElementById("plannedRetailPriceInput");    
-    const productUrlInput = document.getElementById("productUrlInput");
+    const monitoringFileInput = document.getElementById("monitoringFileInput");
+    const monitoringFileStatus = document.getElementById("monitoringFileStatus");
+    const batchMonitorButton = document.getElementById("batchMonitorButton");
     const committeeProcessButton = document.getElementById("committeeProcessButton");
     const purchasePriceView = document.getElementById("purchasePriceView");
     const plannedRetailPriceView = document.getElementById("plannedRetailPriceView");
