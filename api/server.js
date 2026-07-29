@@ -646,20 +646,73 @@ async function monitorProduct(requestBody) {
       л: ["volume", 1000],
       liter: ["volume", 1000],
       litre: ["volume", 1000],
+
       г: ["weight", 1],
       гр: ["weight", 1],
       gr: ["weight", 1],
       кг: ["weight", 1000],
       kg: ["weight", 1000],
+
       шт: ["count", 1],
+      "шт.": ["count", 1],
+      штука: ["count", 1],
+      штуки: ["count", 1],
+      штук: ["count", 1],
       pcs: ["count", 1],
+
+      арк: ["count", 1],
+      "арк.": ["count", 1],
+      аркуш: ["count", 1],
+      аркуша: ["count", 1],
+      аркуші: ["count", 1],
+      аркушів: ["count", 1],
+
+      лист: ["count", 1],
+      листа: ["count", 1],
+      листи: ["count", 1],
+      листів: ["count", 1],
+      листов: ["count", 1],
+
+      стор: ["count", 1],
+      "стор.": ["count", 1],
+      сторінка: ["count", 1],
+      сторінки: ["count", 1],
+      сторінок: ["count", 1],
+
+      предмет: ["count", 1],
+      предмета: ["count", 1],
+      предмети: ["count", 1],
+      предметів: ["count", 1],
+      предметов: ["count", 1],
+
       табл: ["count", 1],
+      таблетка: ["count", 1],
+      таблетки: ["count", 1],
+      таблеток: ["count", 1],
+
       капс: ["count", 1],
-      пак: ["count", 1]
+      капсула: ["count", 1],
+      капсули: ["count", 1],
+      капсул: ["count", 1],
+
+      пак: ["count", 1],
+      пакет: ["count", 1],
+      пакети: ["count", 1],
+      пакетів: ["count", 1]
     };
 
+    const packageUnitsPattern = Object.keys(unitInfo)
+      .sort((first, second) => second.length - first.length)
+      .map(unit =>
+        unit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      )
+      .join("|");
+
     const createPackagePattern = () =>
-      /(\d+(?:\.\d+)?)\s*(мл|ml|л|liter|litre|г|гр|gr|кг|kg|шт|pcs|табл|капс|пак)(?=$|\s)/giu;
+      new RegExp(
+        `(\\d+(?:\\.\\d+)?)\\s*(${packageUnitsPattern})(?=$|\\s)`,
+        "giu"
+      );
 
     const getMeaningfulTokens = value =>
       tokenizeSearchText(
@@ -803,7 +856,6 @@ async function monitorProduct(requestBody) {
 
     if (
       queryPackages.length &&
-      titlePackages.length &&
       !hasExactPackage
     ) {
       return 0;
