@@ -1118,20 +1118,163 @@ async function monitorProduct(requestBody) {
     return result;
   }
 
+    async function monitorKopiyochka() {
+    const cacheKey =
+      `kopiyochka:${query.toLocaleLowerCase("uk-UA")}`;
+
+    const cached = monitoringCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+      return {
+        ...cached.result,
+        cached: true
+      };
+    }
+
+    const kopiyochkaStopWords = new Set([
+      "для", "та", "і", "й", "з", "із", "зі",
+      "у", "в", "на", "по", "до", "від", "при", "або"
+    ]);
+
+    const kopiyochkaUnits = new Set([
+      "мл", "ml", "л", "liter", "litre",
+      "г", "гр", "gr", "кг", "kg",
+      "шт", "pcs", "табл", "капс", "пак"
+    ]);
+
+    const kopiyochkaQueryTokens = tokenizeSearchText(query)
+      .filter(token =>
+        !kopiyochkaStopWords.has(token) &&
+        !kopiyochkaUnits.has(token) &&
+        !/^\d+(?:[.,]\d+)?$/.test(token)
+      );
+
+    const kopiyochkaQuery =
+      kopiyochkaQueryTokens.join(" ") || query;
+
+    const requestBody = new URLSearchParams();
+
+    requestBody.set("action", "get_catalog_products");
+    requestBody.set("place_id", "");
+    requestBody.set("category_term_id", "");
+    requestBody.set("offset", "0");
+    requestBody.set("search_query", kopiyochkaQuery);
+    requestBody.set("sort_by", "popularity");
+
+    const kopiyochkaResponse = await fetch(
+      "https://www.kopiyochka.ua/user-pannel/admin-ajax.php",
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type":
+            "application/x-www-form-urlencoded;charset=UTF-8",
+          Origin: "https://www.kopiyochka.ua",
+          Referer: "https://www.kopiyochka.ua/search/",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36"
+        },
+        body: requestBody.toString(),
+        signal: AbortSignal.timeout(20000)
+      }
+    );
+
+    if (!kopiyochkaResponse.ok) {
+      const errorBody = await kopiyochkaResponse
+        .text()
+        .catch(() => "");
+
+      throw new Error(
+        `KOPIYOCHKA_REQUEST_FAILED: HTTP ${kopiyochkaResponse.status} ${cleanText(errorBody, 300)}`
+      );
+    }
+
+    const kopiyochkaData =
+      await kopiyochkaResponse.json();
+
+    const items = Array.isArray(kopiyochkaData?.items)
+      ? kopiyochkaData.items
+      : Array.isArray(kopiyochkaData)
+        ? kopiyochkaData
+        : [];
+
+    const offers = items
+      .map(item => {
+        const promoPrice = parsePrice(
+          item.promo_unit_price
+        );
+
+        const basePrice = parsePrice(
+          item.base_unit_price
+        );
+
+        const price =
+          promoPrice && promoPrice > 0
+            ? promoPrice
+            : basePrice;
+
+        const title = cleanText(
+          decodeHtml(item.post_title),
+          260
+        );
+
+        const link = safeUrl(
+          item.url || item.guid
+        );
+
+        if (!price || price <= 0 || !title) {
+          return null;
+        }
+
+        return {
+          source: "Копійочка",
+          title,
+          price: Math.round(price * 100) / 100,
+          currency: "UAH",
+          link,
+          availability: "Онлайн-каталог"
+        };
+      })
+      .filter(Boolean);
+
+    const result = buildSourceSummary(
+      "Копійочка",
+      query,
+      offers,
+      {
+        cached: false,
+        searchQuery: kopiyochkaQuery,
+        totalFound:
+          Number(kopiyochkaData?.total) || items.length,
+        searchLink:
+          `https://www.kopiyochka.ua/search/?phrase=${encodeURIComponent(kopiyochkaQuery)}`
+      }
+    );
+
+    monitoringCache.set(cacheKey, {
+      savedAt: Date.now(),
+      result
+    });
+
+    return result;
+  }
+
   const [
     promState,
     foraState,
     auroraState,
     evaState,
     silpoState,
-    atbState
+    atbState,
+    kopiyochkaState
   ] = await Promise.allSettled([
     monitorProm(productName, supplier),
     monitorFora(),
     monitorAurora(),
     monitorEva(),
     monitorSilpo(),
-    monitorAtb()
+    monitorAtb(),
+    monitorKopiyochka()
   ]);
 
   let promResult;
@@ -1219,6 +1362,21 @@ async function monitorProduct(requestBody) {
     console.error("[АТБ]", atbState.reason);
   }
 
+  const kopiyochkaSource =
+    kopiyochkaState.status === "fulfilled"
+      ? kopiyochkaState.value
+      : buildErrorSource(
+        "Копійочка",
+        "Копійочка тимчасово не відповідає."
+      );
+
+  if (kopiyochkaState.status === "rejected") {
+    console.error(
+      "[Копійочка]",
+      kopiyochkaState.reason
+    );
+  }
+
   return {
     query,
     checkedAt: new Date().toISOString(),
@@ -1228,7 +1386,8 @@ async function monitorProduct(requestBody) {
       auroraSource.cached &&
       evaSource.cached &&
       silpoSource.cached &&
-      atbSource.cached
+      atbSource.cached &&
+      kopiyochkaSource.cached
     ),
     provider: "multi-source",
     offers: promResult.offers,
@@ -1239,7 +1398,8 @@ async function monitorProduct(requestBody) {
       auroraSource,
       evaSource,
       silpoSource,
-      atbSource
+      atbSource,
+      kopiyochkaSource
     ]
   };
 }
