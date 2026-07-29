@@ -735,6 +735,51 @@ async function monitorProduct(requestBody) {
       ? matchedSupplierTokens / supplierTokens.length
       : 1;
 
+    const productSubtypeGroups = [
+      new Set([
+        "вологий", "волога", "вологе", "вологі",
+        "вологого", "вологих", "wet", "moist"
+      ]),
+      new Set([
+        "дитячий", "дитяча", "дитяче", "дитячі",
+        "kids", "baby"
+      ]),
+      new Set([
+        "запаска", "запасний", "запасна", "запасне",
+        "запасні", "refill"
+      ]),
+      new Set([
+        "концентрат", "концентрований", "концентрована",
+        "concentrate", "concentrated"
+      ]),
+      new Set([
+        "міні", "mini", "travel"
+      ])
+    ];
+
+    const normalizeSubtypeToken = token =>
+      token.replace(/\.+$/g, "");
+
+    const requestedSubtypeTokens = [
+      ...productTokens,
+      ...classificationTokens
+    ];
+
+    const unrequestedSubtypeGroups =
+      productSubtypeGroups.filter(group => {
+        const subtypeRequested =
+          requestedSubtypeTokens.some(token =>
+            group.has(normalizeSubtypeToken(token))
+          );
+
+        const subtypeFoundInTitle =
+          titleTokens.some(token =>
+            group.has(normalizeSubtypeToken(token))
+          );
+
+        return subtypeFoundInTitle && !subtypeRequested;
+      }).length;
+
     const isFullMatch =
       productCoverage === 1 &&
       supplierCoverage === 1 &&
@@ -743,7 +788,7 @@ async function monitorProduct(requestBody) {
         hasExactPackage
       );
 
-    if (isFullMatch) {
+    if (isFullMatch && !unrequestedSubtypeGroups) {
       return 1;
     }
 
@@ -757,6 +802,13 @@ async function monitorProduct(requestBody) {
       !titlePackages.length
     ) {
       score *= 0.9;
+    }
+
+    if (unrequestedSubtypeGroups) {
+      score *= Math.max(
+        0.7,
+        1 - unrequestedSubtypeGroups * 0.15
+      );
     }
 
     return Math.min(
