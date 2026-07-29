@@ -1005,18 +1005,131 @@ async function monitorProduct(requestBody) {
     return result;
   }
 
+    async function monitorAtb() {
+    const cacheKey = `atb:${query.toLocaleLowerCase("uk-UA")}`;
+    const cached = monitoringCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
+      return {
+        ...cached.result,
+        cached: true
+      };
+    }
+
+    const atbUrl = new URL("https://api.multisearch.io/");
+
+    atbUrl.searchParams.set("query", query);
+    atbUrl.searchParams.set(
+      "q",
+      Math.random().toString(36).slice(-6)
+    );
+    atbUrl.searchParams.set("id", "11280");
+    atbUrl.searchParams.set("s", "large");
+    atbUrl.searchParams.set("m", String(Date.now()));
+    atbUrl.searchParams.set("lang", "uk");
+    atbUrl.searchParams.set("location", "1154");
+    atbUrl.searchParams.set(
+      "key",
+      "63a6d0a760fd2d0562c4061b78e64754"
+    );
+
+    const atbResponse = await fetch(atbUrl, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "Accept-Language": "uk-UA,uk;q=0.9",
+        Origin: "https://www.atbmarket.com",
+        Referer: "https://www.atbmarket.com/",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36"
+      },
+      signal: AbortSignal.timeout(20000)
+    });
+
+    if (!atbResponse.ok) {
+      const errorBody = await atbResponse
+        .text()
+        .catch(() => "");
+
+      throw new Error(
+        `ATB_REQUEST_FAILED: HTTP ${atbResponse.status} ${cleanText(errorBody, 300)}`
+      );
+    }
+
+    const atbData = await atbResponse.json();
+
+    const groups = Array.isArray(
+      atbData?.results?.item_groups
+    )
+      ? atbData.results.item_groups
+      : [];
+
+    const items = groups.flatMap(group =>
+      Array.isArray(group?.items)
+        ? group.items
+        : []
+    );
+
+    const offers = items
+      .map(item => {
+        const price = parsePrice(item.price);
+        const title = cleanText(item.name, 260);
+        const link = safeUrl(item.url);
+
+        if (!price || price <= 0 || !title) {
+          return null;
+        }
+
+        return {
+          source: "АТБ",
+          title,
+          price: Math.round(price * 100) / 100,
+          currency: cleanText(item.currency, 10) || "грн",
+          link,
+          availability:
+            item.is_presence === false
+              ? "Немає в наявності"
+              : "В наявності"
+        };
+      })
+      .filter(Boolean);
+
+    const result = buildSourceSummary(
+      "АТБ",
+      query,
+      offers,
+      {
+        cached: false,
+        location: "магазин АТБ №1154",
+        totalFound:
+          Number(atbData?.total) || items.length,
+        searchLink:
+          `https://www.atbmarket.com/sch?lang=uk&location=1154&query=${encodeURIComponent(query)}`
+      }
+    );
+
+    monitoringCache.set(cacheKey, {
+      savedAt: Date.now(),
+      result
+    });
+
+    return result;
+  }
+
   const [
     promState,
     foraState,
     auroraState,
     evaState,
-    silpoState
+    silpoState,
+    atbState
   ] = await Promise.allSettled([
     monitorProm(productName, supplier),
     monitorFora(),
     monitorAurora(),
     monitorEva(),
-    monitorSilpo()
+    monitorSilpo(),
+    monitorAtb()
   ]);
 
   let promResult;
@@ -1093,6 +1206,17 @@ async function monitorProduct(requestBody) {
     console.error("[Сільпо]", silpoState.reason);
   }
 
+  const atbSource = atbState.status === "fulfilled"
+    ? atbState.value
+    : buildErrorSource(
+      "АТБ",
+      "АТБ тимчасово не відповідає."
+    );
+
+  if (atbState.status === "rejected") {
+    console.error("[АТБ]", atbState.reason);
+  }
+
   return {
     query,
     checkedAt: new Date().toISOString(),
@@ -1101,7 +1225,8 @@ async function monitorProduct(requestBody) {
       foraSource.cached &&
       auroraSource.cached &&
       evaSource.cached &&
-      silpoSource.cached
+      silpoSource.cached &&
+      atbSource.cached
     ),
     provider: "multi-source",
     offers: promResult.offers,
@@ -1111,7 +1236,8 @@ async function monitorProduct(requestBody) {
       foraSource,
       auroraSource,
       evaSource,
-      silpoSource
+      silpoSource,
+      atbSource
     ]
   };
 }
