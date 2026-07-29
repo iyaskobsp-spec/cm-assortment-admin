@@ -265,35 +265,30 @@
           <span id="batchResultsCount" class="batch-results-count"></span>
         </div>
 
-        <button
-          type="button"
-          id="closeBatchResultsButton"
-          class="batch-results-close"
-          aria-label="Закрити результати"
-        >
-          ×
-        </button>
+        <div class="batch-results-actions">
+          <button
+            type="button"
+            id="downloadBatchReportButton"
+            class="batch-report-button"
+          >
+            ↓ Скачати звіт
+          </button>
+
+          <button
+            type="button"
+            id="closeBatchResultsButton"
+            class="batch-results-close"
+            aria-label="Закрити результати"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
-      <div class="batch-results-table-wrap">
-        <table class="batch-results-table">
-          <thead>
-            <tr>
-              <th>№</th>
-              <th>Товар</th>
-              <th>Бренд / постачальник</th>
-              <th>Закупка</th>
-              <th>Планова роздрібна</th>
-              <th>Ринок</th>
-              <th>Джерела</th>
-              <th>Статус</th>
-              <th>Огляд ШІ</th>
-            </tr>
-          </thead>
-
-          <tbody id="batchResultsRows"></tbody>
-        </table>
-      </div>
+      <div
+        id="batchResultsRows"
+        class="batch-results-list"
+      ></div>
     </section>
   </div>
 
@@ -320,6 +315,9 @@
     const batchResultsModal = document.getElementById("batchResultsModal");
     const batchResultsRows = document.getElementById("batchResultsRows");
     const batchResultsCount = document.getElementById("batchResultsCount");
+    const downloadBatchReportButton = document.getElementById(
+      "downloadBatchReportButton"
+    );
     const closeBatchResultsButton = document.getElementById(
       "closeBatchResultsButton"
     );    
@@ -915,82 +913,303 @@ async function processCommitteeRequest() {
       document.body.classList.remove("batch-modal-open");
     }
 
+    function getBatchMatchLabel(source) {
+      if (source.status === "error") {
+        return source.message || "Помилка джерела";
+      }
+
+      if (source.matchType === "full") {
+        return "Повний збіг";
+      }
+
+      if (source.matchType === "partial") {
+        return "Частковий збіг";
+      }
+
+      return "Збігів немає";
+    }
+
+    function getBatchPriceCell(value) {
+      return Number(value) > 0
+        ? formatMoney(Number(value))
+        : "—";
+    }
+
+    function renderBatchSourceRows(result) {
+      const sources = Array.isArray(result.sources)
+        ? result.sources
+        : [];
+
+      if (!sources.length) {
+        return `
+          <tr>
+            <td colspan="5" class="empty-cell">
+              ${escapeBatchHtml(
+                result.errorMessage ||
+                "Джерела не повернули результатів."
+              )}
+            </td>
+          </tr>
+        `;
+      }
+
+      return sources.map(source => {
+        const sourceName =
+          escapeBatchHtml(source.source || "Джерело");
+
+        const productTitle =
+          escapeBatchHtml(
+            source.productTitle || "Товар не знайдено"
+          );
+
+        const productLink = String(source.link || "");
+        const searchLink = String(source.searchLink || "");
+        const offersCount = Number(source.offersCount) || 0;
+        const market = source.market || {};
+
+        const matchText = [
+          getBatchMatchLabel(source),
+          offersCount ? `${offersCount} поз.` : ""
+        ].filter(Boolean).join(" · ");
+
+        const sourceCell = productLink
+          ? `
+            <a
+              href="${escapeBatchHtml(productLink)}"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              ${sourceName}
+            </a>
+          `
+          : sourceName;
+
+        const matchCell =
+          searchLink && source.status === "ok"
+            ? `
+              <a
+                href="${escapeBatchHtml(searchLink)}"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ${escapeBatchHtml(matchText)}
+              </a>
+            `
+            : escapeBatchHtml(matchText);
+
+        return `
+          <tr>
+            <td>${sourceCell}</td>
+
+            <td>
+              <strong>${productTitle}</strong><br>
+              <small>${matchCell}</small>
+            </td>
+
+            <td>
+              ${getBatchPriceCell(market.lowestPrice)}
+            </td>
+
+            <td>
+              ${getBatchPriceCell(market.averagePrice)}
+            </td>
+
+            <td>
+              ${getBatchPriceCell(market.highestPrice)}
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
     function renderBatchMonitoringResults() {
       batchResultsCount.textContent =
         `Оброблено товарів: ${batchMonitoringResults.length}`;
 
       batchResultsRows.innerHTML = batchMonitoringResults
         .map((result, index) => {
-          const purchasePrice = Number(result.purchasePrice) > 0
-            ? formatMoney(Number(result.purchasePrice))
-            : "—";
+          const purchasePrice =
+            Number(result.purchasePrice) > 0
+              ? formatMoney(Number(result.purchasePrice))
+              : "—";
 
           const plannedRetailPrice =
             Number(result.plannedRetailPrice) > 0
               ? formatMoney(Number(result.plannedRetailPrice))
               : "—";
 
-          const sourcesText = result.totalSources
-            ? `${result.foundSources} із ${result.totalSources}`
-            : "—";
-
-          const reviewText =
+          const aiReview =
             result.aiReview ||
             result.errorMessage ||
-            "Огляд не сформувався.";
-
-          const statusClass = getBatchStatusClass(
-            result.processingStatus
-          );
+            "Огляд ШІ не сформувався.";
 
           return `
-            <tr>
-              <td>${index + 1}</td>
+            <article class="batch-product-result">
+              <div class="batch-product-result-head">
+                <div>
+                  <span class="batch-product-number">
+                    Товар ${index + 1}
+                  </span>
 
-              <td class="batch-product-cell">
-                <strong>
-                  ${escapeBatchHtml(result.baseProductName)}
-                </strong>
+                  <h3>
+                    ${escapeBatchHtml(result.baseProductName)}
+                  </h3>
 
-                ${
-                  result.characteristics
-                    ? `
-                      <small>
-                        ${escapeBatchHtml(result.characteristics)}
-                      </small>
-                    `
-                    : ""
-                }
-              </td>
+                  ${
+                    result.characteristics
+                      ? `
+                        <p>
+                          ${escapeBatchHtml(
+                            result.characteristics
+                          )}
+                        </p>
+                      `
+                      : ""
+                  }
+                </div>
 
-              <td>
-                ${escapeBatchHtml(result.supplier || "—")}
-              </td>
+                <div class="batch-product-prices">
+                  <span>
+                    Закупка:
+                    <strong>${purchasePrice}</strong>
+                  </span>
 
-              <td>${purchasePrice}</td>
+                  <span>
+                    Планова роздрібна:
+                    <strong>${plannedRetailPrice}</strong>
+                  </span>
+                </div>
+              </div>
 
-              <td>${plannedRetailPrice}</td>
+              <div class="competitor-table-wrap">
+                <table class="competitor-table">
+                  <thead>
+                    <tr>
+                      <th>Джерело</th>
+                      <th>Знайдений товар</th>
+                      <th>Найнижча ціна</th>
+                      <th>Середня ціна</th>
+                      <th>Найвища ціна</th>
+                    </tr>
+                  </thead>
 
-              <td>${getBatchMarketRange(result)}</td>
+                  <tbody>
+                    ${renderBatchSourceRows(result)}
+                  </tbody>
+                </table>
+              </div>
 
-              <td>${sourcesText}</td>
-
-              <td>
-                <span class="batch-status ${statusClass}">
-                  ${escapeBatchHtml(result.processingStatus)}
-                </span>
-              </td>
-
-              <td class="batch-review-cell">
-                ${escapeBatchHtml(reviewText)}
-              </td>
-            </tr>
+              <div class="batch-product-review">
+                <strong>Огляд ШІ</strong>
+                <p>${escapeBatchHtml(aiReview)}</p>
+              </div>
+            </article>
           `;
         })
         .join("");
 
       openBatchResultsModal();
-    }    
+    }
+
+    function downloadBatchMonitoringReport() {
+      const reportRows = [];
+
+      batchMonitoringResults.forEach((result, index) => {
+        const sources = Array.isArray(result.sources)
+          ? result.sources
+          : [];
+
+        const rowsToExport = sources.length
+          ? sources
+          : [{}];
+
+        rowsToExport.forEach(source => {
+          const market = source.market || {};
+
+          reportRows.push({
+            "№ товару": index + 1,
+            "Назва товару": result.baseProductName || "",
+            "Додаткові характеристики":
+              result.characteristics || "",
+            "Бренд / постачальник":
+              result.supplier || "",
+            "Закупівельна ціна, грн":
+              Number(result.purchasePrice) || "",
+            "Планова роздрібна ціна, грн":
+              Number(result.plannedRetailPrice) || "",
+            "Конкурент":
+              source.source || "",
+            "Знайдений товар":
+              source.productTitle || "Товар не знайдено",
+            "Статус збігу":
+              source.source
+                ? getBatchMatchLabel(source)
+                : result.errorMessage ||
+                  "Джерела не повернули результатів",
+            "Кількість позицій":
+              Number(source.offersCount) || "",
+            "Найнижча ціна, грн":
+              Number(market.lowestPrice) || "",
+            "Середня ціна, грн":
+              Number(market.averagePrice) || "",
+            "Найвища ціна, грн":
+              Number(market.highestPrice) || "",
+            "Посилання на результат пошуку":
+              source.searchLink || "",
+            "Посилання на товар":
+              source.link || "",
+            "Огляд ШІ":
+              result.aiReview ||
+              result.errorMessage ||
+              ""
+          });
+        });
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(reportRows);
+
+      worksheet["!cols"] = [
+        { wch: 10 },
+        { wch: 30 },
+        { wch: 35 },
+        { wch: 24 },
+        { wch: 22 },
+        { wch: 27 },
+        { wch: 20 },
+        { wch: 45 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 55 },
+        { wch: 55 },
+        { wch: 70 }
+      ];
+
+      if (worksheet["!ref"]) {
+        worksheet["!autofilter"] = {
+          ref: worksheet["!ref"]
+        };
+      }
+
+      const workbook = XLSX.utils.book_new();
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "Моніторинг конкурентів"
+      );
+
+      const date = new Date()
+        .toLocaleDateString("uk-UA")
+        .replace(/\./g, "-");
+
+      XLSX.writeFile(
+        workbook,
+        `Звіт_моніторингу_${date}.xlsx`
+      );
+    }
 
     async function processBatchMonitoring() {
       if (!monitoringRows.length) {
@@ -1057,6 +1276,11 @@ async function processCommitteeRequest() {
         batchMonitorButton.textContent = buttonText;
       }
     }
+
+    downloadBatchReportButton.addEventListener(
+      "click",
+      downloadBatchMonitoringReport
+    );    
 
     closeBatchResultsButton.addEventListener(
       "click",
