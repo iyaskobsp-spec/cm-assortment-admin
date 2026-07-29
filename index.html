@@ -247,6 +247,56 @@
     </section>
   </main>
 
+  <div
+    id="batchResultsModal"
+    class="batch-results-modal"
+    hidden
+  >
+    <section
+      class="batch-results-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="batchResultsTitle"
+    >
+      <div class="batch-results-header">
+        <div>
+          <p class="eyebrow">Груповий моніторинг</p>
+          <h2 id="batchResultsTitle">Результати обробки списку</h2>
+          <span id="batchResultsCount" class="batch-results-count"></span>
+        </div>
+
+        <button
+          type="button"
+          id="closeBatchResultsButton"
+          class="batch-results-close"
+          aria-label="Закрити результати"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="batch-results-table-wrap">
+        <table class="batch-results-table">
+          <thead>
+            <tr>
+              <th>№</th>
+              <th>Товар</th>
+              <th>Бренд / постачальник</th>
+              <th>Закупка</th>
+              <th>Планова роздрібна</th>
+              <th>Ринок</th>
+              <th>Джерела</th>
+              <th>Статус</th>
+              <th>Огляд ШІ</th>
+            </tr>
+          </thead>
+
+          <tbody id="batchResultsRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
   <script>
     const segmentSelect = document.getElementById("segmentSelect");
     const categorySelect = document.getElementById("categorySelect");
@@ -267,6 +317,12 @@
     const marketStatusView = document.getElementById("marketStatusView");
     const competitorRows = document.getElementById("competitorRows");
     const committeeAiSummary = document.getElementById("committeeAiSummary");
+    const batchResultsModal = document.getElementById("batchResultsModal");
+    const batchResultsRows = document.getElementById("batchResultsRows");
+    const batchResultsCount = document.getElementById("batchResultsCount");
+    const closeBatchResultsButton = document.getElementById(
+      "closeBatchResultsButton"
+    );    
 
     let classifierRows = [];
     let monitoringRows = [];
@@ -813,6 +869,129 @@ async function processCommitteeRequest() {
       };
     }
 
+    function escapeBatchHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function getBatchMarketRange(result) {
+      const lowest = Number(result.marketLowest);
+      const highest = Number(result.marketHighest);
+
+      if (!(lowest > 0) || !(highest > 0)) {
+        return "—";
+      }
+
+      if (lowest === highest) {
+        return formatMoney(lowest);
+      }
+
+      return `${formatMoney(lowest)} — ${formatMoney(highest)}`;
+    }
+
+    function getBatchStatusClass(status) {
+      if (status === "Знайдено") {
+        return "is-success";
+      }
+
+      if (status === "Помилка") {
+        return "is-error";
+      }
+
+      return "is-neutral";
+    }
+
+    function openBatchResultsModal() {
+      batchResultsModal.hidden = false;
+      document.body.classList.add("batch-modal-open");
+    }
+
+    function closeBatchResultsModal() {
+      batchResultsModal.hidden = true;
+      document.body.classList.remove("batch-modal-open");
+    }
+
+    function renderBatchMonitoringResults() {
+      batchResultsCount.textContent =
+        `Оброблено товарів: ${batchMonitoringResults.length}`;
+
+      batchResultsRows.innerHTML = batchMonitoringResults
+        .map((result, index) => {
+          const purchasePrice = Number(result.purchasePrice) > 0
+            ? formatMoney(Number(result.purchasePrice))
+            : "—";
+
+          const plannedRetailPrice =
+            Number(result.plannedRetailPrice) > 0
+              ? formatMoney(Number(result.plannedRetailPrice))
+              : "—";
+
+          const sourcesText = result.totalSources
+            ? `${result.foundSources} із ${result.totalSources}`
+            : "—";
+
+          const reviewText =
+            result.aiReview ||
+            result.errorMessage ||
+            "Огляд не сформувався.";
+
+          const statusClass = getBatchStatusClass(
+            result.processingStatus
+          );
+
+          return `
+            <tr>
+              <td>${index + 1}</td>
+
+              <td class="batch-product-cell">
+                <strong>
+                  ${escapeBatchHtml(result.baseProductName)}
+                </strong>
+
+                ${
+                  result.characteristics
+                    ? `
+                      <small>
+                        ${escapeBatchHtml(result.characteristics)}
+                      </small>
+                    `
+                    : ""
+                }
+              </td>
+
+              <td>
+                ${escapeBatchHtml(result.supplier || "—")}
+              </td>
+
+              <td>${purchasePrice}</td>
+
+              <td>${plannedRetailPrice}</td>
+
+              <td>${getBatchMarketRange(result)}</td>
+
+              <td>${sourcesText}</td>
+
+              <td>
+                <span class="batch-status ${statusClass}">
+                  ${escapeBatchHtml(result.processingStatus)}
+                </span>
+              </td>
+
+              <td class="batch-review-cell">
+                ${escapeBatchHtml(reviewText)}
+              </td>
+            </tr>
+          `;
+        })
+        .join("");
+
+      openBatchResultsModal();
+    }    
+
     async function processBatchMonitoring() {
       if (!monitoringRows.length) {
         monitoringFileStatus.textContent =
@@ -870,12 +1049,34 @@ async function processCommitteeRequest() {
         monitoringFileStatus.textContent = errorsCount
           ? `${fileName} · готово: ${total - errorsCount} із ${total}, помилок: ${errorsCount}`
           : `${fileName} · готово: ${total} із ${total}`;
+
+        renderBatchMonitoringResults();
       } finally {
         monitoringFileInput.disabled = false;
         batchMonitorButton.disabled = false;
         batchMonitorButton.textContent = buttonText;
       }
     }
+
+    closeBatchResultsButton.addEventListener(
+      "click",
+      closeBatchResultsModal
+    );
+
+    batchResultsModal.addEventListener("click", event => {
+      if (event.target === batchResultsModal) {
+        closeBatchResultsModal();
+      }
+    });
+
+    document.addEventListener("keydown", event => {
+      if (
+        event.key === "Escape" &&
+        !batchResultsModal.hidden
+      ) {
+        closeBatchResultsModal();
+      }
+    });    
 
     batchMonitorButton.addEventListener(
       "click",
