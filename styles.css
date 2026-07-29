@@ -636,6 +636,138 @@ body.batch-modal-open {
   font-weight: 700;
 }
 
+.batch-results-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.batch-report-button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(232, 200, 115, 0.48);
+  border-radius: 8px;
+  color: #08090b;
+  background: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.batch-report-button:hover {
+  filter: brightness(1.08);
+}
+
+.batch-results-list {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  overflow: auto;
+}
+
+.batch-product-result {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(7, 8, 11, 0.3);
+}
+
+.batch-product-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+}
+
+.batch-product-result-head h3 {
+  margin: 4px 0;
+  color: var(--text);
+  font-size: 18px;
+}
+
+.batch-product-result-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.batch-product-number {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.batch-product-prices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.batch-product-prices span {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+  background: rgba(7, 8, 11, 0.42);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.batch-product-prices strong {
+  margin-left: 4px;
+  color: var(--text);
+}
+
+.batch-product-result .competitor-table-wrap {
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+}
+
+.batch-product-result .competitor-table {
+  min-width: 760px;
+}
+
+.batch-product-review {
+  padding: 15px 18px;
+}
+
+.batch-product-review strong {
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.batch-product-review p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+@media (max-width: 700px) {
+  .batch-results-header,
+  .batch-product-result-head {
+    flex-direction: column;
+  }
+
+  .batch-results-actions {
+    width: 100%;
+  }
+
+  .batch-report-button {
+    flex: 1;
+  }
+
+  .batch-product-prices {
+    justify-content: flex-start;
+  }
+}
+
 .batch-results-close {
   flex: 0 0 auto;
   width: 42px;
