@@ -517,6 +517,8 @@ async function monitorProduct(requestBody) {
   const segment = cleanText(requestBody.segment, 160);
   const category = cleanText(requestBody.category, 160);
   const type = cleanText(requestBody.type, 160);
+  const purchasePrice = requestBody.purchasePrice;
+  const plannedRetailPrice = requestBody.plannedRetailPrice;
 
   if (!productName) {
     const error = new Error("PRODUCT_NAME_REQUIRED");
@@ -1658,6 +1660,33 @@ async function monitorProduct(requestBody) {
     );
   }
 
+  const sources = [
+    promSource,
+    foraSource,
+    auroraSource,
+    evaSource,
+    silpoSource,
+    atbSource,
+    kopiyochkaSource
+  ];
+
+  let aiReview = null;
+
+  try {
+    aiReview = await generateAiBusinessReview({
+      productName,
+      supplier,
+      segment,
+      category,
+      type,
+      purchasePrice,
+      plannedRetailPrice,
+      sources
+    });
+  } catch (error) {
+    console.error("[Groq AI]", error);
+  }
+
   return {
     query,
     checkedAt: new Date().toISOString(),
@@ -1673,15 +1702,8 @@ async function monitorProduct(requestBody) {
     provider: "multi-source",
     offers: promResult.offers,
     market: promResult.market,
-    sources: [
-      promSource,
-      foraSource,
-      auroraSource,
-      evaSource,
-      silpoSource,
-      atbSource,
-      kopiyochkaSource
-    ]
+    sources,
+    aiReview
   };
 }
 
