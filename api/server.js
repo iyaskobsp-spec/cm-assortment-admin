@@ -1331,8 +1331,7 @@ async function monitorProduct(requestBody) {
       {
         cached: false,
         searchQuery: kopiyochkaQuery,
-        totalFound:
-          Number(kopiyochkaData?.total) || items.length,
+        totalFound: items.length,
         searchLink:
           `https://www.kopiyochka.ua/search/?phrase=${encodeURIComponent(kopiyochkaQuery)}`
       }
