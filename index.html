@@ -270,6 +270,7 @@
 
     let classifierRows = [];
     let monitoringRows = [];
+    let batchMonitoringResults = [];
 
     batchMonitorButton.disabled = true;
     
@@ -731,6 +732,9 @@ async function processCommitteeRequest() {
 
         monitoringRows = readMonitoringSheet(sheet);
 
+        batchMonitoringResults = [];
+        batchMonitorButton.disabled = false;
+
         monitoringFileStatus.textContent =
           `${file.name} · прочитано товарів: ${monitoringRows.length}`;
       } catch (error) {
@@ -740,6 +744,143 @@ async function processCommitteeRequest() {
           error.message || "Не вдалося прочитати файл.";
       }
     });
+
+    async function monitorBatchProduct(product) {
+      const response = await fetch(
+        "https://cm-assortment-admin-production.up.railway.app/api/monitor",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            productName: product.productName,
+            supplier: product.supplier,
+            segment: product.segment,
+            category: product.category,
+            type: product.type,
+            purchasePrice: product.purchasePrice,
+            plannedRetailPrice: product.plannedRetailPrice
+          })
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Не вдалося виконати моніторинг."
+        );
+      }
+
+      const sources = Array.isArray(data.sources)
+        ? data.sources
+        : [];
+
+      const matchedSources = sources.filter(source =>
+        source.status === "ok" &&
+        Number(source.market?.lowestPrice) > 0
+      );
+
+      const lowestPrices = matchedSources.map(source =>
+        Number(source.market.lowestPrice)
+      );
+
+      const highestPrices = matchedSources.map(source =>
+        Number(source.market.highestPrice)
+      );
+
+      return {
+        ...product,
+        processingStatus: matchedSources.length
+          ? "Знайдено"
+          : sources.length
+            ? "Збігів немає"
+            : "Джерела не відповіли",
+        foundSources: matchedSources.length,
+        totalSources: sources.length,
+        marketLowest: lowestPrices.length
+          ? Math.min(...lowestPrices)
+          : null,
+        marketHighest: highestPrices.length
+          ? Math.max(...highestPrices)
+          : null,
+        aiReview:
+          typeof data.aiReview?.review === "string"
+            ? data.aiReview.review.trim()
+            : "",
+        sources
+      };
+    }
+
+    async function processBatchMonitoring() {
+      if (!monitoringRows.length) {
+        monitoringFileStatus.textContent =
+          "Спочатку завантажте заповнений список.";
+        return;
+      }
+
+      const fileName =
+        monitoringFileInput.files?.[0]?.name || "Список";
+
+      const total = monitoringRows.length;
+      const buttonText = batchMonitorButton.textContent;
+
+      batchMonitoringResults = [];
+      batchMonitorButton.disabled = true;
+      monitoringFileInput.disabled = true;
+
+      try {
+        for (let index = 0; index < total; index += 1) {
+          const product = monitoringRows[index];
+          const currentNumber = index + 1;
+
+          batchMonitorButton.textContent =
+            `Оброблено ${index} із ${total}`;
+
+          monitoringFileStatus.textContent =
+            `${fileName} · перевіряємо ${currentNumber} із ${total}: ${product.baseProductName}`;
+
+          try {
+            const result = await monitorBatchProduct(product);
+            batchMonitoringResults.push(result);
+          } catch (error) {
+            batchMonitoringResults.push({
+              ...product,
+              processingStatus: "Помилка",
+              foundSources: 0,
+              totalSources: 0,
+              marketLowest: null,
+              marketHighest: null,
+              aiReview: "",
+              sources: [],
+              errorMessage:
+                error.message || "Не вдалося перевірити товар."
+            });
+          }
+
+          batchMonitorButton.textContent =
+            `Оброблено ${currentNumber} із ${total}`;
+        }
+
+        const errorsCount = batchMonitoringResults.filter(
+          result => result.processingStatus === "Помилка"
+        ).length;
+
+        monitoringFileStatus.textContent = errorsCount
+          ? `${fileName} · готово: ${total - errorsCount} із ${total}, помилок: ${errorsCount}`
+          : `${fileName} · готово: ${total} із ${total}`;
+      } finally {
+        monitoringFileInput.disabled = false;
+        batchMonitorButton.disabled = false;
+        batchMonitorButton.textContent = buttonText;
+      }
+    }
+
+    batchMonitorButton.addEventListener(
+      "click",
+      processBatchMonitoring
+    );
 
     committeeProcessButton.addEventListener(
       "click",
