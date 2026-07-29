@@ -400,13 +400,47 @@ async function monitorProduct(requestBody) {
       return 0;
     }
 
-    const tokensMatch = (queryToken, titleToken) =>
-      queryToken === titleToken ||
-      (
-        queryToken.length >= 5 &&
-        titleToken.length >= 5 &&
-        queryToken.slice(0, 5) === titleToken.slice(0, 5)
+    const tokensMatch = (queryToken, titleToken) => {
+      const queryBase = queryToken.replace(/\.+$/g, "");
+      const titleBase = titleToken.replace(/\.+$/g, "");
+
+      if (queryBase === titleBase) {
+        return true;
+      }
+
+      const queryIsAbbreviation =
+        queryBase.length < titleBase.length &&
+        titleBase.startsWith(queryBase);
+
+      const titleIsAbbreviation =
+        titleBase.length < queryBase.length &&
+        queryBase.startsWith(titleBase);
+
+      const shorterLength = Math.min(
+        queryBase.length,
+        titleBase.length
       );
+
+      const hasAbbreviationDot =
+        queryBase !== queryToken ||
+        titleBase !== titleToken;
+
+      if (
+        (queryIsAbbreviation || titleIsAbbreviation) &&
+        (
+          (hasAbbreviationDot && shorterLength >= 3) ||
+          (!hasAbbreviationDot && shorterLength >= 4)
+        )
+      ) {
+        return true;
+      }
+
+      return (
+        queryBase.length >= 5 &&
+        titleBase.length >= 5 &&
+        queryBase.slice(0, 5) === titleBase.slice(0, 5)
+      );
+    };
 
     const countMatchedTokens = tokens =>
       tokens.filter(queryToken =>
@@ -1142,61 +1176,114 @@ async function monitorProduct(requestBody) {
       "шт", "pcs", "табл", "капс", "пак"
     ]);
 
-    const kopiyochkaQueryTokens = tokenizeSearchText(query)
-      .filter(token =>
-        !kopiyochkaStopWords.has(token) &&
-        !kopiyochkaUnits.has(token) &&
-        !/^\d+(?:[.,]\d+)?$/.test(token)
-      );
+    const kopiyochkaQueryTokens =
+      tokenizeSearchText(productName)
+        .filter(token =>
+          !kopiyochkaStopWords.has(token) &&
+          !kopiyochkaUnits.has(token) &&
+          !/^\d+(?:[.,]\d+)?$/.test(token)
+        );
 
     const kopiyochkaQuery =
-      kopiyochkaQueryTokens.join(" ") || query;
+      kopiyochkaQueryTokens.join(" ") || productName;
 
-    const requestBody = new URLSearchParams();
+    const kopiyochkaQueries = [
+      ...new Set([
+        kopiyochkaQuery,
+        ...kopiyochkaQueryTokens.slice(0, 3)
+      ].filter(Boolean))
+    ];
 
-    requestBody.set("action", "get_catalog_products");
-    requestBody.set("place_id", "");
-    requestBody.set("category_term_id", "");
-    requestBody.set("offset", "0");
-    requestBody.set("search_query", kopiyochkaQuery);
-    requestBody.set("sort_by", "popularity");
+    const loadKopiyochkaItems = async searchQuery => {
+      const requestBody = new URLSearchParams();
 
-    const kopiyochkaResponse = await fetch(
-      "https://www.kopiyochka.ua/user-pannel/admin-ajax.php",
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type":
-            "application/x-www-form-urlencoded;charset=UTF-8",
-          Origin: "https://www.kopiyochka.ua",
-          Referer: "https://www.kopiyochka.ua/search/",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36"
-        },
-        body: requestBody.toString(),
-        signal: AbortSignal.timeout(20000)
-      }
-    );
+      requestBody.set("action", "get_catalog_products");
+      requestBody.set("place_id", "");
+      requestBody.set("category_term_id", "");
+      requestBody.set("offset", "0");
+      requestBody.set("search_query", searchQuery);
+      requestBody.set("sort_by", "popularity");
 
-    if (!kopiyochkaResponse.ok) {
-      const errorBody = await kopiyochkaResponse
-        .text()
-        .catch(() => "");
-
-      throw new Error(
-        `KOPIYOCHKA_REQUEST_FAILED: HTTP ${kopiyochkaResponse.status} ${cleanText(errorBody, 300)}`
+      const kopiyochkaResponse = await fetch(
+        "https://www.kopiyochka.ua/user-pannel/admin-ajax.php",
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type":
+              "application/x-www-form-urlencoded;charset=UTF-8",
+            Origin: "https://www.kopiyochka.ua",
+            Referer: "https://www.kopiyochka.ua/search/",
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36"
+          },
+          body: requestBody.toString(),
+          signal: AbortSignal.timeout(20000)
+        }
       );
+
+      if (!kopiyochkaResponse.ok) {
+        const errorBody = await kopiyochkaResponse
+          .text()
+          .catch(() => "");
+
+        throw new Error(
+          `KOPIYOCHKA_REQUEST_FAILED: HTTP ${kopiyochkaResponse.status} ${cleanText(errorBody, 300)}`
+        );
+      }
+
+      const kopiyochkaData =
+        await kopiyochkaResponse.json();
+
+      return Array.isArray(kopiyochkaData?.items)
+        ? kopiyochkaData.items
+        : Array.isArray(kopiyochkaData)
+          ? kopiyochkaData
+          : [];
+    };
+
+    const kopiyochkaQueryStates =
+      await Promise.allSettled(
+        kopiyochkaQueries.map(searchQuery =>
+          loadKopiyochkaItems(searchQuery)
+        )
+      );
+
+    const successfulQueries =
+      kopiyochkaQueryStates.filter(
+        state => state.status === "fulfilled"
+      );
+
+    if (!successfulQueries.length) {
+      const firstError = kopiyochkaQueryStates.find(
+        state => state.status === "rejected"
+      );
+
+      throw firstError?.reason ||
+        new Error("KOPIYOCHKA_REQUEST_FAILED");
     }
 
-    const kopiyochkaData =
-      await kopiyochkaResponse.json();
+    const itemsByKey = new Map();
 
-    const items = Array.isArray(kopiyochkaData?.items)
-      ? kopiyochkaData.items
-      : Array.isArray(kopiyochkaData)
-        ? kopiyochkaData
-        : [];
+    successfulQueries.forEach(state => {
+      state.value.forEach(item => {
+        const itemKey = cleanText(
+          item.id ||
+          item.ID ||
+          item.sku ||
+          item.url ||
+          item.guid ||
+          `${item.post_title}|${item.promo_unit_price}|${item.base_unit_price}`,
+          500
+        );
+
+        if (itemKey && !itemsByKey.has(itemKey)) {
+          itemsByKey.set(itemKey, item);
+        }
+      });
+    });
+
+    const items = [...itemsByKey.values()];
 
     const offers = items
       .map(item => {
