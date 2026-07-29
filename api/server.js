@@ -816,51 +816,6 @@ async function monitorProduct(requestBody) {
       ? matchedSupplierTokens / supplierTokens.length
       : 1;
 
-    const productSubtypeGroups = [
-      new Set([
-        "вологий", "волога", "вологе", "вологі",
-        "вологого", "вологих", "wet", "moist"
-      ]),
-      new Set([
-        "дитячий", "дитяча", "дитяче", "дитячі",
-        "kids", "baby"
-      ]),
-      new Set([
-        "запаска", "запасний", "запасна", "запасне",
-        "запасні", "refill"
-      ]),
-      new Set([
-        "концентрат", "концентрований", "концентрована",
-        "concentrate", "concentrated"
-      ]),
-      new Set([
-        "міні", "mini", "travel"
-      ])
-    ];
-
-    const normalizeSubtypeToken = token =>
-      token.replace(/\.+$/g, "");
-
-    const requestedSubtypeTokens = [
-      ...productTokens,
-      ...classificationTokens
-    ];
-
-    const unrequestedSubtypeGroups =
-      productSubtypeGroups.filter(group => {
-        const subtypeRequested =
-          requestedSubtypeTokens.some(token =>
-            group.has(normalizeSubtypeToken(token))
-          );
-
-        const subtypeFoundInTitle =
-          titleTokens.some(token =>
-            group.has(normalizeSubtypeToken(token))
-          );
-
-        return subtypeFoundInTitle && !subtypeRequested;
-      }).length;
-
     const isFullMatch =
       productCoverage === 1 &&
       supplierCoverage === 1 &&
@@ -869,7 +824,7 @@ async function monitorProduct(requestBody) {
         hasExactPackage
       );
 
-    if (isFullMatch && !unrequestedSubtypeGroups) {
+    if (isFullMatch) {
       return 1;
     }
 
@@ -883,13 +838,6 @@ async function monitorProduct(requestBody) {
       !titlePackages.length
     ) {
       score *= 0.9;
-    }
-
-    if (unrequestedSubtypeGroups) {
-      score *= Math.max(
-        0.7,
-        1 - unrequestedSubtypeGroups * 0.15
-      );
     }
 
     return Math.min(
@@ -950,7 +898,7 @@ async function monitorProduct(requestBody) {
       link: bestOffer?.link || extra.searchLink || null,
       offersCount: matchedOffers.length,
       market: calculateMarket(matchedOffers),
-      offers: matchedOffers.slice(0, 10),
+      offers: matchedOffers.slice(0, 20),
       ...extra
     };
   }
@@ -967,6 +915,165 @@ async function monitorProduct(requestBody) {
       offers: [],
       message
     };
+  }
+
+    async function filterSourcesByMeaning(sourceList) {
+    const apiKey = process.env.GROQ_API_KEY;
+
+    if (!apiKey) {
+      throw new Error("GROQ_API_KEY_MISSING");
+    }
+
+    const candidates = [];
+
+    sourceList.forEach((source, sourceIndex) => {
+      if (
+        source?.status !== "ok" ||
+        !Array.isArray(source.offers)
+      ) {
+        return;
+      }
+
+      source.offers.slice(0, 20).forEach((offer, offerIndex) => {
+        candidates.push({
+          id: `s${sourceIndex}o${offerIndex}`,
+          source: cleanText(source.source, 80),
+          title: cleanText(offer.title, 260)
+        });
+      });
+    });
+
+    if (!candidates.length) {
+      return sourceList;
+    }
+
+    const relevanceResponse = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          temperature: 0,
+          max_completion_tokens: 3000,
+          response_format: {
+            type: "json_object"
+          },
+          messages: [
+            {
+              role: "system",
+              content:
+                "Ти перевіряєш релевантність товарів у пошуковій видачі. " +
+                "Для кожного кандидата визнач, чи є він прямим ринковим аналогом запитаного товару. " +
+                "Оцінюй зміст усієї назви, а не лише збіг окремого слова. " +
+                "Прямий аналог повинен мати той самий вид товару, призначення, форму, матеріал, " +
+                "цільову аудиторію та суттєві характеристики, якщо вони задані в запиті. " +
+                "Відхиляй кандидата, якщо додаткові слова змінюють вид або призначення товару, " +
+                "або якщо слово запиту згадане лише як складник, властивість чи заперечення. " +
+                "Бренд, рекламні слова, країна виробництва або оформлення упаковки самі по собі " +
+                "не роблять товар іншим. Якщо фасування в запиті не задане, не відхиляй товар " +
+                "лише через фасування. Не вигадуй відсутні характеристики. " +
+                "Поверни лише JSON без пояснень поза JSON у форматі " +
+                "{\"decisions\":[{\"id\":\"s0o0\",\"relevant\":true}]}. " +
+                "Поверни рішення для кожного переданого id рівно один раз."
+            },
+            {
+              role: "user",
+              content: JSON.stringify({
+                requestedProduct: {
+                  name: productName,
+                  supplier: supplier || null,
+                  segment: segment || null,
+                  category: category || null,
+                  type: type || null
+                },
+                candidates
+              })
+            }
+          ]
+        }),
+        signal: AbortSignal.timeout(25000)
+      }
+    );
+
+    if (!relevanceResponse.ok) {
+      const errorBody = await relevanceResponse
+        .text()
+        .catch(() => "");
+
+      throw new Error(
+        `GROQ_RELEVANCE_FAILED: HTTP ${relevanceResponse.status} ${cleanText(errorBody, 300)}`
+      );
+    }
+
+    const relevanceData = await relevanceResponse.json();
+    const relevanceText = cleanText(
+      relevanceData?.choices?.[0]?.message?.content,
+      12000
+    );
+
+    const parsedRelevance = JSON.parse(relevanceText);
+    const decisions = Array.isArray(parsedRelevance.decisions)
+      ? parsedRelevance.decisions
+      : [];
+
+    const knownIds = new Set(
+      candidates.map(candidate => candidate.id)
+    );
+
+    const decisionMap = new Map();
+
+    decisions.forEach(decision => {
+      if (
+        knownIds.has(decision?.id) &&
+        typeof decision.relevant === "boolean"
+      ) {
+        decisionMap.set(
+          decision.id,
+          decision.relevant
+        );
+      }
+    });
+
+    if (decisionMap.size !== candidates.length) {
+      throw new Error("GROQ_RELEVANCE_INCOMPLETE");
+    }
+
+    return sourceList.map((source, sourceIndex) => {
+      if (
+        source?.status === "error" ||
+        !Array.isArray(source.offers)
+      ) {
+        return source;
+      }
+
+      const relevantOffers = source.offers
+        .filter((offer, offerIndex) =>
+          decisionMap.get(
+            `s${sourceIndex}o${offerIndex}`
+          ) === true
+        )
+        .slice(0, 10);
+
+      const bestOffer = relevantOffers[0] || null;
+
+      return {
+        ...source,
+        status: bestOffer ? "ok" : "no_matches",
+        matchType: bestOffer ? "full" : "none",
+        productTitle: bestOffer?.title || null,
+        link:
+          bestOffer?.link ||
+          source.searchLink ||
+          null,
+        offersCount: relevantOffers.length,
+        market: calculateMarket(relevantOffers),
+        offers: relevantOffers
+      };
+    });
   }
 
   async function monitorFora() {
@@ -1793,7 +1900,7 @@ async function monitorProduct(requestBody) {
     );
   }
 
-  const sources = [
+  let sources = [
     promSource,
     foraSource,
     auroraSource,
@@ -1802,6 +1909,12 @@ async function monitorProduct(requestBody) {
     atbSource,
     kopiyochkaSource
   ];
+
+  try {
+    sources = await filterSourcesByMeaning(sources);
+  } catch (error) {
+    console.error("[Groq relevance]", error);
+  }
 
   let aiReview = null;
 
