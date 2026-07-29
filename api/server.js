@@ -641,17 +641,17 @@ async function monitorProduct(requestBody) {
     ]);
 
     const unitInfo = {
-      мл: ["volume", 1],
-      ml: ["volume", 1],
-      л: ["volume", 1000],
-      liter: ["volume", 1000],
-      litre: ["volume", 1000],
+      мл: ["package", 1],
+      ml: ["package", 1],
+      л: ["package", 1000],
+      liter: ["package", 1000],
+      litre: ["package", 1000],
 
-      г: ["weight", 1],
-      гр: ["weight", 1],
-      gr: ["weight", 1],
-      кг: ["weight", 1000],
-      kg: ["weight", 1000],
+      г: ["package", 1],
+      гр: ["package", 1],
+      gr: ["package", 1],
+      кг: ["package", 1000],
+      kg: ["package", 1000],
 
       шт: ["count", 1],
       "шт.": ["count", 1],
