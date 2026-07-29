@@ -316,6 +316,201 @@ async function monitorProm(productName, supplier) {
   return result;
 }
 
+function calculateBusinessMetrics({
+  purchasePrice,
+  plannedRetailPrice,
+  sources
+}) {
+  const round = value =>
+    Number.isFinite(value)
+      ? Math.round(value * 100) / 100
+      : null;
+
+  const purchase = parsePrice(purchasePrice);
+  const plannedRetail = parsePrice(plannedRetailPrice);
+
+  const matchedSources = (Array.isArray(sources) ? sources : [])
+    .filter(source => source.status === "ok");
+
+  const marketPrices = matchedSources
+    .flatMap(source =>
+      Array.isArray(source.offers) ? source.offers : []
+    )
+    .map(offer => Number(offer.price))
+    .filter(price => Number.isFinite(price) && price > 0)
+    .sort((first, second) => first - second);
+
+  const middleIndex = Math.floor(marketPrices.length / 2);
+
+  const marketMedian = marketPrices.length
+    ? marketPrices.length % 2
+      ? marketPrices[middleIndex]
+      : (
+        marketPrices[middleIndex - 1] +
+        marketPrices[middleIndex]
+      ) / 2
+    : null;
+
+  const marketAverage = marketPrices.length
+    ? marketPrices.reduce((sum, price) => sum + price, 0) /
+      marketPrices.length
+    : null;
+
+  const plannedMarginPercent =
+    purchase && plannedRetail
+      ? ((plannedRetail - purchase) / plannedRetail) * 100
+      : null;
+
+  const marginAtMarketMedianPercent =
+    purchase && marketMedian
+      ? ((marketMedian - purchase) / marketMedian) * 100
+      : null;
+
+  const plannedPriceVsMedianPercent =
+    plannedRetail && marketMedian
+      ? ((plannedRetail - marketMedian) / marketMedian) * 100
+      : null;
+
+  const maxPurchaseAtMarketMedian =
+    marketMedian && plannedMarginPercent !== null
+      ? marketMedian * (1 - plannedMarginPercent / 100)
+      : null;
+
+  const requiredPurchaseReduction =
+    purchase &&
+    maxPurchaseAtMarketMedian !== null &&
+    purchase > maxPurchaseAtMarketMedian
+      ? purchase - maxPurchaseAtMarketMedian
+      : 0;
+
+  return {
+    matchedSourcesCount: matchedSources.length,
+    marketOffersCount: marketPrices.length,
+    marketLowestPrice:
+      marketPrices.length ? round(marketPrices[0]) : null,
+    marketAveragePrice: round(marketAverage),
+    marketMedianPrice: round(marketMedian),
+    marketHighestPrice:
+      marketPrices.length
+        ? round(marketPrices[marketPrices.length - 1])
+        : null,
+    purchasePrice: round(purchase),
+    plannedRetailPrice: round(plannedRetail),
+    plannedMarginPercent: round(plannedMarginPercent),
+    marginAtMarketMedianPercent:
+      round(marginAtMarketMedianPercent),
+    plannedPriceVsMedianPercent:
+      round(plannedPriceVsMedianPercent),
+    maxPurchaseAtMarketMedian:
+      round(maxPurchaseAtMarketMedian),
+    requiredPurchaseReduction:
+      round(requiredPurchaseReduction)
+  };
+}
+
+async function generateAiBusinessReview({
+  productName,
+  supplier,
+  segment,
+  category,
+  type,
+  purchasePrice,
+  plannedRetailPrice,
+  sources
+}) {
+  const apiKey = process.env.GROQ_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("GROQ_API_KEY_MISSING");
+  }
+
+  const metrics = calculateBusinessMetrics({
+    purchasePrice,
+    plannedRetailPrice,
+    sources
+  });
+
+  const groqResponse = await fetch(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.2,
+        max_completion_tokens: 320,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Ти аналітик асортиментного комітету роздрібної мережі. " +
+              "Сформуй українською короткий практичний бізнес-висновок на 3–5 речень. " +
+              "Почни з чіткого рішення: доцільно заводити, доцільно тестувати, " +
+              "потрібно переглянути умови або даних недостатньо. " +
+              "Оціни закупівельну й планову роздрібну ціну відносно медіани ринку, " +
+              "валову маржу та кількість ринкових пропозицій. " +
+              "Якщо планова ціна завищена, а для збереження запланованої маржі " +
+              "потрібна нижча закупка, назви розраховану максимальну закупівельну ціну. " +
+              "Не вигадуй попит, продажі, якість товару або надійність постачальника. " +
+              "Не переказуй список джерел і дату перевірки. " +
+              "Якщо бракує цін або ринкових пропозицій, прямо скажи, яких даних недостатньо."
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              product: {
+                name: productName,
+                supplier: supplier || null,
+                segment: segment || null,
+                category: category || null,
+                type: type || null
+              },
+              metrics,
+              note:
+                "plannedMarginPercent — валова маржа за введеними закупкою і плановою роздрібною ціною; " +
+                "maxPurchaseAtMarketMedian — максимальна закупка біля медіани ринку " +
+                "для збереження цієї ж запланованої маржі."
+            })
+          }
+        ]
+      }),
+      signal: AbortSignal.timeout(25000)
+    }
+  );
+
+  if (!groqResponse.ok) {
+    const errorBody = await groqResponse
+      .text()
+      .catch(() => "");
+
+    throw new Error(
+      `GROQ_REQUEST_FAILED: HTTP ${groqResponse.status} ${cleanText(errorBody, 300)}`
+    );
+  }
+
+  const groqData = await groqResponse.json();
+
+  const review = cleanText(
+    groqData?.choices?.[0]?.message?.content,
+    1800
+  );
+
+  if (!review) {
+    throw new Error("GROQ_EMPTY_RESPONSE");
+  }
+
+  return {
+    review,
+    metrics,
+    model:
+      cleanText(groqData.model, 100) ||
+      "llama-3.3-70b-versatile"
+  };
+}
+
 async function monitorProduct(requestBody) {
   const productName = cleanText(requestBody.productName);
   const supplier = cleanText(requestBody.supplier, 120);
