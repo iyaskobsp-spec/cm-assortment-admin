@@ -390,7 +390,9 @@ async function processCommitteeRequest() {
           supplier,
           segment,
           category,
-          type
+          type,
+          purchasePrice,
+          plannedRetailPrice
         })
       }
     );
@@ -482,44 +484,14 @@ async function processCommitteeRequest() {
       `;
     }).join("");
 
-    const checkedAt = new Date(data.checkedAt).toLocaleString("uk-UA", {
-      dateStyle: "short",
-      timeStyle: "short"
-    });
+    const aiReviewText =
+      typeof data.aiReview?.review === "string"
+        ? data.aiReview.review.trim()
+        : "";
 
-    const averagePrices = matchedSources
-      .map(source => Number(source.market.averagePrice))
-      .filter(price => price > 0);
-
-    const marketAverage = averagePrices.length
-      ? averagePrices.reduce((sum, price) => sum + price, 0) / averagePrices.length
-      : null;
-
-    let economicsText = "";
-
-    if (plannedRetailPrice && marketAverage) {
-      const difference = plannedRetailPrice - marketAverage;
-      const differenceText =
-        `${Math.abs(Math.round(difference)).toLocaleString("uk-UA")} грн`;
-
-      economicsText = difference >= 0
-        ? ` Планова роздрібна на ${differenceText} вища за середню ціну знайдених джерел.`
-        : ` Планова роздрібна на ${differenceText} нижча за середню ціну знайдених джерел.`;
-    } else if (plannedMargin !== null) {
-      economicsText = ` Планова маржа: ${Math.round(plannedMargin)}%.`;
-    }
-
-    const matchedSourceNames = matchedSources
-      .map(source => source.source)
-      .join(", ");
-
-    committeeAiSummary.textContent = matchedSources.length
-      ? `${productName}${supplier ? ` / ${supplier}` : ""}: збіги знайдено у ${matchedSourceNames}. ` +
-        `Загальний діапазон: ${marketRangeView.textContent}.${economicsText} ` +
-        `Перевірено: ${checkedAt}.` +
-        `${data.cached ? " Показано збережений результат перевірки." : ""}`
-      : `${productName}: підключені джерела не знайшли релевантних позицій. ` +
-        `Спробуй уточнити бренд, фасування або назву товару. Перевірено: ${checkedAt}.`;
+    committeeAiSummary.textContent =
+      aiReviewText ||
+      "ШІ-огляд не сформувався. Ринкові дані вище залишаються доступними — повтори обробку трохи пізніше.";
   } catch (error) {
     marketRangeView.textContent = "-";
     marketStatusView.textContent = "Помилка перевірки";
