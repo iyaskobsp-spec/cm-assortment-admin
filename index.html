@@ -269,6 +269,9 @@
     const committeeAiSummary = document.getElementById("committeeAiSummary");
 
     let classifierRows = [];
+    let monitoringRows = [];
+
+    batchMonitorButton.disabled = true;
     
     function getUniqueValues(rows, field, filters = {}) {
       const values = rows
@@ -559,7 +562,189 @@ async function processCommitteeRequest() {
   }
 }
 
-    committeeProcessButton.addEventListener("click", processCommitteeRequest);
+    function getMonitoringCellText(value) {
+      return String(value ?? "")
+        .replace(/^\uFEFF/, "")
+        .trim();
+    }
+
+    function parseMonitoringPrice(value, rowNumber, columnName) {
+      const text = getMonitoringCellText(value);
+
+      if (!text) {
+        return null;
+      }
+
+      const normalized = text
+        .replace(/\s/g, "")
+        .replace(",", ".");
+
+      const price = Number(normalized);
+
+      if (!Number.isFinite(price) || price <= 0) {
+        throw new Error(
+          `Рядок ${rowNumber}: у колонці «${columnName}» вказана некоректна ціна.`
+        );
+      }
+
+      return price;
+    }
+
+    function readMonitoringSheet(sheet) {
+      const requiredHeaders = [
+        "Назва товару",
+        "Додаткові характеристики",
+        "Бренд / постачальник",
+        "Сегмент",
+        "Категорія",
+        "Вид",
+        "Закупівельна ціна, грн",
+        "Планова роздрібна ціна, грн"
+      ];
+
+      const sheetRows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        defval: "",
+        raw: false,
+        blankrows: true
+      });
+
+      if (!sheetRows.length) {
+        throw new Error("Файл порожній.");
+      }
+
+      const headers = sheetRows[0].map(getMonitoringCellText);
+      const missingHeaders = requiredHeaders.filter(
+        header => !headers.includes(header)
+      );
+
+      if (missingHeaders.length) {
+        throw new Error(
+          `У файлі немає колонок: ${missingHeaders.join(", ")}.`
+        );
+      }
+
+      const headerIndexes = Object.fromEntries(
+        requiredHeaders.map(header => [
+          header,
+          headers.indexOf(header)
+        ])
+      );
+
+      const filledRows = sheetRows
+        .slice(1)
+        .map((values, index) => ({
+          values,
+          rowNumber: index + 2
+        }))
+        .filter(({ values }) =>
+          requiredHeaders.some(header =>
+            getMonitoringCellText(
+              values[headerIndexes[header]]
+            )
+          )
+        );
+
+      if (!filledRows.length) {
+        throw new Error("У файлі немає товарів для моніторингу.");
+      }
+
+      if (filledRows.length > 20) {
+        throw new Error(
+          `У файлі ${filledRows.length} товарів. Максимум — 20.`
+        );
+      }
+
+      return filledRows.map(({ values, rowNumber }) => {
+        const getValue = header =>
+          getMonitoringCellText(
+            values[headerIndexes[header]]
+          );
+
+        const baseProductName = getValue("Назва товару");
+        const characteristics = getValue(
+          "Додаткові характеристики"
+        );
+
+        if (!baseProductName) {
+          throw new Error(
+            `Рядок ${rowNumber}: не заповнена назва товару.`
+          );
+        }
+
+        return {
+          rowNumber,
+          baseProductName,
+          characteristics,
+          productName: [
+            baseProductName,
+            characteristics
+          ].filter(Boolean).join(" "),
+          supplier: getValue("Бренд / постачальник"),
+          segment: getValue("Сегмент"),
+          category: getValue("Категорія"),
+          type: getValue("Вид"),
+          purchasePrice: parseMonitoringPrice(
+            getValue("Закупівельна ціна, грн"),
+            rowNumber,
+            "Закупівельна ціна, грн"
+          ),
+          plannedRetailPrice: parseMonitoringPrice(
+            getValue("Планова роздрібна ціна, грн"),
+            rowNumber,
+            "Планова роздрібна ціна, грн"
+          )
+        };
+      });
+    }
+
+    monitoringFileInput.addEventListener("change", async () => {
+      monitoringRows = [];
+      batchMonitorButton.disabled = true;
+
+      const file = monitoringFileInput.files?.[0];
+
+      if (!file) {
+        monitoringFileStatus.textContent = "Завантажте список";
+        return;
+      }
+
+      monitoringFileStatus.textContent = "Читаємо файл...";
+
+      try {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, {
+          type: "array"
+        });
+
+        const sheetName = workbook.SheetNames.includes(
+          "Товари для моніторингу"
+        )
+          ? "Товари для моніторингу"
+          : workbook.SheetNames[0];
+
+        const sheet = workbook.Sheets[sheetName];
+
+        if (!sheet) {
+          throw new Error("У файлі немає аркуша з товарами.");
+        }
+
+        monitoringRows = readMonitoringSheet(sheet);
+
+        monitoringFileStatus.textContent =
+          `${file.name} · прочитано товарів: ${monitoringRows.length}`;
+      } catch (error) {
+        monitoringRows = [];
+        monitoringFileInput.value = "";
+        monitoringFileStatus.textContent =
+          error.message || "Не вдалося прочитати файл.";
+      }
+    });
+
+    committeeProcessButton.addEventListener(
+      "click",
+      processCommitteeRequest
+    );
 
     loadClassifier();
   </script>
