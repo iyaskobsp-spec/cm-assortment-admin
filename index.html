@@ -196,34 +196,80 @@
       </div>
 
       <div class="module-grid">
-        <form class="form-panel form-grid">
-          <div class="field field-wide">
-            <label for="trendSearchInput">Що шукаємо</label>
-            <input id="trendSearchInput" type="text" placeholder="Наприклад: іграшки, органайзери, декор">
-          </div>
+<form class="form-panel form-grid">
+  <div class="field">
+    <label for="trendCategorySelect">Категорія</label>
+    <select id="trendCategorySelect">
+      <option value="">Оберіть категорію</option>
+      <option value="home-kitchen">Дім і кухня</option>
+      <option value="storage-organization">Зберігання та організація</option>
+      <option value="decor">Декор</option>
+      <option value="household">Побутові товари</option>
+      <option value="beauty-care">Краса і догляд</option>
+      <option value="kids">Товари для дітей</option>
+      <option value="toys">Іграшки</option>
+      <option value="stationery">Канцелярія</option>
+      <option value="accessories">Аксесуари</option>
+      <option value="pets">Товари для тварин</option>
+      <option value="seasonal">Сезонні товари</option>
+      <option value="gifts">Подарунки</option>
+      <option value="electronics-accessories">Електронні аксесуари</option>
+      <option value="other">Інше</option>
+    </select>
+  </div>
 
-          <div class="field">
-            <label for="trendSearchType">Тип пошуку</label>
-            <select id="trendSearchType">
-              <option value="all">Новинки + тренди + популярне</option>
-              <option value="new">Тільки новинки</option>
-              <option value="trends">Тільки тренди</option>
-              <option value="popular">Тільки популярне</option>
-            </select>
-          </div>
+  <div class="field">
+    <label for="trendSearchType">Тип сигналу</label>
+    <select id="trendSearchType">
+      <option value="all">Усе</option>
+      <option value="new">Новинки</option>
+      <option value="trends">Тренди</option>
+      <option value="popular">Популярне</option>
+    </select>
+  </div>
 
-          <div class="field">
-            <label for="trendMinPrice">Ціна від, грн</label>
-            <input id="trendMinPrice" type="number" placeholder="0">
-          </div>
+  <div class="field">
+    <label for="trendMarketSelect">Ринок</label>
+    <select id="trendMarketSelect">
+      <option value="europe-usa">Європа + США</option>
+      <option value="world">Увесь світ</option>
+      <option value="europe">Європа</option>
+      <option value="usa">США</option>
+      <option value="uk">Велика Британія</option>
+      <option value="germany">Німеччина</option>
+      <option value="poland">Польща</option>
+      <option value="france">Франція</option>
+      <option value="italy">Італія</option>
+      <option value="spain">Іспанія</option>
+    </select>
+  </div>
 
-          <div class="field">
-            <label for="trendMaxPrice">Ціна до, грн</label>
-            <input id="trendMaxPrice" type="number" placeholder="1000">
-          </div>
+  <div class="field field-wide">
+    <label for="trendSearchInput">Уточнення пошуку, необов’язково</label>
+    <input
+      id="trendSearchInput"
+      type="text"
+      placeholder="Наприклад: для маленької кухні, дорожні, складані"
+    >
+  </div>
 
-          <button type="button" id="trendSearchButton" class="primary-btn field-wide">Шукати новинки</button>
-        </form>
+  <div class="field field-wide">
+    <label for="trendExcludeInput">Виключити, необов’язково</label>
+    <input
+      id="trendExcludeInput"
+      type="text"
+      placeholder="Наприклад: без одягу, без електроніки, без косметики"
+    >
+  </div>
+
+  <button
+    type="button"
+    id="trendSearchButton"
+    class="primary-btn field-wide"
+  >
+    Знайти товарні ідеї
+  </button>
+</form>
 
         <aside class="insight-panel result-panel">
           <div class="insight-head">
