@@ -613,13 +613,16 @@ async function monitorProduct(requestBody) {
 
   function normalizeSearchText(value) {
     return cleanText(value, 500)
+      .normalize("NFKC")
       .toLocaleLowerCase("uk-UA")
       .replace(/ґ/g, "г")
       .replace(/ё/g, "е")
-      .replace(/[’'`"]/g, "")
+      .replace(/[’'`"«»„“”]+/g, " ")
       .replace(/\b1\s*\/\s*2\b/g, "0.5")
       .replace(/(\d)\s*,\s*(\d)/g, "$1.$2")
-      .replace(/[^\p{L}\p{N}.]+/gu, " ")
+      .replace(/(\d)\.(\d)/g, "$1\uE000$2")
+      .replace(/[^\p{L}\p{N}\uE000]+/gu, " ")
+      .replace(/\uE000/g, ".")
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -744,43 +747,94 @@ async function monitorProduct(requestBody) {
   }
 
   function getTokenRoot(token) {
-    const normalizedToken = token.replace(/\.+$/g, "");
+    const normalizedToken = normalizeSearchText(token)
+      .replace(/\.+$/g, "");
 
-    if (/^греч/.test(normalizedToken)) {
-      return "греч";
+    if (
+      !normalizedToken ||
+      /^\d+(?:\.\d+)?$/.test(normalizedToken) ||
+      !/^[а-яіїє]+$/u.test(normalizedToken)
+    ) {
+      return normalizedToken;
     }
 
-    if (/^шпрот/.test(normalizedToken)) {
-      return "шпрот";
-    }
+    const suffixes = [
+      "уваннями", "юваннями", "уванням", "юванням",
+      "ованиями", "ениями", "аннями", "еннями",
+      "ованого", "еваного", "ованими", "еваними",
+      "ический", "ическая", "ическое", "ические",
+      "ського", "цького", "ового", "евого",
+      "ними", "ного", "ному",
+      "ання", "ення", "ування", "ювання",
+      "ами", "ями", "ові", "еві", "ому", "ему",
+      "ого", "его", "ими", "ыми",
+      "ість", "ость",
+      "ий", "ій", "ая", "яя", "ое", "ее",
+      "ої", "ей", "ом", "ем", "ам", "ям",
+      "ах", "ях", "ів", "ев", "ов",
+      "ати", "яти", "ити", "еть", "ить",
+      "ка", "ки", "ку", "ке",
+      "а", "я", "у", "ю", "и", "і", "ы"
+    ].sort(
+      (first, second) =>
+        second.length - first.length
+    );
 
-    if (/^вершк/.test(normalizedToken)) {
-      return "вершк";
-    }
-
-    if (/^ультрапастериз/.test(normalizedToken)) {
-      return "ультрапастериз";
+    for (const suffix of suffixes) {
+      if (
+        normalizedToken.endsWith(suffix) &&
+        normalizedToken.length - suffix.length >= 3
+      ) {
+        return normalizedToken.slice(
+          0,
+          -suffix.length
+        );
+      }
     }
 
     return normalizedToken;
   }
 
-  function getCommonPrefixLength(firstValue, secondValue) {
-    const maxLength = Math.min(
-      firstValue.length,
-      secondValue.length
+  function getEditDistance(firstValue, secondValue) {
+    const previousRow = Array.from(
+      { length: secondValue.length + 1 },
+      (_, index) => index
     );
 
-    let prefixLength = 0;
-
-    while (
-      prefixLength < maxLength &&
-      firstValue[prefixLength] === secondValue[prefixLength]
+    for (
+      let firstIndex = 1;
+      firstIndex <= firstValue.length;
+      firstIndex += 1
     ) {
-      prefixLength += 1;
+      const currentRow = [firstIndex];
+
+      for (
+        let secondIndex = 1;
+        secondIndex <= secondValue.length;
+        secondIndex += 1
+      ) {
+        const substitutionCost =
+          firstValue[firstIndex - 1] ===
+          secondValue[secondIndex - 1]
+            ? 0
+            : 1;
+
+        currentRow[secondIndex] = Math.min(
+          currentRow[secondIndex - 1] + 1,
+          previousRow[secondIndex] + 1,
+          previousRow[secondIndex - 1] +
+            substitutionCost
+        );
+      }
+
+      previousRow.splice(
+        0,
+        previousRow.length,
+        ...currentRow
+      );
     }
 
-    return prefixLength;
+    return previousRow[secondValue.length];
   }
 
   function tokensMatch(firstToken, secondToken) {
@@ -817,24 +871,16 @@ async function monitorProduct(requestBody) {
       return true;
     }
 
-    const commonPrefixLength = getCommonPrefixLength(
+    const editDistance = getEditDistance(
       firstBase,
       secondBase
     );
 
-    if (shorterLength >= 9) {
-      return commonPrefixLength >= 6;
+    if (shorterLength >= 8) {
+      return editDistance <= 2;
     }
 
-    if (shorterLength >= 6) {
-      return commonPrefixLength >= 5;
-    }
-
-    return (
-      shorterLength >= 4 &&
-      Math.abs(firstBase.length - secondBase.length) <= 1 &&
-      commonPrefixLength >= shorterLength - 1
-    );
+    return shorterLength >= 4 && editDistance <= 1;
   }
 
   function extractPackages(value) {
@@ -901,8 +947,10 @@ async function monitorProduct(requestBody) {
 
   const queryPackages = extractPackages(productName);
 
-  function getMatchScore(title) {
+  function getMatchScore(title, matchedQuery = "") {
     const titleTokens = getMeaningfulTokens(title);
+    const matchedQueryTokens =
+      getMeaningfulTokens(matchedQuery);
 
     if (
       !titleTokens.length ||
@@ -921,9 +969,13 @@ async function monitorProduct(requestBody) {
     const matchedCoreTokens =
       countMatchedTokens(coreProductTokens);
 
+    const matchedSearchTokens =
+      countMatchedTokens(matchedQueryTokens);
+
     if (
       coreProductTokens.length &&
-      !matchedCoreTokens
+      !matchedCoreTokens &&
+      !matchedSearchTokens
     ) {
       return 0;
     }
@@ -934,6 +986,12 @@ async function monitorProduct(requestBody) {
     const productCoverage =
       matchedProductTokens /
       productTokensForMatching.length;
+
+    const searchCoverage =
+      matchedQueryTokens.length
+        ? matchedSearchTokens /
+          matchedQueryTokens.length
+        : 0;
 
     const matchedSupplierTokens =
       countMatchedTokens(supplierTokensForMatching);
@@ -948,6 +1006,7 @@ async function monitorProduct(requestBody) {
 
     let hasExactPackage = !queryPackages.length;
     let packageMissing = false;
+    let packageDifferent = false;
 
     if (queryPackages.length) {
       hasExactPackage = queryPackages.some(queryPackage =>
@@ -974,39 +1033,50 @@ async function monitorProduct(requestBody) {
           );
 
         if (hasDifferentExplicitPackage) {
-          return 0;
+          packageDifferent = true;
         }
       }
 
-      packageMissing = !hasExactPackage;
+      packageMissing =
+        !hasExactPackage && !packageDifferent;
     }
 
     const isFullMatch =
       productCoverage === 1 &&
       supplierCoverage === 1 &&
-      !packageMissing;
+      !packageMissing &&
+      !packageDifferent;
 
     if (isFullMatch) {
       return 1;
     }
 
+    const effectiveCoverage = Math.max(
+      productCoverage,
+      Math.min(searchCoverage, 0.92)
+    );
+
     let score =
-      0.35 +
-      productCoverage * 0.35;
+      0.18 +
+      effectiveCoverage * 0.55;
 
     if (supplierTokensForMatching.length) {
-      score += supplierCoverage * 0.22;
+      score += supplierCoverage * 0.12;
     }
 
     if (
       queryPackages.length &&
       hasExactPackage
     ) {
-      score += 0.08;
+      score += 0.12;
+    }
+
+    if (packageDifferent) {
+      score -= 0.12;
     }
 
     if (packageMissing) {
-      score -= 0.08;
+      score -= 0.04;
     }
 
     return Math.max(
@@ -1018,19 +1088,12 @@ async function monitorProduct(requestBody) {
     );
   }
 
-  function buildSearchQueries() {
+  async function buildSearchQueries() {
     const supplierAlreadyInProductName =
       supplierTokensForMatching.length > 0 &&
       supplierTokensForMatching.every(supplierToken =>
         productTokensForMatching.some(productToken =>
           tokensMatch(supplierToken, productToken)
-        )
-      );
-
-    const productTokensWithoutSupplier =
-      productTokensForMatching.filter(productToken =>
-        !supplierTokensForMatching.some(supplierToken =>
-          tokensMatch(productToken, supplierToken)
         )
       );
 
@@ -1043,13 +1106,6 @@ async function monitorProduct(requestBody) {
 
     const supplierWords =
       supplierTokensForMatching.join(" ");
-
-    const productWords =
-      (
-        productTokensWithoutSupplier.length
-          ? productTokensWithoutSupplier
-          : productTokensForMatching
-      ).join(" ");
 
     const fullProductWords =
       productTokensForMatching.join(" ");
@@ -1068,23 +1124,108 @@ async function monitorProduct(requestBody) {
       .filter(Boolean)
       .join(" ");
 
-    const queryCandidates = [
+    const exactCandidates = [
       exactQuery,
-      [supplierWords, productWords]
-        .filter(Boolean)
-        .join(" "),
-      fullProductWords,
+      fullProductWords
+    ];
+
+    let expandedQueries = [];
+    const apiKey = process.env.GROQ_API_KEY;
+
+    if (apiKey) {
+      try {
+        const queryResponse = await fetch(
+          "https://api.groq.com/openai/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "llama-3.3-70b-versatile",
+              temperature: 0,
+              max_completion_tokens: 600,
+              response_format: {
+                type: "json_object"
+              },
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "Сформуй до 4 коротких запитів для пошуку конкретного товару в українських онлайн-каталогах. " +
+                    "Пошук має працювати для будь-якого асортименту: продукти, косметика, побутова хімія, " +
+                    "канцелярія, текстиль, декор, посуд, інструменти та інші товари. " +
+                    "Врахуй українські й російські назви, реальні магазинні синоніми, скорочення, " +
+                    "словоформи та можливий латинський запис бренду. " +
+                    "Перший запит зроби максимально точним. Наступні поступово розширюй, " +
+                    "але не замінюй товар назвою категорії та не переходь до іншого виду товару. " +
+                    "В останньому запиті прибери бренд і фасування, якщо це допоможе знайти " +
+                    "найближчий ринковий аналог того самого товару. " +
+                    "Категорію і вид використовуй лише як підказку для розуміння назви. " +
+                    "Не додавай характеристик, яких немає у вхідних даних. " +
+                    "Поверни лише JSON у форматі {\"queries\":[\"...\"]}."
+                },
+                {
+                  role: "user",
+                  content: JSON.stringify({
+                    name: productName,
+                    supplier: supplier || null,
+                    segment: segment || null,
+                    category: category || null,
+                    type: type || null
+                  })
+                }
+              ]
+            }),
+            signal: AbortSignal.timeout(25000)
+          }
+        );
+
+        if (!queryResponse.ok) {
+          throw new Error(
+            `GROQ_QUERY_EXPANSION_FAILED: HTTP ${queryResponse.status}`
+          );
+        }
+
+        const queryData = await queryResponse.json();
+        const queryText = cleanText(
+          queryData?.choices?.[0]?.message?.content,
+          5000
+        );
+
+        const parsedQueries = JSON.parse(queryText);
+
+        expandedQueries = Array.isArray(
+          parsedQueries.queries
+        )
+          ? parsedQueries.queries
+          : [];
+      } catch (error) {
+        console.error("[Groq search queries]", error);
+      }
+    }
+
+    const fallbackCandidates = [
       [supplierWords, coreWords]
         .filter(Boolean)
         .join(" "),
       coreWords
     ];
 
+    const queryCandidates = [
+      ...exactCandidates,
+      ...expandedQueries,
+      ...fallbackCandidates
+    ];
+
     const uniqueQueries = [];
     const seenQueries = new Set();
 
     queryCandidates.forEach(candidate => {
-      const cleanedCandidate = cleanText(candidate, 500);
+      const cleanedCandidate = normalizeSearchText(
+        cleanText(candidate, 500)
+      );
       const normalizedCandidate =
         normalizeSearchText(cleanedCandidate);
 
@@ -1099,10 +1240,10 @@ async function monitorProduct(requestBody) {
       uniqueQueries.push(cleanedCandidate);
     });
 
-    return uniqueQueries;
+    return uniqueQueries.slice(0, 6);
   }
 
-  const searchQueries = buildSearchQueries();
+  const searchQueries = await buildSearchQueries();
 
   async function runSearchCascade(loadOffers) {
     const offersByKey = new Map();
@@ -1137,13 +1278,19 @@ async function monitorProduct(requestBody) {
             ].join("|");
 
           if (!offersByKey.has(offerKey)) {
-            offersByKey.set(offerKey, offer);
+            offersByKey.set(offerKey, {
+              ...offer,
+              matchedQuery: searchQuery
+            });
           }
         });
 
         const hasFullMatch = [...offersByKey.values()]
           .some(offer =>
-            getMatchScore(offer.title) === 1
+            getMatchScore(
+              offer.title,
+              offer.matchedQuery
+            ) === 1
           );
 
         if (hasFullMatch) {
@@ -1162,7 +1309,7 @@ async function monitorProduct(requestBody) {
       offers: [...offersByKey.values()],
       attemptedQueries
     };
-  }  
+  } 
 
   function calculateMarket(offers) {
     const prices = offers
@@ -1186,9 +1333,12 @@ async function monitorProduct(requestBody) {
     const scoredOffers = offers
       .map(offer => ({
         ...offer,
-        matchScore: getMatchScore(offer.title)
+        matchScore: getMatchScore(
+          offer.title,
+          offer.matchedQuery
+        )
       }))
-      .filter(offer => offer.matchScore >= 0.45)
+      .filter(offer => offer.matchScore >= 0.35)
       .sort((first, second) =>
         second.matchScore - first.matchScore ||
         first.price - second.price
@@ -1240,7 +1390,7 @@ async function monitorProduct(requestBody) {
     };
   }
 
-    async function filterSourcesByMeaning(sourceList) {
+  async function filterSourcesByMeaning(sourceList) {
     const apiKey = process.env.GROQ_API_KEY;
 
     if (!apiKey) {
@@ -1257,11 +1407,13 @@ async function monitorProduct(requestBody) {
         return;
       }
 
-      source.offers.slice(0, 20).forEach((offer, offerIndex) => {
+      source.offers.slice(0, 5).forEach((offer, offerIndex) => {
         candidates.push({
           id: `s${sourceIndex}o${offerIndex}`,
           source: cleanText(source.source, 80),
-          title: cleanText(offer.title, 260)
+          title: cleanText(offer.title, 260),
+          preliminaryScore:
+            Number(offer.matchScore) || 0
         });
       });
     });
@@ -1281,7 +1433,7 @@ async function monitorProduct(requestBody) {
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           temperature: 0,
-          max_completion_tokens: 3000,
+          max_completion_tokens: 4000,
           response_format: {
             type: "json_object"
           },
@@ -1290,17 +1442,20 @@ async function monitorProduct(requestBody) {
               role: "system",
               content:
                 "Ти перевіряєш релевантність товарів у пошуковій видачі. " +
-                "Для кожного кандидата визнач, чи є він прямим ринковим аналогом запитаного товару. " +
-                "Оцінюй зміст усієї назви, а не лише збіг окремого слова. " +
-                "Прямий аналог повинен мати той самий вид товару, призначення, форму, матеріал, " +
-                "цільову аудиторію та суттєві характеристики, якщо вони задані в запиті. " +
-                "Відхиляй кандидата, якщо додаткові слова змінюють вид або призначення товару, " +
-                "або якщо слово запиту згадане лише як складник, властивість чи заперечення. " +
-                "Бренд, рекламні слова, країна виробництва або оформлення упаковки самі по собі " +
-                "не роблять товар іншим. Якщо фасування в запиті не задане, не відхиляй товар " +
-                "лише через фасування. Не вигадуй відсутні характеристики. " +
+                "Для кожного кандидата оціни зміст усієї назви, а не збіг окремих слів. " +
+                "Поверни matchType=\"full\", якщо це той самий товар і збігаються всі явно задані " +
+                "суттєві характеристики, бренд, модель, розмір або фасування. " +
+                "Поверни matchType=\"partial\", якщо це той самий базовий вид товару й призначення, " +
+                "але відрізняється бренд, фасування, розмір або несуттєва характеристика. " +
+                "Такий найближчий аналог потрібно залишити, щоб при відсутності повного збігу " +
+                "користувач не отримав помилкове «не знайдено». " +
+                "Поверни matchType=\"none\", якщо додаткові слова змінюють сам вид, склад, форму, " +
+                "матеріал, призначення або цільову аудиторію товару, або якщо слово запиту " +
+                "згадане лише як складник, властивість чи заперечення. " +
+                "Категорія і вид у вхідних даних є лише підказкою, а не назвою товару. " +
+                "Не вигадуй відсутніх характеристик. " +
                 "Поверни лише JSON без пояснень поза JSON у форматі " +
-                "{\"decisions\":[{\"id\":\"s0o0\",\"relevant\":true}]}. " +
+                "{\"decisions\":[{\"id\":\"s0o0\",\"matchType\":\"full\"}]}. " +
                 "Поверни рішення для кожного переданого id рівно один раз."
             },
             {
@@ -1352,11 +1507,13 @@ async function monitorProduct(requestBody) {
     decisions.forEach(decision => {
       if (
         knownIds.has(decision?.id) &&
-        typeof decision.relevant === "boolean"
+        ["full", "partial", "none"].includes(
+          decision.matchType
+        )
       ) {
         decisionMap.set(
           decision.id,
-          decision.relevant
+          decision.matchType
         );
       }
     });
@@ -1374,10 +1531,28 @@ async function monitorProduct(requestBody) {
       }
 
       const relevantOffers = source.offers
-        .filter((offer, offerIndex) =>
-          decisionMap.get(
+        .slice(0, 5)
+        .map((offer, offerIndex) => ({
+          ...offer,
+          semanticMatchType: decisionMap.get(
             `s${sourceIndex}o${offerIndex}`
-          ) === true
+          )
+        }))
+        .filter(offer =>
+          offer.semanticMatchType === "full" ||
+          offer.semanticMatchType === "partial"
+        )
+        .sort((first, second) =>
+          Number(
+            second.semanticMatchType === "full"
+          ) -
+          Number(
+            first.semanticMatchType === "full"
+          ) ||
+          Number(second.matchScore || 0) -
+          Number(first.matchScore || 0) ||
+          Number(first.price || 0) -
+          Number(second.price || 0)
         )
         .slice(0, 10);
 
@@ -1386,7 +1561,8 @@ async function monitorProduct(requestBody) {
       return {
         ...source,
         status: bestOffer ? "ok" : "no_matches",
-        matchType: bestOffer ? "full" : "none",
+        matchType:
+          bestOffer?.semanticMatchType || "none",
         productTitle: bestOffer?.title || null,
         link:
           bestOffer?.link ||
@@ -1607,8 +1783,90 @@ async function monitorProduct(requestBody) {
       const html = await auroraResponse.text();
       const searchOffers = [];
 
+      const structuredProducts = [];
+      const jsonLdPattern =
+        /<script\b[^>]*type=(["'])application\/ld\+json\1[^>]*>([\s\S]*?)<\/script>/gi;
+
+      function collectStructuredProducts(value) {
+        if (Array.isArray(value)) {
+          value.forEach(collectStructuredProducts);
+          return;
+        }
+
+        if (!value || typeof value !== "object") {
+          return;
+        }
+
+        if (isProduct(value)) {
+          structuredProducts.push(value);
+        }
+
+        Object.values(value).forEach(
+          collectStructuredProducts
+        );
+      }
+
+      for (const scriptMatch of html.matchAll(jsonLdPattern)) {
+        try {
+          collectStructuredProducts(
+            JSON.parse(scriptMatch[2].trim())
+          );
+        } catch {
+          // Пропускаємо службовий або некоректний JSON-LD.
+        }
+      }
+
+      structuredProducts.forEach(product => {
+        const productOffers = Array.isArray(product.offers)
+          ? product.offers
+          : product.offers
+            ? [product.offers]
+            : [];
+
+        productOffers.forEach(offer => {
+          const price = parsePrice(
+            offer.price ??
+            offer.lowPrice ??
+            offer.highPrice
+          );
+
+          const title = cleanText(
+            decodeHtml(product.name),
+            260
+          );
+
+          if (!price || price <= 0 || !title) {
+            return;
+          }
+
+          let link = null;
+
+          try {
+            link = new URL(
+              offer.url || product.url || "",
+              "https://avrora.ua/"
+            ).toString();
+          } catch {
+            link = null;
+          }
+
+          searchOffers.push({
+            source: "Аврора",
+            title,
+            price: Math.round(price * 100) / 100,
+            currency:
+              cleanText(offer.priceCurrency, 10) ||
+              "UAH",
+            link,
+            availability: availabilityLabel(
+              offer.availability
+            )
+          });
+        });
+      });
+
       const productPattern =
-        /<a\b[^>]*href="([^"]+)"[^>]*class="[^"]*\bproduct-title\b[^"]*"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<span\b[^>]*class="[^"]*\bty-price-num\b[^"]*"[^>]*>([\d\s.,]+)<\/span>/gi;
+        /<a\b(?=[^>]*class=["'][^"']*\bproduct-title\b[^"']*["'])(?=[^>]*href=["']([^"']+)["'])[^>]*>([\s\S]*?)<\/a>[\s\S]{0,3000}?<span\b(?=[^>]*class=["'][^"']*\bty-price-num\b[^"']*["'])[^>]*>([\d\s.,]+)<\/span>/gi;
 
       for (const match of html.matchAll(productPattern)) {
         const price = parsePrice(match[3]);
@@ -1624,17 +1882,40 @@ async function monitorProduct(requestBody) {
           continue;
         }
 
+        let link = null;
+
+        try {
+          link = new URL(
+            decodeHtml(match[1]),
+            "https://avrora.ua/"
+          ).toString();
+        } catch {
+          link = null;
+        }
+
         searchOffers.push({
           source: "Аврора",
           title,
           price: Math.round(price * 100) / 100,
           currency: "UAH",
-          link: safeUrl(decodeHtml(match[1])),
+          link,
           availability: "Онлайн-каталог"
         });
       }
 
-      return searchOffers;
+      return searchOffers.filter(
+        (offer, index, items) =>
+          items.findIndex(candidate =>
+            (
+              candidate.link &&
+              candidate.link === offer.link
+            ) ||
+            (
+              candidate.title === offer.title &&
+              candidate.price === offer.price
+            )
+          ) === index
+      );
     });
 
     const result = buildSourceSummary(
@@ -2293,7 +2574,7 @@ async function monitorProduct(requestBody) {
     );
   }
 
-  const sources = [
+  let sources = [
     promSource,
     foraSource,
     auroraSource,
@@ -2302,6 +2583,12 @@ async function monitorProduct(requestBody) {
     atbSource,
     kopiyochkaSource
   ];
+
+  try {
+    sources = await filterSourcesByMeaning(sources);
+  } catch (error) {
+    console.error("[Groq relevance]", error);
+  }
 
   let aiReview = null;
 
@@ -2320,6 +2607,10 @@ async function monitorProduct(requestBody) {
     console.error("[Groq AI]", error);
   }
 
+  const filteredPromSource = sources.find(
+    source => source.source === "Prom.ua"
+  ) || promSource;
+
   return {
     query,
     checkedAt: new Date().toISOString(),
@@ -2327,11 +2618,11 @@ async function monitorProduct(requestBody) {
       source => source.cached === true
     ),
     provider: "multi-source",
-    offers: Array.isArray(promSource.offers)
-      ? promSource.offers
+    offers: Array.isArray(filteredPromSource.offers)
+      ? filteredPromSource.offers
       : [],
     market:
-      promSource.market ||
+      filteredPromSource.market ||
       calculateMarket([]),
     sources,
     aiReview
