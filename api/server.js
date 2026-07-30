@@ -1018,6 +1018,152 @@ async function monitorProduct(requestBody) {
     );
   }
 
+  function buildSearchQueries() {
+    const supplierAlreadyInProductName =
+      supplierTokensForMatching.length > 0 &&
+      supplierTokensForMatching.every(supplierToken =>
+        productTokensForMatching.some(productToken =>
+          tokensMatch(supplierToken, productToken)
+        )
+      );
+
+    const productTokensWithoutSupplier =
+      productTokensForMatching.filter(productToken =>
+        !supplierTokensForMatching.some(supplierToken =>
+          tokensMatch(productToken, supplierToken)
+        )
+      );
+
+    const coreTokensWithoutSupplier =
+      coreProductTokens.filter(coreToken =>
+        !supplierTokensForMatching.some(supplierToken =>
+          tokensMatch(coreToken, supplierToken)
+        )
+      );
+
+    const supplierWords =
+      supplierTokensForMatching.join(" ");
+
+    const productWords =
+      (
+        productTokensWithoutSupplier.length
+          ? productTokensWithoutSupplier
+          : productTokensForMatching
+      ).join(" ");
+
+    const fullProductWords =
+      productTokensForMatching.join(" ");
+
+    const coreWords =
+      (
+        coreTokensWithoutSupplier.length
+          ? coreTokensWithoutSupplier
+          : coreProductTokens
+      ).join(" ");
+
+    const exactQuery = [
+      supplierAlreadyInProductName ? "" : supplier,
+      productName
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const queryCandidates = [
+      exactQuery,
+      [supplierWords, productWords]
+        .filter(Boolean)
+        .join(" "),
+      fullProductWords,
+      [supplierWords, coreWords]
+        .filter(Boolean)
+        .join(" "),
+      coreWords
+    ];
+
+    const uniqueQueries = [];
+    const seenQueries = new Set();
+
+    queryCandidates.forEach(candidate => {
+      const cleanedCandidate = cleanText(candidate, 500);
+      const normalizedCandidate =
+        normalizeSearchText(cleanedCandidate);
+
+      if (
+        normalizedCandidate.length < 2 ||
+        seenQueries.has(normalizedCandidate)
+      ) {
+        return;
+      }
+
+      seenQueries.add(normalizedCandidate);
+      uniqueQueries.push(cleanedCandidate);
+    });
+
+    return uniqueQueries;
+  }
+
+  const searchQueries = buildSearchQueries();
+
+  async function runSearchCascade(loadOffers) {
+    const offersByKey = new Map();
+    const attemptedQueries = [];
+
+    let successfulRequests = 0;
+    let firstError = null;
+
+    for (const searchQuery of searchQueries) {
+      attemptedQueries.push(searchQuery);
+
+      try {
+        const loadedOffers =
+          await loadOffers(searchQuery);
+
+        successfulRequests += 1;
+
+        const offers = Array.isArray(loadedOffers)
+          ? loadedOffers
+          : [];
+
+        offers.forEach(offer => {
+          if (!offer?.title) {
+            return;
+          }
+
+          const offerKey =
+            offer.link ||
+            [
+              normalizeSearchText(offer.title),
+              Number(offer.price) || 0
+            ].join("|");
+
+          if (!offersByKey.has(offerKey)) {
+            offersByKey.set(offerKey, offer);
+          }
+        });
+
+        const hasFullMatch = [...offersByKey.values()]
+          .some(offer =>
+            getMatchScore(offer.title) === 1
+          );
+
+        if (hasFullMatch) {
+          break;
+        }
+      } catch (error) {
+        firstError ||= error;
+      }
+    }
+
+    if (!successfulRequests && firstError) {
+      throw firstError;
+    }
+
+    return {
+      offers: [...offersByKey.values()],
+      attemptedQueries
+    };
+  }  
+
   function calculateMarket(offers) {
     const prices = offers
       .map(offer => Number(offer.price))
