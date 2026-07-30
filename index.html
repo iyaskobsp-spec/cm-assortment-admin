@@ -326,6 +326,48 @@
     let monitoringRows = [];
     let batchMonitoringResults = [];
 
+    const batchCompetitorNames = [
+      "Prom.ua",
+      "Фора",
+      "Аврора",
+      "EVA",
+      "Сільпо",
+      "АТБ",
+      "Копійочка"
+    ];
+
+    function getCompleteBatchSources(sources) {
+      const receivedSources = Array.isArray(sources)
+        ? sources
+        : [];
+
+      return batchCompetitorNames.map(sourceName => {
+        const receivedSource = receivedSources.find(
+          source => source?.source === sourceName
+        );
+
+        if (receivedSource) {
+          return receivedSource;
+        }
+
+        return {
+          source: sourceName,
+          status: "no_matches",
+          matchType: "none",
+          productTitle: null,
+          link: null,
+          searchLink: null,
+          offersCount: 0,
+          market: {
+            lowestPrice: null,
+            averagePrice: null,
+            highestPrice: null
+          },
+          offers: []
+        };
+      });
+    }
+
     batchMonitorButton.disabled = true;
     
     function getUniqueValues(rows, field, filters = {}) {
@@ -814,55 +856,56 @@ async function processCommitteeRequest() {
             category: product.category,
             type: product.type,
             purchasePrice: product.purchasePrice,
-            plannedRetailPrice: product.plannedRetailPrice
+            plannedRetailPrice:
+              product.plannedRetailPrice
           })
         }
       );
 
-      const data = await response.json().catch(() => ({}));
+      const data = await response
+        .json()
+        .catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
-          data.message || "Не вдалося виконати моніторинг."
+          data.message ||
+          "Не вдалося виконати моніторинг."
         );
       }
 
-      const sources = Array.isArray(data.sources)
-        ? data.sources
-        : [];
-
-      const matchedSources = sources.filter(source =>
-        source.status === "ok" &&
-        Number(source.market?.lowestPrice) > 0
+      const sources = getCompleteBatchSources(
+        data.sources
       );
 
-      const lowestPrices = matchedSources.map(source =>
-        Number(source.market.lowestPrice)
+      const matchedSources = sources.filter(
+        source =>
+          source.status === "ok" &&
+          Number(source.market?.lowestPrice) > 0
       );
 
-      const highestPrices = matchedSources.map(source =>
-        Number(source.market.highestPrice)
+      const lowestPrices = matchedSources.map(
+        source =>
+          Number(source.market.lowestPrice)
+      );
+
+      const highestPrices = matchedSources.map(
+        source =>
+          Number(source.market.highestPrice)
       );
 
       return {
         ...product,
         processingStatus: matchedSources.length
           ? "Знайдено"
-          : sources.length
-            ? "Збігів немає"
-            : "Джерела не відповіли",
+          : "Збігів немає",
         foundSources: matchedSources.length,
-        totalSources: sources.length,
+        totalSources: batchCompetitorNames.length,
         marketLowest: lowestPrices.length
           ? Math.min(...lowestPrices)
           : null,
         marketHighest: highestPrices.length
           ? Math.max(...highestPrices)
           : null,
-        aiReview:
-          typeof data.aiReview?.review === "string"
-            ? data.aiReview.review.trim()
-            : "",
         sources
       };
     }
@@ -936,86 +979,66 @@ async function processCommitteeRequest() {
     }
 
     function renderBatchSourceRows(result) {
-      const sources = Array.isArray(result.sources)
-        ? result.sources
-        : [];
-
-      if (!sources.length) {
-        return `
-          <tr>
-            <td colspan="5" class="empty-cell">
-              ${escapeBatchHtml(
-                result.errorMessage ||
-                "Джерела не повернули результатів."
-              )}
-            </td>
-          </tr>
-        `;
-      }
+      const sources = getCompleteBatchSources(
+        result.sources
+      );
 
       return sources.map(source => {
-        const sourceName =
-          escapeBatchHtml(source.source || "Джерело");
+        const sourceName = escapeBatchHtml(
+          source.source || "Джерело"
+        );
 
-        const productTitle =
-          escapeBatchHtml(
-            source.productTitle || "Товар не знайдено"
-          );
+        const productTitle = escapeBatchHtml(
+          source.productTitle ||
+          "Товар не знайдено"
+        );
 
-        const productLink = String(source.link || "");
-        const searchLink = String(source.searchLink || "");
-        const offersCount = Number(source.offersCount) || 0;
+        const resultLink = String(
+          source.link ||
+          source.searchLink ||
+          ""
+        );
+
         const market = source.market || {};
 
-        const matchText = [
-          getBatchMatchLabel(source),
-          offersCount ? `${offersCount} поз.` : ""
-        ].filter(Boolean).join(" · ");
-
-        const sourceCell = productLink
+        const productCell = resultLink
           ? `
             <a
-              href="${escapeBatchHtml(productLink)}"
+              href="${escapeBatchHtml(resultLink)}"
               target="_blank"
               rel="noopener noreferrer"
             >
-              ${sourceName}
+              ${productTitle}
             </a>
           `
-          : sourceName;
-
-        const matchCell =
-          searchLink && source.status === "ok"
-            ? `
-              <a
-                href="${escapeBatchHtml(searchLink)}"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                ${escapeBatchHtml(matchText)}
-              </a>
-            `
-            : escapeBatchHtml(matchText);
+          : `<strong>${productTitle}</strong>`;
 
         return `
           <tr>
-            <td>${sourceCell}</td>
-
             <td>
-              <strong>${productTitle}</strong><br>
-              <small>${matchCell}</small>
+              <strong>${sourceName}</strong>
             </td>
 
             <td>
-              ${getBatchPriceCell(market.lowestPrice)}
+              ${productCell}
             </td>
 
             <td>
-              ${getBatchPriceCell(market.averagePrice)}
+              ${getBatchPriceCell(
+                market.lowestPrice
+              )}
             </td>
 
             <td>
-              ${getBatchPriceCell(market.highestPrice)}
+              ${getBatchPriceCell(
+                market.averagePrice
+              )}
+            </td>
+
+            <td>
+              ${getBatchPriceCell(
+                market.highestPrice
+              )}
             </td>
           </tr>
         `;
@@ -1026,172 +1049,257 @@ async function processCommitteeRequest() {
       batchResultsCount.textContent =
         `Оброблено товарів: ${batchMonitoringResults.length}`;
 
-      batchResultsRows.innerHTML = batchMonitoringResults
-        .map((result, index) => {
-          const purchasePrice =
-            Number(result.purchasePrice) > 0
-              ? formatMoney(Number(result.purchasePrice))
-              : "—";
+      batchResultsRows.innerHTML =
+        batchMonitoringResults
+          .map((result, index) => {
+            const purchasePrice =
+              Number(result.purchasePrice) > 0
+                ? formatMoney(
+                    Number(result.purchasePrice)
+                  )
+                : "—";
 
-          const plannedRetailPrice =
-            Number(result.plannedRetailPrice) > 0
-              ? formatMoney(Number(result.plannedRetailPrice))
-              : "—";
+            const plannedRetailPrice =
+              Number(result.plannedRetailPrice) > 0
+                ? formatMoney(
+                    Number(
+                      result.plannedRetailPrice
+                    )
+                  )
+                : "—";
 
-          const aiReview =
-            result.aiReview ||
-            result.errorMessage ||
-            "Огляд ШІ не сформувався.";
+            const metaItems = [
+              [
+                "Додаткові характеристики",
+                result.characteristics || "—"
+              ],
+              [
+                "Бренд / постачальник",
+                result.supplier || "—"
+              ],
+              [
+                "Сегмент",
+                result.segment || "—"
+              ],
+              [
+                "Категорія",
+                result.category || "—"
+              ],
+              [
+                "Вид",
+                result.type || "—"
+              ],
+              [
+                "Закупка",
+                purchasePrice
+              ],
+              [
+                "Планова роздрібна",
+                plannedRetailPrice
+              ]
+            ];
 
-          return `
-            <article class="batch-product-result">
-              <div class="batch-product-result-head">
-                <div>
-                  <span class="batch-product-number">
-                    Товар ${index + 1}
-                  </span>
+            return `
+              <article class="batch-product-result">
+                <div class="batch-product-result-head">
+                  <div>
+                    <span class="batch-product-number">
+                      Товар ${index + 1}
+                    </span>
 
-                  <h3>
-                    ${escapeBatchHtml(result.baseProductName)}
-                  </h3>
+                    <h3>
+                      ${escapeBatchHtml(
+                        result.baseProductName
+                      )}
+                    </h3>
+                  </div>
 
-                  ${
-                    result.characteristics
-                      ? `
-                        <p>
-                          ${escapeBatchHtml(
-                            result.characteristics
-                          )}
-                        </p>
+                  <div class="batch-product-meta">
+                    ${metaItems.map(
+                      ([label, value]) => `
+                        <span>
+                          <small>
+                            ${escapeBatchHtml(label)}
+                          </small>
+
+                          <strong>
+                            ${escapeBatchHtml(value)}
+                          </strong>
+                        </span>
                       `
-                      : ""
-                  }
+                    ).join("")}
+                  </div>
                 </div>
 
-                <div class="batch-product-prices">
-                  <span>
-                    Закупка:
-                    <strong>${purchasePrice}</strong>
-                  </span>
+                <div class="competitor-table-wrap">
+                  <table class="competitor-table">
+                    <thead>
+                      <tr>
+                        <th>Конкурент</th>
+                        <th>Знайдений товар</th>
+                        <th>Найнижча ціна</th>
+                        <th>Середня ціна</th>
+                        <th>Найвища ціна</th>
+                      </tr>
+                    </thead>
 
-                  <span>
-                    Планова роздрібна:
-                    <strong>${plannedRetailPrice}</strong>
-                  </span>
+                    <tbody>
+                      ${renderBatchSourceRows(result)}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-
-              <div class="competitor-table-wrap">
-                <table class="competitor-table">
-                  <thead>
-                    <tr>
-                      <th>Джерело</th>
-                      <th>Знайдений товар</th>
-                      <th>Найнижча ціна</th>
-                      <th>Середня ціна</th>
-                      <th>Найвища ціна</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    ${renderBatchSourceRows(result)}
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="batch-product-review">
-                <strong>Огляд ШІ</strong>
-                <p>${escapeBatchHtml(aiReview)}</p>
-              </div>
-            </article>
-          `;
-        })
-        .join("");
+              </article>
+            `;
+          })
+          .join("");
 
       openBatchResultsModal();
     }
 
     function downloadBatchMonitoringReport() {
       const reportRows = [];
+      const reportMerges = [];
 
-      batchMonitoringResults.forEach((result, index) => {
-        const sources = Array.isArray(result.sources)
-          ? result.sources
-          : [];
+      batchMonitoringResults.forEach(
+        (result, index) => {
+          const productHeaderRow =
+            reportRows.length;
 
-        const rowsToExport = sources.length
-          ? sources
-          : [{}];
+          reportRows.push([
+            `Товар ${index + 1}`,
+            result.baseProductName || "",
+            "",
+            "",
+            "",
+            ""
+          ]);
 
-        rowsToExport.forEach(source => {
-          const market = source.market || {};
-
-          reportRows.push({
-            "№ товару": index + 1,
-            "Назва товару": result.baseProductName || "",
-            "Додаткові характеристики":
-              result.characteristics || "",
-            "Бренд / постачальник":
-              result.supplier || "",
-            "Закупівельна ціна, грн":
-              Number(result.purchasePrice) || "",
-            "Планова роздрібна ціна, грн":
-              Number(result.plannedRetailPrice) || "",
-            "Конкурент":
-              source.source || "",
-            "Знайдений товар":
-              source.productTitle || "Товар не знайдено",
-            "Статус збігу":
-              source.source
-                ? getBatchMatchLabel(source)
-                : result.errorMessage ||
-                  "Джерела не повернули результатів",
-            "Кількість позицій":
-              Number(source.offersCount) || "",
-            "Найнижча ціна, грн":
-              Number(market.lowestPrice) || "",
-            "Середня ціна, грн":
-              Number(market.averagePrice) || "",
-            "Найвища ціна, грн":
-              Number(market.highestPrice) || "",
-            "Посилання на результат пошуку":
-              source.searchLink || "",
-            "Посилання на товар":
-              source.link || "",
-            "Огляд ШІ":
-              result.aiReview ||
-              result.errorMessage ||
-              ""
+          reportMerges.push({
+            s: {
+              r: productHeaderRow,
+              c: 1
+            },
+            e: {
+              r: productHeaderRow,
+              c: 5
+            }
           });
-        });
-      });
 
-      const worksheet = XLSX.utils.json_to_sheet(reportRows);
+          reportRows.push([
+            "Додаткові характеристики",
+            result.characteristics || "",
+            "",
+            "",
+            "",
+            ""
+          ]);
+
+          reportRows.push([
+            "Бренд / постачальник",
+            result.supplier || "",
+            "",
+            "",
+            "",
+            ""
+          ]);
+
+          reportRows.push([
+            "Сегмент",
+            result.segment || "",
+            "",
+            "",
+            "",
+            ""
+          ]);
+
+          reportRows.push([
+            "Категорія",
+            result.category || "",
+            "",
+            "",
+            "",
+            ""
+          ]);
+
+          reportRows.push([
+            "Вид",
+            result.type || "",
+            "",
+            "",
+            "",
+            ""
+          ]);
+
+          reportRows.push([
+            "Закупівельна ціна, грн",
+            Number(result.purchasePrice) || "",
+            "",
+            "",
+            "",
+            ""
+          ]);
+
+          reportRows.push([
+            "Планова роздрібна ціна, грн",
+            Number(
+              result.plannedRetailPrice
+            ) || "",
+            "",
+            "",
+            "",
+            ""
+          ]);
+
+          reportRows.push([]);
+
+          reportRows.push([
+            "Конкурент",
+            "Знайдений товар",
+            "Найнижча ціна, грн",
+            "Середня ціна, грн",
+            "Найвища ціна, грн",
+            "Посилання"
+          ]);
+
+          const sources =
+            getCompleteBatchSources(
+              result.sources
+            );
+
+          sources.forEach(source => {
+            const market = source.market || {};
+
+            reportRows.push([
+              source.source || "",
+              source.productTitle ||
+                "Товар не знайдено",
+              Number(market.lowestPrice) || "",
+              Number(market.averagePrice) || "",
+              Number(market.highestPrice) || "",
+              source.link ||
+                source.searchLink ||
+                ""
+            ]);
+          });
+
+          reportRows.push([]);
+          reportRows.push([]);
+        }
+      );
+
+      const worksheet =
+        XLSX.utils.aoa_to_sheet(reportRows);
 
       worksheet["!cols"] = [
-        { wch: 10 },
-        { wch: 30 },
-        { wch: 35 },
-        { wch: 24 },
-        { wch: 22 },
-        { wch: 27 },
-        { wch: 20 },
-        { wch: 45 },
-        { wch: 22 },
-        { wch: 18 },
-        { wch: 22 },
-        { wch: 22 },
-        { wch: 22 },
+        { wch: 31 },
         { wch: 55 },
-        { wch: 55 },
-        { wch: 70 }
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 65 }
       ];
 
-      if (worksheet["!ref"]) {
-        worksheet["!autofilter"] = {
-          ref: worksheet["!ref"]
-        };
-      }
+      worksheet["!merges"] = reportMerges;
 
       const workbook = XLSX.utils.book_new();
 
