@@ -614,10 +614,13 @@ async function monitorProduct(requestBody) {
   function normalizeSearchText(value) {
     return cleanText(value, 500)
       .toLocaleLowerCase("uk-UA")
+      .replace(/ґ/g, "г")
+      .replace(/ё/g, "е")
       .replace(/[’'`"]/g, "")
-      .replace(/(\d)\s*[-/]\s*(\d)/g, "$1.$2")
+      .replace(/\b1\s*\/\s*2\b/g, "0.5")
       .replace(/(\d)\s*,\s*(\d)/g, "$1.$2")
       .replace(/[^\p{L}\p{N}.]+/gu, " ")
+      .replace(/\s+/g, " ")
       .trim();
   }
 
@@ -634,144 +637,279 @@ async function monitorProduct(requestBody) {
     ];
   }
 
-  function getMatchScore(title) {
-    const stopWords = new Set([
-      "для", "та", "і", "й", "з", "із", "зі",
-      "у", "в", "на", "по", "до", "від", "при", "або"
-    ]);
+  const stopWords = new Set([
+    "для", "та", "і", "й", "з", "із", "зі",
+    "у", "в", "на", "по", "до", "від", "при",
+    "або", "без", "під", "над", "через",
+    "a", "the", "of", "and"
+  ]);
 
-    const unitInfo = {
-      мл: ["package", 1],
-      ml: ["package", 1],
-      л: ["package", 1000],
-      liter: ["package", 1000],
-      litre: ["package", 1000],
+  const unitInfo = {
+    мл: ["package", 1],
+    ml: ["package", 1],
+    сл: ["package", 10],
+    cl: ["package", 10],
+    дл: ["package", 100],
+    л: ["package", 1000],
+    l: ["package", 1000],
+    liter: ["package", 1000],
+    litre: ["package", 1000],
 
-      г: ["package", 1],
-      гр: ["package", 1],
-      gr: ["package", 1],
-      кг: ["package", 1000],
-      kg: ["package", 1000],
+    мг: ["package", 0.001],
+    mg: ["package", 0.001],
+    г: ["package", 1],
+    гр: ["package", 1],
+    g: ["package", 1],
+    gr: ["package", 1],
+    грам: ["package", 1],
+    грами: ["package", 1],
+    грамів: ["package", 1],
+    кг: ["package", 1000],
+    kg: ["package", 1000],
 
-      шт: ["count", 1],
-      "шт.": ["count", 1],
-      штука: ["count", 1],
-      штуки: ["count", 1],
-      штук: ["count", 1],
-      pcs: ["count", 1],
+    шт: ["items", 1],
+    "шт.": ["items", 1],
+    штука: ["items", 1],
+    штуки: ["items", 1],
+    штук: ["items", 1],
+    pcs: ["items", 1],
 
-      арк: ["count", 1],
-      "арк.": ["count", 1],
-      аркуш: ["count", 1],
-      аркуша: ["count", 1],
-      аркуші: ["count", 1],
-      аркушів: ["count", 1],
+    предмет: ["items", 1],
+    предмета: ["items", 1],
+    предмети: ["items", 1],
+    предметів: ["items", 1],
+    предметов: ["items", 1],
 
-      лист: ["count", 1],
-      листа: ["count", 1],
-      листи: ["count", 1],
-      листів: ["count", 1],
-      листов: ["count", 1],
+    арк: ["sheets", 1],
+    "арк.": ["sheets", 1],
+    аркуш: ["sheets", 1],
+    аркуша: ["sheets", 1],
+    аркуші: ["sheets", 1],
+    аркушів: ["sheets", 1],
 
-      стор: ["count", 1],
-      "стор.": ["count", 1],
-      сторінка: ["count", 1],
-      сторінки: ["count", 1],
-      сторінок: ["count", 1],
+    лист: ["sheets", 1],
+    листа: ["sheets", 1],
+    листи: ["sheets", 1],
+    листів: ["sheets", 1],
+    листов: ["sheets", 1],
 
-      предмет: ["count", 1],
-      предмета: ["count", 1],
-      предмети: ["count", 1],
-      предметів: ["count", 1],
-      предметов: ["count", 1],
+    стор: ["sheets", 0.5],
+    "стор.": ["sheets", 0.5],
+    сторінка: ["sheets", 0.5],
+    сторінки: ["sheets", 0.5],
+    сторінок: ["sheets", 0.5],
+    страниц: ["sheets", 0.5],
 
-      табл: ["count", 1],
-      таблетка: ["count", 1],
-      таблетки: ["count", 1],
-      таблеток: ["count", 1],
+    табл: ["tablets", 1],
+    таблетка: ["tablets", 1],
+    таблетки: ["tablets", 1],
+    таблеток: ["tablets", 1],
 
-      капс: ["count", 1],
-      капсула: ["count", 1],
-      капсули: ["count", 1],
-      капсул: ["count", 1],
+    капс: ["capsules", 1],
+    капсула: ["capsules", 1],
+    капсули: ["capsules", 1],
+    капсул: ["capsules", 1],
 
-      пак: ["count", 1],
-      пакет: ["count", 1],
-      пакети: ["count", 1],
-      пакетів: ["count", 1]
-    };
+    пак: ["packs", 1],
+    уп: ["packs", 1],
+    упаковка: ["packs", 1],
+    упаковки: ["packs", 1],
+    упаковок: ["packs", 1],
+    пакет: ["packs", 1],
+    пакети: ["packs", 1],
+    пакетів: ["packs", 1]
+  };
 
-    const packageUnitsPattern = Object.keys(unitInfo)
-      .sort((first, second) => second.length - first.length)
-      .map(unit =>
-        unit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-      )
-      .join("|");
+  const packageUnitsPattern = Object.keys(unitInfo)
+    .sort((first, second) => second.length - first.length)
+    .map(unit =>
+      unit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    )
+    .join("|");
 
-    const createPackagePattern = () =>
-      new RegExp(
-        `(\\d+(?:\\.\\d+)?)\\s*(${packageUnitsPattern})(?=$|\\s)`,
-        "giu"
-      );
+  const createPackagePattern = () =>
+    new RegExp(
+      `(\\d+(?:\\.\\d+)?)\\s*(${packageUnitsPattern})(?=$|\\s|\\.)`,
+      "giu"
+    );
 
-    const getMeaningfulTokens = value =>
-      tokenizeSearchText(
-        normalizeSearchText(value)
-          .replace(createPackagePattern(), " ")
-      ).filter(token =>
-        !stopWords.has(token) &&
-        !unitInfo[token]
-      );
+  function getMeaningfulTokens(value) {
+    return tokenizeSearchText(
+      normalizeSearchText(value)
+        .replace(createPackagePattern(), " ")
+    ).filter(token =>
+      !stopWords.has(token) &&
+      !unitInfo[token]
+    );
+  }
 
-    const titleTokens = getMeaningfulTokens(title);
-    const productTokens = getMeaningfulTokens(productName);
-    const supplierTokens = getMeaningfulTokens(supplier);
+  function getTokenRoot(token) {
+    const normalizedToken = token.replace(/\.+$/g, "");
 
-    if (!titleTokens.length || !productTokens.length) {
-      return 0;
+    if (/^греч/.test(normalizedToken)) {
+      return "греч";
     }
 
-    const tokensMatch = (queryToken, titleToken) => {
-      const queryBase = queryToken.replace(/\.+$/g, "");
-      const titleBase = titleToken.replace(/\.+$/g, "");
+    if (/^шпрот/.test(normalizedToken)) {
+      return "шпрот";
+    }
 
-      if (queryBase === titleBase) {
-        return true;
+    if (/^вершк/.test(normalizedToken)) {
+      return "вершк";
+    }
+
+    if (/^ультрапастериз/.test(normalizedToken)) {
+      return "ультрапастериз";
+    }
+
+    return normalizedToken;
+  }
+
+  function getCommonPrefixLength(firstValue, secondValue) {
+    const maxLength = Math.min(
+      firstValue.length,
+      secondValue.length
+    );
+
+    let prefixLength = 0;
+
+    while (
+      prefixLength < maxLength &&
+      firstValue[prefixLength] === secondValue[prefixLength]
+    ) {
+      prefixLength += 1;
+    }
+
+    return prefixLength;
+  }
+
+  function tokensMatch(firstToken, secondToken) {
+    const firstBase = getTokenRoot(firstToken);
+    const secondBase = getTokenRoot(secondToken);
+
+    if (!firstBase || !secondBase) {
+      return false;
+    }
+
+    if (firstBase === secondBase) {
+      return true;
+    }
+
+    if (
+      /^\d+(?:\.\d+)?$/.test(firstBase) ||
+      /^\d+(?:\.\d+)?$/.test(secondBase)
+    ) {
+      return false;
+    }
+
+    const shorterLength = Math.min(
+      firstBase.length,
+      secondBase.length
+    );
+
+    if (
+      shorterLength >= 4 &&
+      (
+        firstBase.startsWith(secondBase) ||
+        secondBase.startsWith(firstBase)
+      )
+    ) {
+      return true;
+    }
+
+    const commonPrefixLength = getCommonPrefixLength(
+      firstBase,
+      secondBase
+    );
+
+    if (shorterLength >= 9) {
+      return commonPrefixLength >= 6;
+    }
+
+    if (shorterLength >= 6) {
+      return commonPrefixLength >= 5;
+    }
+
+    return (
+      shorterLength >= 4 &&
+      Math.abs(firstBase.length - secondBase.length) <= 1 &&
+      commonPrefixLength >= shorterLength - 1
+    );
+  }
+
+  function extractPackages(value) {
+    const packages = [];
+
+    for (
+      const match of normalizeSearchText(value)
+        .matchAll(createPackagePattern())
+    ) {
+      const normalizedUnit =
+        match[2].toLocaleLowerCase("uk-UA");
+
+      const unit = unitInfo[normalizedUnit];
+
+      if (!unit) {
+        continue;
       }
 
-      const queryIsAbbreviation =
-        queryBase.length < titleBase.length &&
-        titleBase.startsWith(queryBase);
+      const [kind, multiplier] = unit;
+      const amount = Number(match[1]) * multiplier;
 
-      const titleIsAbbreviation =
-        titleBase.length < queryBase.length &&
-        queryBase.startsWith(titleBase);
-
-      const shorterLength = Math.min(
-        queryBase.length,
-        titleBase.length
-      );
-
-      const hasAbbreviationDot =
-        queryBase !== queryToken ||
-        titleBase !== titleToken;
-
-      if (
-        (queryIsAbbreviation || titleIsAbbreviation) &&
-        (
-          (hasAbbreviationDot && shorterLength >= 3) ||
-          (!hasAbbreviationDot && shorterLength >= 4)
-        )
-      ) {
-        return true;
+      if (Number.isFinite(amount) && amount > 0) {
+        packages.push({
+          kind,
+          amount: Math.round(amount * 1000) / 1000
+        });
       }
+    }
 
-      return (
-        queryBase.length >= 5 &&
-        titleBase.length >= 5 &&
-        queryBase.slice(0, 5) === titleBase.slice(0, 5)
-      );
-    };
+    return packages.filter((item, index, items) =>
+      items.findIndex(candidate =>
+        candidate.kind === item.kind &&
+        candidate.amount === item.amount
+      ) === index
+    );
+  }
+
+  const productTokensForMatching =
+    getMeaningfulTokens(productName);
+
+  const supplierTokensForMatching =
+    getMeaningfulTokens(supplier);
+
+  const classificationTokensForMatching =
+    getMeaningfulTokens(`${category} ${type}`);
+
+  const classificationProductTokens =
+    productTokensForMatching.filter(productToken =>
+      classificationTokensForMatching.some(
+        classificationToken =>
+          tokensMatch(productToken, classificationToken)
+      )
+    );
+
+  const lexicalProductTokens =
+    productTokensForMatching.filter(token =>
+      /\p{L}/u.test(token)
+    );
+
+  const coreProductTokens =
+    classificationProductTokens.length
+      ? classificationProductTokens
+      : lexicalProductTokens.slice(0, 1);
+
+  const queryPackages = extractPackages(productName);
+
+  function getMatchScore(title) {
+    const titleTokens = getMeaningfulTokens(title);
+
+    if (
+      !titleTokens.length ||
+      !productTokensForMatching.length
+    ) {
+      return 0;
+    }
 
     const countMatchedTokens = tokens =>
       tokens.filter(queryToken =>
@@ -780,121 +918,103 @@ async function monitorProduct(requestBody) {
         )
       ).length;
 
-    const matchedProductTokens = countMatchedTokens(productTokens);
-    const productCoverage =
-      matchedProductTokens / productTokens.length;
+    const matchedCoreTokens =
+      countMatchedTokens(coreProductTokens);
 
     if (
-      productCoverage < 0.7 ||
-      (
-        productTokens.length >= 2 &&
-        matchedProductTokens < 2
-      )
+      coreProductTokens.length &&
+      !matchedCoreTokens
     ) {
       return 0;
     }
 
-    const classificationTokens = getMeaningfulTokens(
-      `${category} ${type}`
-    ).filter(classificationToken =>
-      !productTokens.some(productToken =>
-        tokensMatch(classificationToken, productToken)
-      )
-    );
+    const matchedProductTokens =
+      countMatchedTokens(productTokensForMatching);
 
-    const matchedClassificationTokens =
-      countMatchedTokens(classificationTokens);
+    const productCoverage =
+      matchedProductTokens /
+      productTokensForMatching.length;
 
-    if (productTokens.length === 1) {
-      const productToken = productTokens[0];
+    const matchedSupplierTokens =
+      countMatchedTokens(supplierTokensForMatching);
 
-      const productAppearsNearStart = titleTokens
-        .slice(0, 2)
-        .some(titleToken =>
-          tokensMatch(productToken, titleToken)
-        );
+    const supplierCoverage =
+      supplierTokensForMatching.length
+        ? matchedSupplierTokens /
+          supplierTokensForMatching.length
+        : 1;
 
-      const hasStrongClassificationMatch =
-        matchedClassificationTokens >= 2;
+    const titlePackages = extractPackages(title);
 
-      if (
-        !productAppearsNearStart &&
-        !hasStrongClassificationMatch
-      ) {
-        return 0;
-      }
-    }
+    let hasExactPackage = !queryPackages.length;
+    let packageMissing = false;
 
-    const extractPackages = value => {
-      const packages = [];
+    if (queryPackages.length) {
+      hasExactPackage = queryPackages.some(queryPackage =>
+        titlePackages.some(titlePackage =>
+          titlePackage.kind === queryPackage.kind &&
+          Math.abs(
+            titlePackage.amount - queryPackage.amount
+          ) < 0.001
+        )
+      );
 
-      for (
-        const match of normalizeSearchText(value)
-          .matchAll(createPackagePattern())
-      ) {
-        const [kind, multiplier] =
-          unitInfo[match[2].toLocaleLowerCase("uk-UA")];
-
-        const amount = Number(match[1]) * multiplier;
-
-        if (Number.isFinite(amount) && amount > 0) {
-          packages.push(
-            `${kind}:${Math.round(amount * 100) / 100}`
+      for (const queryPackage of queryPackages) {
+        const sameKindTitlePackages =
+          titlePackages.filter(titlePackage =>
+            titlePackage.kind === queryPackage.kind
           );
+
+        const hasDifferentExplicitPackage =
+          sameKindTitlePackages.length &&
+          !sameKindTitlePackages.some(titlePackage =>
+            Math.abs(
+              titlePackage.amount - queryPackage.amount
+            ) < 0.001
+          );
+
+        if (hasDifferentExplicitPackage) {
+          return 0;
         }
       }
 
-      return [...new Set(packages)];
-    };
-
-    const queryPackages = extractPackages(productName);
-    const titlePackages = extractPackages(title);
-
-    const hasExactPackage = queryPackages.some(queryPackage =>
-      titlePackages.includes(queryPackage)
-    );
-
-    if (
-      queryPackages.length &&
-      !hasExactPackage
-    ) {
-      return 0;
+      packageMissing = !hasExactPackage;
     }
-
-    const matchedSupplierTokens =
-      countMatchedTokens(supplierTokens);
-
-    const supplierCoverage = supplierTokens.length
-      ? matchedSupplierTokens / supplierTokens.length
-      : 1;
 
     const isFullMatch =
       productCoverage === 1 &&
       supplierCoverage === 1 &&
-      (
-        !queryPackages.length ||
-        hasExactPackage
-      );
+      !packageMissing;
 
     if (isFullMatch) {
       return 1;
     }
 
-    let score = supplierTokens.length
-      ? productCoverage * 0.85 +
-        supplierCoverage * 0.15
-      : productCoverage;
+    let score =
+      0.42 +
+      productCoverage * 0.38;
+
+    if (supplierTokensForMatching.length) {
+      score += supplierCoverage * 0.12;
+    }
 
     if (
       queryPackages.length &&
-      !titlePackages.length
+      hasExactPackage
     ) {
-      score *= 0.9;
+      score += 0.08;
     }
 
-    return Math.min(
-      Math.round(score * 1000) / 1000,
-      0.99
+    if (packageMissing) {
+      score -= 0.1;
+    }
+
+    return Math.max(
+      0,
+      Math.min(
+        Math.round(score * 1000) / 1000,
+        0.99
+      )
     );
   }
 
@@ -920,34 +1040,39 @@ async function monitorProduct(requestBody) {
     const scoredOffers = offers
       .map(offer => ({
         ...offer,
-        matchScore: getMatchScore(offer.title, sourceQuery)
+        matchScore: getMatchScore(offer.title)
       }))
-      .filter(offer => offer.matchScore > 0)
+      .filter(offer => offer.matchScore >= 0.45)
       .sort((first, second) =>
         second.matchScore - first.matchScore ||
         first.price - second.price
       );
 
-    const queryTokens = tokenizeSearchText(sourceQuery);
-    const minimumScore = queryTokens.length <= 1 ? 1 : 0.7;
-    const fullOffers = scoredOffers.filter(offer => offer.matchScore === 1);
+    const fullOffers = scoredOffers.filter(
+      offer => offer.matchScore === 1
+    );
 
     const matchedOffers = fullOffers.length
       ? fullOffers
-      : scoredOffers.filter(offer => offer.matchScore >= minimumScore);
+      : scoredOffers;
 
     const bestOffer = matchedOffers[0] || null;
 
     return {
       source,
-      status: matchedOffers.length ? "ok" : "no_matches",
+      status: matchedOffers.length
+        ? "ok"
+        : "no_matches",
       matchType: bestOffer
-        ? bestOffer.matchScore === 1 && queryTokens.length >= 2
+        ? bestOffer.matchScore === 1
           ? "full"
           : "partial"
         : "none",
       productTitle: bestOffer?.title || null,
-      link: bestOffer?.link || extra.searchLink || null,
+      link:
+        bestOffer?.link ||
+        extra.searchLink ||
+        null,
       offersCount: matchedOffers.length,
       market: calculateMarket(matchedOffers),
       offers: matchedOffers.slice(0, 20),
@@ -1952,7 +2077,7 @@ async function monitorProduct(requestBody) {
     );
   }
 
-  let sources = [
+  const sources = [
     promSource,
     foraSource,
     auroraSource,
@@ -1961,12 +2086,6 @@ async function monitorProduct(requestBody) {
     atbSource,
     kopiyochkaSource
   ];
-
-  try {
-    sources = await filterSourcesByMeaning(sources);
-  } catch (error) {
-    console.error("[Groq relevance]", error);
-  }
 
   let aiReview = null;
 
