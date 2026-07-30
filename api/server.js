@@ -1273,139 +1273,193 @@ async function monitorProduct(requestBody) {
     };
   }
 
-  async function filterSourcesByMeaning(sourceList) {
-    const apiKey = process.env.GROQ_API_KEY;
-
-    if (!apiKey) {
-      throw new Error("GROQ_API_KEY_MISSING");
-    }
-
-    const candidates = [];
-
-    sourceList.forEach((source, sourceIndex) => {
-      if (
-        source?.status !== "ok" ||
-        !Array.isArray(source.offers)
-      ) {
-        return;
-      }
-
-      source.offers.slice(0, 5).forEach((offer, offerIndex) => {
-        candidates.push({
-          id: `s${sourceIndex}o${offerIndex}`,
-          source: cleanText(source.source, 80),
-          title: cleanText(offer.title, 260),
-          preliminaryScore:
-            Number(offer.matchScore) || 0
-        });
-      });
-    });
-
-    if (!candidates.length) {
-      return sourceList;
-    }
-
-    const relevanceResponse = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          temperature: 0,
-          max_completion_tokens: 4000,
-          response_format: {
-            type: "json_object"
-          },
-          messages: [
-            {
-              role: "system",
-              content:
-                "Ти перевіряєш релевантність товарів у пошуковій видачі. " +
-                "Для кожного кандидата оціни зміст усієї назви, а не збіг окремих слів. " +
-                "Поверни matchType=\"full\", якщо це той самий товар і збігаються всі явно задані " +
-                "суттєві характеристики, бренд, модель, розмір або фасування. " +
-                "Поверни matchType=\"partial\", якщо це той самий базовий вид товару й призначення, " +
-                "але відрізняється бренд, фасування, розмір або несуттєва характеристика. " +
-                "Такий найближчий аналог потрібно залишити, щоб при відсутності повного збігу " +
-                "користувач не отримав помилкове «не знайдено». " +
-                "Поверни matchType=\"none\", якщо додаткові слова змінюють сам вид, склад, форму, " +
-                "матеріал, призначення або цільову аудиторію товару, або якщо слово запиту " +
-                "згадане лише як складник, властивість чи заперечення. " +
-                "Категорія і вид у вхідних даних є лише підказкою, а не назвою товару. " +
-                "Не вигадуй відсутніх характеристик. " +
-                "Поверни лише JSON без пояснень поза JSON у форматі " +
-                "{\"decisions\":[{\"id\":\"s0o0\",\"matchType\":\"full\"}]}. " +
-                "Поверни рішення для кожного переданого id рівно один раз."
-            },
-            {
-              role: "user",
-              content: JSON.stringify({
-                requestedProduct: {
-                  name: productName,
-                  supplier: supplier || null,
-                  segment: segment || null,
-                  category: category || null,
-                  type: type || null
-                },
-                candidates
-              })
-            }
-          ]
-        }),
-        signal: AbortSignal.timeout(25000)
-      }
-    );
-
-    if (!relevanceResponse.ok) {
-      const errorBody = await relevanceResponse
-        .text()
-        .catch(() => "");
-
-      throw new Error(
-        `GROQ_RELEVANCE_FAILED: HTTP ${relevanceResponse.status} ${cleanText(errorBody, 300)}`
-      );
-    }
-
-    const relevanceData = await relevanceResponse.json();
-    const relevanceText = cleanText(
-      relevanceData?.choices?.[0]?.message?.content,
-      12000
-    );
-
-    const parsedRelevance = JSON.parse(relevanceText);
-    const decisions = Array.isArray(parsedRelevance.decisions)
-      ? parsedRelevance.decisions
-      : [];
-
-    const knownIds = new Set(
-      candidates.map(candidate => candidate.id)
-    );
-
-    const decisionMap = new Map();
-
-    decisions.forEach(decision => {
-      if (
-        knownIds.has(decision?.id) &&
-        ["full", "partial", "none"].includes(
-          decision.matchType
+  function filterSourcesByMeaning(sourceList) {
+    const identityProductTokens =
+      productTokensForMatching.filter(productToken =>
+        /\p{L}/u.test(productToken) &&
+        !supplierTokensForMatching.some(supplierToken =>
+          tokensMatch(productToken, supplierToken)
         )
-      ) {
-        decisionMap.set(
-          decision.id,
-          decision.matchType
-        );
-      }
-    });
+      );
 
-    if (decisionMap.size !== candidates.length) {
-      throw new Error("GROQ_RELEVANCE_INCOMPLETE");
+    const productIdentityTokens =
+      identityProductTokens.length
+        ? identityProductTokens
+        : productTokensForMatching;
+
+    const typeIdentityTokens =
+      getMeaningfulTokens(type);
+
+    const normalizedProductPhrase =
+      normalizeSearchText(productName)
+        .replace(createPackagePattern(), " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    function evaluateOffer(offer) {
+      const titleTokens =
+        getMeaningfulTokens(offer.title);
+
+      if (
+        !titleTokens.length ||
+        !productIdentityTokens.length
+      ) {
+        return null;
+      }
+
+      const matchedIndexes =
+        productIdentityTokens.map(productToken =>
+          titleTokens.findIndex(titleToken =>
+            tokensMatch(productToken, titleToken)
+          )
+        );
+
+      if (matchedIndexes.some(index => index < 0)) {
+        return null;
+      }
+
+      const exactMatchedTokens =
+        productIdentityTokens.filter(productToken =>
+          titleTokens.includes(productToken)
+        ).length;
+
+      const firstMatchedIndex = Math.min(
+        ...matchedIndexes
+      );
+
+      const tokensBeforeIdentity =
+        titleTokens.slice(0, firstMatchedIndex);
+
+      const hasTypeAnchor =
+        tokensBeforeIdentity.some(titleToken =>
+          typeIdentityTokens.some(typeToken =>
+            tokensMatch(titleToken, typeToken)
+          )
+        );
+
+      const hasSupplierAnchor =
+        tokensBeforeIdentity.length > 0 &&
+        tokensBeforeIdentity.every(titleToken =>
+          supplierTokensForMatching.some(supplierToken =>
+            tokensMatch(titleToken, supplierToken)
+          )
+        );
+
+      const normalizedTitlePhrase =
+        normalizeSearchText(offer.title)
+          .replace(createPackagePattern(), " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const hasDirectPhrase =
+        normalizedProductPhrase.length >= 2 &&
+        ` ${normalizedTitlePhrase} `.includes(
+          ` ${normalizedProductPhrase} `
+        );
+
+      let hasValidIdentity = false;
+
+      if (productIdentityTokens.length === 1) {
+        const productToken =
+          productIdentityTokens[0];
+
+        const exactIndex =
+          titleTokens.indexOf(productToken);
+
+        hasValidIdentity =
+          exactIndex === 0 ||
+          firstMatchedIndex === 0 ||
+          hasTypeAnchor ||
+          hasSupplierAnchor;
+      } else {
+        hasValidIdentity =
+          hasDirectPhrase ||
+          firstMatchedIndex === 0 ||
+          hasTypeAnchor ||
+          hasSupplierAnchor;
+      }
+
+      if (!hasValidIdentity) {
+        return null;
+      }
+
+      const titlePackages =
+        extractPackages(offer.title);
+
+      if (
+        queryPackages.length &&
+        titlePackages.length
+      ) {
+        const packagesCompatible =
+          queryPackages.every(queryPackage => {
+            const sameKindPackages =
+              titlePackages.filter(titlePackage =>
+                titlePackage.kind ===
+                queryPackage.kind
+              );
+
+            if (!sameKindPackages.length) {
+              return false;
+            }
+
+            return sameKindPackages.some(
+              titlePackage => {
+                const smaller = Math.min(
+                  queryPackage.amount,
+                  titlePackage.amount
+                );
+
+                const larger = Math.max(
+                  queryPackage.amount,
+                  titlePackage.amount
+                );
+
+                return (
+                  larger > 0 &&
+                  smaller / larger >= 0.05
+                );
+              }
+            );
+          });
+
+        if (!packagesCompatible) {
+          return null;
+        }
+      }
+
+      const matchScore =
+        Number(offer.matchScore) ||
+        getMatchScore(
+          offer.title,
+          offer.matchedQuery
+        );
+
+      const identityCoverage =
+        exactMatchedTokens /
+        productIdentityTokens.length;
+
+      const semanticScore =
+        Math.round(
+          (
+            matchScore +
+            identityCoverage * 0.08 +
+            (hasDirectPhrase ? 0.06 : 0) +
+            (hasTypeAnchor ? 0.03 : 0)
+          ) * 1000
+        ) / 1000;
+
+      return {
+        ...offer,
+        matchScore,
+        semanticScore,
+        semanticMatchType:
+          matchScore === 1
+            ? "full"
+            : "partial"
+      };
     }
 
-    return sourceList.map((source, sourceIndex) => {
+    return sourceList.map(source => {
       if (
         source?.status === "error" ||
         !Array.isArray(source.offers)
@@ -1414,17 +1468,8 @@ async function monitorProduct(requestBody) {
       }
 
       const relevantOffers = source.offers
-        .slice(0, 5)
-        .map((offer, offerIndex) => ({
-          ...offer,
-          semanticMatchType: decisionMap.get(
-            `s${sourceIndex}o${offerIndex}`
-          )
-        }))
-        .filter(offer =>
-          offer.semanticMatchType === "full" ||
-          offer.semanticMatchType === "partial"
-        )
+        .map(evaluateOffer)
+        .filter(Boolean)
         .sort((first, second) =>
           Number(
             second.semanticMatchType === "full"
@@ -1432,28 +1477,45 @@ async function monitorProduct(requestBody) {
           Number(
             first.semanticMatchType === "full"
           ) ||
-          Number(second.matchScore || 0) -
-          Number(first.matchScore || 0) ||
+          Number(second.semanticScore || 0) -
+          Number(first.semanticScore || 0) ||
           Number(first.price || 0) -
           Number(second.price || 0)
-        )
-        .slice(0, 10);
+        );
 
-      const bestOffer = relevantOffers[0] || null;
+      const fullOffers = relevantOffers.filter(
+        offer =>
+          offer.semanticMatchType === "full"
+      );
+
+      const selectedOffers = (
+        fullOffers.length
+          ? fullOffers
+          : relevantOffers
+      ).slice(0, 10);
+
+      const bestOffer =
+        selectedOffers[0] || null;
 
       return {
         ...source,
-        status: bestOffer ? "ok" : "no_matches",
+        status: bestOffer
+          ? "ok"
+          : "no_matches",
         matchType:
-          bestOffer?.semanticMatchType || "none",
-        productTitle: bestOffer?.title || null,
+          bestOffer?.semanticMatchType ||
+          "none",
+        productTitle:
+          bestOffer?.title || null,
         link:
           bestOffer?.link ||
           source.searchLink ||
           null,
-        offersCount: relevantOffers.length,
-        market: calculateMarket(relevantOffers),
-        offers: relevantOffers
+        offersCount: selectedOffers.length,
+        market: calculateMarket(
+          selectedOffers
+        ),
+        offers: selectedOffers
       };
     });
   }
