@@ -1386,12 +1386,15 @@ async function monitorProduct(requestBody) {
       const titlePackages =
         extractPackages(offer.title);
 
+      let packageDistance =
+        queryPackages.length ? null : 0;
+
       if (
         queryPackages.length &&
         titlePackages.length
       ) {
-        const packagesCompatible =
-          queryPackages.every(queryPackage => {
+        const packageDistances =
+          queryPackages.map(queryPackage => {
             const sameKindPackages =
               titlePackages.filter(titlePackage =>
                 titlePackage.kind ===
@@ -1399,32 +1402,30 @@ async function monitorProduct(requestBody) {
               );
 
             if (!sameKindPackages.length) {
-              return false;
+              return null;
             }
 
-            return sameKindPackages.some(
-              titlePackage => {
-                const smaller = Math.min(
-                  queryPackage.amount,
-                  titlePackage.amount
-                );
-
-                const larger = Math.max(
-                  queryPackage.amount,
-                  titlePackage.amount
-                );
-
-                return (
-                  larger > 0 &&
-                  smaller / larger >= 0.05
-                );
-              }
+            return Math.min(
+              ...sameKindPackages.map(titlePackage =>
+                Math.abs(
+                  titlePackage.amount -
+                  queryPackage.amount
+                ) / queryPackage.amount
+              )
             );
           });
 
-        if (!packagesCompatible) {
+        if (
+          packageDistances.some(
+            distance => distance === null
+          )
+        ) {
           return null;
         }
+
+        packageDistance = Math.max(
+          ...packageDistances
+        );
       }
 
       const matchScore =
@@ -1452,6 +1453,7 @@ async function monitorProduct(requestBody) {
         ...offer,
         matchScore,
         semanticScore,
+        packageDistance,
         semanticMatchType:
           matchScore === 1
             ? "full"
@@ -1477,6 +1479,16 @@ async function monitorProduct(requestBody) {
           Number(
             first.semanticMatchType === "full"
           ) ||
+          (
+            Number.isFinite(first.packageDistance)
+              ? first.packageDistance
+              : Number.POSITIVE_INFINITY
+          ) -
+          (
+            Number.isFinite(second.packageDistance)
+              ? second.packageDistance
+              : Number.POSITIVE_INFINITY
+          ) ||
           Number(second.semanticScore || 0) -
           Number(first.semanticScore || 0) ||
           Number(first.price || 0) -
@@ -1488,11 +1500,42 @@ async function monitorProduct(requestBody) {
           offer.semanticMatchType === "full"
       );
 
-      const selectedOffers = (
+      const preferredOffers =
         fullOffers.length
           ? fullOffers
-          : relevantOffers
-      ).slice(0, 10);
+          : relevantOffers;
+
+      let packageMatchedOffers =
+        preferredOffers;
+
+      if (queryPackages.length) {
+        const offersWithPackage =
+          preferredOffers.filter(offer =>
+            Number.isFinite(
+              offer.packageDistance
+            )
+          );
+
+        if (offersWithPackage.length) {
+          const nearestPackageDistance =
+            Math.min(
+              ...offersWithPackage.map(
+                offer => offer.packageDistance
+              )
+            );
+
+          packageMatchedOffers =
+            offersWithPackage.filter(offer =>
+              Math.abs(
+                offer.packageDistance -
+                nearestPackageDistance
+              ) < 0.000001
+            );
+        }
+      }
+
+      const selectedOffers =
+        packageMatchedOffers.slice(0, 10);
 
       const bestOffer =
         selectedOffers[0] || null;
