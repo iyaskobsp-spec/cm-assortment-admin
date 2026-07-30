@@ -989,8 +989,15 @@ async function processCommitteeRequest() {
         );
 
         const productTitle = escapeBatchHtml(
-          source.productTitle ||
-          "Товар не знайдено"
+          source.status === "error"
+            ? (
+                source.message ||
+                "Помилка джерела"
+              )
+            : (
+                source.productTitle ||
+                "Товар не знайдено"
+              )
         );
 
         const resultLink = String(
