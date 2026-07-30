@@ -699,26 +699,41 @@ body.batch-modal-open {
   text-transform: uppercase;
 }
 
-.batch-product-prices {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
+.batch-product-result-head {
+  flex-direction: column;
 }
 
-.batch-product-prices span {
-  padding: 8px 10px;
+.batch-product-meta {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(150px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.batch-product-meta span {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 7px;
-  color: var(--muted);
   background: rgba(7, 8, 11, 0.42);
-  font-size: 11px;
-  white-space: nowrap;
 }
 
-.batch-product-prices strong {
-  margin-left: 4px;
+.batch-product-meta small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.batch-product-meta strong {
+  overflow-wrap: anywhere;
   color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .batch-product-result .competitor-table-wrap {
@@ -731,27 +746,15 @@ body.batch-modal-open {
   min-width: 760px;
 }
 
-.batch-product-review {
-  padding: 15px 18px;
-}
-
-.batch-product-review strong {
-  color: var(--accent);
-  font-size: 11px;
-  text-transform: uppercase;
-}
-
-.batch-product-review p {
-  margin: 7px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.55;
-  white-space: pre-line;
+@media (max-width: 950px) {
+  .batch-product-meta {
+    grid-template-columns:
+      repeat(2, minmax(150px, 1fr));
+  }
 }
 
 @media (max-width: 700px) {
-  .batch-results-header,
-  .batch-product-result-head {
+  .batch-results-header {
     flex-direction: column;
   }
 
@@ -763,8 +766,8 @@ body.batch-modal-open {
     flex: 1;
   }
 
-  .batch-product-prices {
-    justify-content: flex-start;
+  .batch-product-meta {
+    grid-template-columns: 1fr;
   }
 }
 
