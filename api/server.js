@@ -1088,7 +1088,7 @@ async function monitorProduct(requestBody) {
     );
   }
 
-  async function buildSearchQueries() {
+  function buildSearchQueries() {
     const supplierAlreadyInProductName =
       supplierTokensForMatching.length > 0 &&
       supplierTokensForMatching.every(supplierToken =>
@@ -1097,25 +1097,11 @@ async function monitorProduct(requestBody) {
         )
       );
 
-    const coreTokensWithoutSupplier =
-      coreProductTokens.filter(coreToken =>
-        !supplierTokensForMatching.some(supplierToken =>
-          tokensMatch(coreToken, supplierToken)
-        )
-      );
-
-    const supplierWords =
-      supplierTokensForMatching.join(" ");
-
-    const fullProductWords =
-      productTokensForMatching.join(" ");
-
-    const coreWords =
-      (
-        coreTokensWithoutSupplier.length
-          ? coreTokensWithoutSupplier
-          : coreProductTokens
-      ).join(" ");
+    const productWithoutPackage =
+      normalizeSearchText(productName)
+        .replace(createPackagePattern(), " ")
+        .replace(/\s+/g, " ")
+        .trim();
 
     const exactQuery = [
       supplierAlreadyInProductName ? "" : supplier,
@@ -1124,99 +1110,18 @@ async function monitorProduct(requestBody) {
       .filter(Boolean)
       .join(" ");
 
-    const exactCandidates = [
-      exactQuery,
-      fullProductWords
-    ];
-
-    let expandedQueries = [];
-    const apiKey = process.env.GROQ_API_KEY;
-
-    if (apiKey) {
-      try {
-        const queryResponse = await fetch(
-          "https://api.groq.com/openai/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              model: "llama-3.3-70b-versatile",
-              temperature: 0,
-              max_completion_tokens: 600,
-              response_format: {
-                type: "json_object"
-              },
-              messages: [
-                {
-                  role: "system",
-                  content:
-                    "Сформуй до 4 коротких запитів для пошуку конкретного товару в українських онлайн-каталогах. " +
-                    "Пошук має працювати для будь-якого асортименту: продукти, косметика, побутова хімія, " +
-                    "канцелярія, текстиль, декор, посуд, інструменти та інші товари. " +
-                    "Врахуй українські й російські назви, реальні магазинні синоніми, скорочення, " +
-                    "словоформи та можливий латинський запис бренду. " +
-                    "Перший запит зроби максимально точним. Наступні поступово розширюй, " +
-                    "але не замінюй товар назвою категорії та не переходь до іншого виду товару. " +
-                    "В останньому запиті прибери бренд і фасування, якщо це допоможе знайти " +
-                    "найближчий ринковий аналог того самого товару. " +
-                    "Категорію і вид використовуй лише як підказку для розуміння назви. " +
-                    "Не додавай характеристик, яких немає у вхідних даних. " +
-                    "Поверни лише JSON у форматі {\"queries\":[\"...\"]}."
-                },
-                {
-                  role: "user",
-                  content: JSON.stringify({
-                    name: productName,
-                    supplier: supplier || null,
-                    segment: segment || null,
-                    category: category || null,
-                    type: type || null
-                  })
-                }
-              ]
-            }),
-            signal: AbortSignal.timeout(25000)
-          }
-        );
-
-        if (!queryResponse.ok) {
-          throw new Error(
-            `GROQ_QUERY_EXPANSION_FAILED: HTTP ${queryResponse.status}`
-          );
-        }
-
-        const queryData = await queryResponse.json();
-        const queryText = cleanText(
-          queryData?.choices?.[0]?.message?.content,
-          5000
-        );
-
-        const parsedQueries = JSON.parse(queryText);
-
-        expandedQueries = Array.isArray(
-          parsedQueries.queries
-        )
-          ? parsedQueries.queries
-          : [];
-      } catch (error) {
-        console.error("[Groq search queries]", error);
-      }
-    }
-
-    const fallbackCandidates = [
-      [supplierWords, coreWords]
-        .filter(Boolean)
-        .join(" "),
-      coreWords
-    ];
+    const supplierProductWithoutPackage = [
+      supplierAlreadyInProductName ? "" : supplier,
+      productWithoutPackage
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     const queryCandidates = [
-      ...exactCandidates,
-      ...expandedQueries,
-      ...fallbackCandidates
+      exactQuery,
+      productName,
+      supplierProductWithoutPackage,
+      productWithoutPackage
     ];
 
     const uniqueQueries = [];
@@ -1226,24 +1131,22 @@ async function monitorProduct(requestBody) {
       const cleanedCandidate = normalizeSearchText(
         cleanText(candidate, 500)
       );
-      const normalizedCandidate =
-        normalizeSearchText(cleanedCandidate);
 
       if (
-        normalizedCandidate.length < 2 ||
-        seenQueries.has(normalizedCandidate)
+        cleanedCandidate.length < 2 ||
+        seenQueries.has(cleanedCandidate)
       ) {
         return;
       }
 
-      seenQueries.add(normalizedCandidate);
+      seenQueries.add(cleanedCandidate);
       uniqueQueries.push(cleanedCandidate);
     });
 
-    return uniqueQueries.slice(0, 6);
+    return uniqueQueries;
   }
 
-  const searchQueries = await buildSearchQueries();
+  const searchQueries = buildSearchQueries();
 
   async function runSearchCascade(loadOffers) {
     const offersByKey = new Map();
