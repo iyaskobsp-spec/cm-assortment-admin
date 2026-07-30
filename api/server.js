@@ -1235,19 +1235,11 @@ async function monitorProduct(requestBody) {
         first.price - second.price
       );
 
-    const fullOffers = scoredOffers.filter(
-      offer => offer.matchScore === 1
-    );
-
-    const matchedOffers = fullOffers.length
-      ? fullOffers
-      : scoredOffers;
-
-    const bestOffer = matchedOffers[0] || null;
+    const bestOffer = scoredOffers[0] || null;
 
     return {
       source,
-      status: matchedOffers.length
+      status: scoredOffers.length
         ? "ok"
         : "no_matches",
       matchType: bestOffer
@@ -1260,9 +1252,9 @@ async function monitorProduct(requestBody) {
         bestOffer?.link ||
         extra.searchLink ||
         null,
-      offersCount: matchedOffers.length,
-      market: calculateMarket(matchedOffers),
-      offers: matchedOffers.slice(0, 20),
+      offersCount: scoredOffers.length,
+      market: calculateMarket(scoredOffers),
+      offers: scoredOffers.slice(0, 20),
       ...extra
     };
   }
