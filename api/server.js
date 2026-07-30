@@ -861,8 +861,14 @@ async function monitorProduct(requestBody) {
       secondBase.length
     );
 
+    const lengthDifference = Math.abs(
+      firstBase.length -
+      secondBase.length
+    );
+
     if (
       shorterLength >= 4 &&
+      lengthDifference <= 2 &&
       (
         firstBase.startsWith(secondBase) ||
         secondBase.startsWith(firstBase)
@@ -1401,12 +1407,28 @@ async function monitorProduct(requestBody) {
                 queryPackage.kind
               );
 
-            if (!sameKindPackages.length) {
+            const comparablePackages =
+              sameKindPackages.length
+                ? sameKindPackages
+                : (
+                    ["mass", "volume"].includes(
+                      queryPackage.kind
+                    )
+                      ? titlePackages.filter(
+                          titlePackage =>
+                            ["mass", "volume"].includes(
+                              titlePackage.kind
+                            )
+                        )
+                      : []
+                  );
+
+            if (!comparablePackages.length) {
               return null;
             }
 
             return Math.min(
-              ...sameKindPackages.map(titlePackage =>
+              ...comparablePackages.map(titlePackage =>
                 Math.abs(
                   titlePackage.amount -
                   queryPackage.amount
