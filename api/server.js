@@ -1187,18 +1187,6 @@ async function monitorProduct(requestBody) {
             });
           }
         });
-
-        const hasFullMatch = [...offersByKey.values()]
-          .some(offer =>
-            getMatchScore(
-              offer.title,
-              offer.matchedQuery
-            ) === 1
-          );
-
-        if (hasFullMatch) {
-          break;
-        }
       } catch (error) {
         firstError ||= error;
       }
@@ -1212,7 +1200,7 @@ async function monitorProduct(requestBody) {
       offers: [...offersByKey.values()],
       attemptedQueries
     };
-  } 
+  }
 
   function calculateMarket(offers) {
     const prices = offers
