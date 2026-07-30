@@ -1400,7 +1400,9 @@ async function monitorProduct(requestBody) {
   }
 
   async function monitorFora() {
-    const cacheKey = `fora:${query.toLocaleLowerCase("uk-UA")}`;
+    const cacheKey =
+      `fora:${query.toLocaleLowerCase("uk-UA")}`;
+
     const cached = monitoringCache.get(cacheKey);
 
     if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
@@ -1410,73 +1412,103 @@ async function monitorProduct(requestBody) {
       };
     }
 
-    const foraResponse = await fetch(
-      "https://api.catalog.ecom.fora.ua/api/2.0/exec/EcomCatalogGlobal",
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          Origin: "https://fora.ua",
-          Referer: "https://fora.ua/"
-        },
-        body: JSON.stringify({
-          method: "GetSimpleCatalogItems",
-          data: {
-            merchantId: 4,
-            customFilter: query,
-            deliveryType: 0,
-            filialId: 310,
-            From: 1,
-            To: 30
+    let totalFound = 0;
+
+    const {
+      offers,
+      attemptedQueries
+    } = await runSearchCascade(async searchQuery => {
+      const foraResponse = await fetch(
+        "https://api.catalog.ecom.fora.ua/api/2.0/exec/EcomCatalogGlobal",
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Origin: "https://fora.ua",
+            Referer: "https://fora.ua/"
+          },
+          body: JSON.stringify({
+            method: "GetSimpleCatalogItems",
+            data: {
+              merchantId: 4,
+              customFilter: searchQuery,
+              deliveryType: 0,
+              filialId: 310,
+              From: 1,
+              To: 30
+            }
+          }),
+          signal: AbortSignal.timeout(20000)
+        }
+      );
+
+      if (!foraResponse.ok) {
+        throw new Error("FORA_REQUEST_FAILED");
+      }
+
+      const foraData = await foraResponse.json();
+
+      const items = Array.isArray(foraData.items)
+        ? foraData.items
+        : [];
+
+      totalFound = Math.max(
+        totalFound,
+        Number(foraData.itemsCount) || items.length
+      );
+
+      return items
+        .map(item => {
+          const price = parsePrice(item.price);
+
+          if (!price || price <= 0) {
+            return null;
           }
-        }),
-        signal: AbortSignal.timeout(20000)
+
+          const title = cleanText(
+            [item.name, item.unit]
+              .filter(Boolean)
+              .join(", "),
+            260
+          );
+
+          return {
+            source: "Фора",
+            title: title || "Без назви",
+            price: Math.round(price * 100) / 100,
+            currency: "UAH",
+            link: item.slug
+              ? `https://fora.ua/product/${encodeURIComponent(item.slug)}`
+              : null,
+            availability:
+              Number(
+                item.calcStoreQuantity ??
+                item.quantity ??
+                0
+              ) > 0
+                ? "В наявності"
+                : "Немає в наявності"
+          };
+        })
+        .filter(Boolean);
+    });
+
+    const result = buildSourceSummary(
+      "Фора",
+      query,
+      offers,
+      {
+        cached: false,
+        location: "базовий онлайн-каталог",
+        totalFound,
+        searchQueries: attemptedQueries,
+        searchLink:
+          `https://fora.ua/search/all?find=${encodeURIComponent(
+            attemptedQueries[0] || query
+          )}`
       }
     );
-
-    if (!foraResponse.ok) {
-      throw new Error("FORA_REQUEST_FAILED");
-    }
-
-    const foraData = await foraResponse.json();
-    const items = Array.isArray(foraData.items) ? foraData.items : [];
-
-    const offers = items
-      .map(item => {
-        const price = parsePrice(item.price);
-
-        if (!price || price <= 0) {
-          return null;
-        }
-
-        const title = cleanText(
-          [item.name, item.unit].filter(Boolean).join(", "),
-          260
-        );
-
-        return {
-          source: "Фора",
-          title: title || "Без назви",
-          price: Math.round(price * 100) / 100,
-          currency: "UAH",
-          link: item.slug
-            ? `https://fora.ua/product/${encodeURIComponent(item.slug)}`
-            : null,
-          availability:
-            Number(item.calcStoreQuantity ?? item.quantity ?? 0) > 0
-              ? "В наявності"
-              : "Немає в наявності"
-        };
-      })
-      .filter(Boolean);
-
-    const result = buildSourceSummary("Фора", query, offers, {
-      cached: false,
-      location: "базовий онлайн-каталог",
-      totalFound: Number(foraData.itemsCount) || items.length,
-      searchLink: `https://fora.ua/search/all?find=${encodeURIComponent(query)}`
-    });
 
     monitoringCache.set(cacheKey, {
       savedAt: Date.now(),
