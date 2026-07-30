@@ -2530,9 +2530,9 @@ async function monitorProduct(requestBody) {
   ];
 
   try {
-    sources = await filterSourcesByMeaning(sources);
+    sources = filterSourcesByMeaning(sources);
   } catch (error) {
-    console.error("[Groq relevance]", error);
+    console.error("[Offer relevance]", error);
   }
 
   let aiReview = null;
