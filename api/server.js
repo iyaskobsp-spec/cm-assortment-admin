@@ -991,11 +991,11 @@ async function monitorProduct(requestBody) {
     }
 
     let score =
-      0.42 +
-      productCoverage * 0.38;
+      0.35 +
+      productCoverage * 0.35;
 
     if (supplierTokensForMatching.length) {
-      score += supplierCoverage * 0.12;
+      score += supplierCoverage * 0.22;
     }
 
     if (
@@ -1006,7 +1006,7 @@ async function monitorProduct(requestBody) {
     }
 
     if (packageMissing) {
-      score -= 0.1;
+      score -= 0.08;
     }
 
     return Math.max(
@@ -1399,6 +1399,34 @@ async function monitorProduct(requestBody) {
     });
   }
 
+  async function monitorPromCascade() {
+    const {
+      offers,
+      attemptedQueries
+    } = await runSearchCascade(async searchQuery => {
+      const promResult =
+        await monitorProm(searchQuery, "");
+
+      return Array.isArray(promResult.offers)
+        ? promResult.offers
+        : [];
+    });
+
+    return buildSourceSummary(
+      "Prom.ua",
+      query,
+      offers,
+      {
+        cached: false,
+        searchQueries: attemptedQueries,
+        searchLink:
+          `https://prom.ua/ua/search?search_term=${encodeURIComponent(
+            attemptedQueries[0] || query
+          )}`
+      }
+    );
+  }  
+
   async function monitorFora() {
     const cacheKey =
       `fora:${query.toLocaleLowerCase("uk-UA")}`;
@@ -1519,7 +1547,9 @@ async function monitorProduct(requestBody) {
   }
 
   async function monitorAurora() {
-    const cacheKey = `aurora:${query.toLocaleLowerCase("uk-UA")}`;
+    const cacheKey =
+      `aurora:${query.toLocaleLowerCase("uk-UA")}`;
+
     const cached = monitoringCache.get(cacheKey);
 
     if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
@@ -1529,93 +1559,98 @@ async function monitorProduct(requestBody) {
       };
     }
 
-    const auroraStopWords = new Set([
-      "для", "та", "і", "й", "з", "із", "зі",
-      "у", "в", "на", "по", "до", "від", "при", "або"
-    ]);
+    let firstSearchLink = "";
 
-    const auroraUnits = new Set([
-      "мл", "ml", "л", "liter", "litre",
-      "г", "гр", "gr", "кг", "kg",
-      "шт", "pcs", "табл", "капс", "пак"
-    ]);
+    const {
+      offers,
+      attemptedQueries
+    } = await runSearchCascade(async searchQuery => {
+      const auroraUrl = new URL("https://avrora.ua/");
 
-    const auroraQueryTokens = tokenizeSearchText(productName)
-      .filter(token =>
-        !auroraStopWords.has(token) &&
-        !auroraUnits.has(token) &&
-        !/^\d+(?:[.,]\d+)?$/.test(token)
+      const searchParams = {
+        subcats: "Y",
+        status: "A",
+        pshort: "Y",
+        pfull: "Y",
+        pname: "Y",
+        pkeywords: "Y",
+        pcode_from_q: "Y",
+        search_performed: "Y",
+        q: searchQuery,
+        dispatch: "products.search"
+      };
+
+      Object.entries(searchParams).forEach(
+        ([name, value]) => {
+          auroraUrl.searchParams.set(name, value);
+        }
       );
 
-    const auroraQuery =
-      auroraQueryTokens.join(" ") || productName;
-
-    const auroraUrl = new URL("https://avrora.ua/");
-
-    const searchParams = {
-      subcats: "Y",
-      status: "A",
-      pshort: "Y",
-      pfull: "Y",
-      pname: "Y",
-      pkeywords: "Y",
-      pcode_from_q: "Y",
-      search_performed: "Y",
-      q: auroraQuery,
-      dispatch: "products.search"
-    };
-
-    Object.entries(searchParams).forEach(([name, value]) => {
-      auroraUrl.searchParams.set(name, value);
-    });
-
-    const auroraResponse = await fetch(auroraUrl, {
-      headers: {
-        Accept: "text/html,application/xhtml+xml",
-        "Accept-Language": "uk-UA,uk;q=0.9",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
-      },
-      signal: AbortSignal.timeout(20000)
-    });
-
-    if (!auroraResponse.ok) {
-      throw new Error("AURORA_REQUEST_FAILED");
-    }
-
-    const html = await auroraResponse.text();
-    const offers = [];
-
-    const productPattern =
-      /<a\b[^>]*href="([^"]+)"[^>]*class="[^"]*\bproduct-title\b[^"]*"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<span\b[^>]*class="[^"]*\bty-price-num\b[^"]*"[^>]*>([\d\s.,]+)<\/span>/gi;
-
-    for (const match of html.matchAll(productPattern)) {
-      const price = parsePrice(match[3]);
-
-      const title = cleanText(
-        decodeHtml(match[2].replace(/<[^>]*>/g, " ")),
-        260
-      );
-
-      if (!price || price <= 0 || !title) {
-        continue;
+      if (!firstSearchLink) {
+        firstSearchLink = auroraUrl.toString();
       }
 
-      offers.push({
-        source: "Аврора",
-        title,
-        price: Math.round(price * 100) / 100,
-        currency: "UAH",
-        link: safeUrl(decodeHtml(match[1])),
-        availability: "Онлайн-каталог"
+      const auroraResponse = await fetch(auroraUrl, {
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "uk-UA,uk;q=0.9",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
+        },
+        signal: AbortSignal.timeout(20000)
       });
-    }
 
-    const result = buildSourceSummary("Аврора", query, offers, {
-      cached: false,
-      searchQuery: auroraQuery,
-      searchLink: auroraUrl.toString()
+      if (!auroraResponse.ok) {
+        throw new Error("AURORA_REQUEST_FAILED");
+      }
+
+      const html = await auroraResponse.text();
+      const searchOffers = [];
+
+      const productPattern =
+        /<a\b[^>]*href="([^"]+)"[^>]*class="[^"]*\bproduct-title\b[^"]*"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<span\b[^>]*class="[^"]*\bty-price-num\b[^"]*"[^>]*>([\d\s.,]+)<\/span>/gi;
+
+      for (const match of html.matchAll(productPattern)) {
+        const price = parsePrice(match[3]);
+
+        const title = cleanText(
+          decodeHtml(
+            match[2].replace(/<[^>]*>/g, " ")
+          ),
+          260
+        );
+
+        if (!price || price <= 0 || !title) {
+          continue;
+        }
+
+        searchOffers.push({
+          source: "Аврора",
+          title,
+          price: Math.round(price * 100) / 100,
+          currency: "UAH",
+          link: safeUrl(decodeHtml(match[1])),
+          availability: "Онлайн-каталог"
+        });
+      }
+
+      return searchOffers;
     });
+
+    const result = buildSourceSummary(
+      "Аврора",
+      query,
+      offers,
+      {
+        cached: false,
+        searchQueries: attemptedQueries,
+        searchLink:
+          firstSearchLink ||
+          `https://avrora.ua/?q=${encodeURIComponent(
+            attemptedQueries[0] || query
+          )}`
+      }
+    );
 
     monitoringCache.set(cacheKey, {
       savedAt: Date.now(),
@@ -1626,7 +1661,9 @@ async function monitorProduct(requestBody) {
   }
 
   async function monitorEva() {
-    const cacheKey = `eva:${query.toLocaleLowerCase("uk-UA")}`;
+    const cacheKey =
+      `eva:${query.toLocaleLowerCase("uk-UA")}`;
+
     const cached = monitoringCache.get(cacheKey);
 
     if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
@@ -1636,72 +1673,96 @@ async function monitorProduct(requestBody) {
       };
     }
 
-    const evaUrl = new URL("https://search.eva.ua/");
+    let totalFound = 0;
 
-    evaUrl.searchParams.set("id", "10779");
-    evaUrl.searchParams.set("query", query);
-    evaUrl.searchParams.set("lang", "uk");
-    evaUrl.searchParams.set("autocomplete", "true");
-    evaUrl.searchParams.set("group", "true");
+    const {
+      offers,
+      attemptedQueries
+    } = await runSearchCascade(async searchQuery => {
+      const evaUrl = new URL("https://search.eva.ua/");
 
-    const evaResponse = await fetch(evaUrl, {
-      headers: {
-        Accept: "application/json",
-        "Accept-Language": "uk-UA,uk;q=0.9",
-        Origin: "https://eva.ua",
-        Referer: "https://eva.ua/",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
-      },
-      signal: AbortSignal.timeout(20000)
+      evaUrl.searchParams.set("id", "10779");
+      evaUrl.searchParams.set("query", searchQuery);
+      evaUrl.searchParams.set("lang", "uk");
+      evaUrl.searchParams.set("autocomplete", "true");
+      evaUrl.searchParams.set("group", "true");
+
+      const evaResponse = await fetch(evaUrl, {
+        headers: {
+          Accept: "application/json",
+          "Accept-Language": "uk-UA,uk;q=0.9",
+          Origin: "https://eva.ua",
+          Referer: "https://eva.ua/",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
+        },
+        signal: AbortSignal.timeout(20000)
+      });
+
+      if (!evaResponse.ok) {
+        throw new Error("EVA_REQUEST_FAILED");
+      }
+
+      const evaData = await evaResponse.json();
+
+      const groups = Array.isArray(
+        evaData?.results?.items
+      )
+        ? evaData.results.items
+        : [];
+
+      const items = groups.flatMap(group =>
+        Array.isArray(group?.items)
+          ? group.items
+          : []
+      );
+
+      totalFound = Math.max(
+        totalFound,
+        Number(evaData.total) || items.length
+      );
+
+      return items
+        .map(item => {
+          const price = parsePrice(
+            item.price_min || item.price
+          );
+
+          const title = cleanText(item.name, 260);
+          const link = safeUrl(item.url);
+
+          if (!price || price <= 0 || !title) {
+            return null;
+          }
+
+          return {
+            source: "EVA",
+            title,
+            price: Math.round(price * 100) / 100,
+            currency: "UAH",
+            link,
+            availability: item.is_presence
+              ? "В наявності"
+              : "Немає в наявності"
+          };
+        })
+        .filter(Boolean);
     });
 
-    if (!evaResponse.ok) {
-      throw new Error("EVA_REQUEST_FAILED");
-    }
-
-    const evaData = await evaResponse.json();
-
-    const groups = Array.isArray(evaData?.results?.items)
-      ? evaData.results.items
-      : [];
-
-    const items = groups.flatMap(group =>
-      Array.isArray(group?.items) ? group.items : []
+    const result = buildSourceSummary(
+      "EVA",
+      query,
+      offers,
+      {
+        cached: false,
+        totalFound,
+        searchQueries: attemptedQueries,
+        searchLink:
+          `https://eva.ua/ua/search/?q=${encodeURIComponent(
+            attemptedQueries[0] || query
+          )}`
+      }
     );
-
-    const offers = items
-      .map(item => {
-        const price = parsePrice(
-          item.price_min || item.price
-        );
-
-        const title = cleanText(item.name, 260);
-        const link = safeUrl(item.url);
-
-        if (!price || price <= 0 || !title) {
-          return null;
-        }
-
-        return {
-          source: "EVA",
-          title,
-          price: Math.round(price * 100) / 100,
-          currency: "UAH",
-          link,
-          availability: item.is_presence
-            ? "В наявності"
-            : "Немає в наявності"
-        };
-      })
-      .filter(Boolean);
-
-    const result = buildSourceSummary("EVA", query, offers, {
-      cached: false,
-      totalFound: Number(evaData.total) || items.length,
-      searchLink:
-        `https://eva.ua/ua/search/?q=${encodeURIComponent(query)}`
-    });
 
     monitoringCache.set(cacheKey, {
       savedAt: Date.now(),
@@ -1712,7 +1773,9 @@ async function monitorProduct(requestBody) {
   }
 
   async function monitorSilpo() {
-    const cacheKey = `silpo:${query.toLocaleLowerCase("uk-UA")}`;
+    const cacheKey =
+      `silpo:${query.toLocaleLowerCase("uk-UA")}`;
+
     const cached = monitoringCache.get(cacheKey);
 
     if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
@@ -1725,87 +1788,114 @@ async function monitorProduct(requestBody) {
     const branchId =
       "1ee60f26-91ca-6348-9f46-7975b9b60b08";
 
-    const silpoUrl = new URL(
-      `https://sf-ecom-api.silpo.ua/v1/uk/branches/${branchId}/quick-search`
-    );
+    let totalFound = 0;
 
-    silpoUrl.searchParams.set("limit", "30");
-    silpoUrl.searchParams.set("search", query);
-    silpoUrl.searchParams.set("sortBy", "productsList");
-    silpoUrl.searchParams.set("sortDirection", "desc");
-    silpoUrl.searchParams.set("deliveryType", "SelfPickup");
-
-    const silpoResponse = await fetch(silpoUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "Accept-Language": "uk-UA,uk;q=0.9",
-        Origin: "https://silpo.ua",
-        Referer: "https://silpo.ua/",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36"
-      },
-      signal: AbortSignal.timeout(20000)
-    });
-
-    if (!silpoResponse.ok) {
-      const errorBody = await silpoResponse
-        .text()
-        .catch(() => "");
-
-      throw new Error(
-        `SILPO_REQUEST_FAILED: HTTP ${silpoResponse.status} ${cleanText(errorBody, 300)}`
+    const {
+      offers,
+      attemptedQueries
+    } = await runSearchCascade(async searchQuery => {
+      const silpoUrl = new URL(
+        `https://sf-ecom-api.silpo.ua/v1/uk/branches/${branchId}/quick-search`
       );
-    }
 
-    const silpoData = await silpoResponse.json();
+      silpoUrl.searchParams.set("limit", "30");
+      silpoUrl.searchParams.set("search", searchQuery);
+      silpoUrl.searchParams.set(
+        "sortBy",
+        "productsList"
+      );
+      silpoUrl.searchParams.set(
+        "sortDirection",
+        "desc"
+      );
+      silpoUrl.searchParams.set(
+        "deliveryType",
+        "SelfPickup"
+      );
 
-    const items = [
-      silpoData?.products,
-      silpoData?.items,
-      silpoData?.data?.products,
-      silpoData?.data?.items
-    ].find(Array.isArray) || [];
+      const silpoResponse = await fetch(silpoUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Accept-Language": "uk-UA,uk;q=0.9",
+          Origin: "https://silpo.ua",
+          Referer: "https://silpo.ua/",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36"
+        },
+        signal: AbortSignal.timeout(20000)
+      });
 
-    const offers = items
-      .map(item => {
-        const price = parsePrice(
-          item.price ??
-          item.currentPrice ??
-          item.priceWithDiscount ??
-          item.finalPrice
+      if (!silpoResponse.ok) {
+        const errorBody = await silpoResponse
+          .text()
+          .catch(() => "");
+
+        throw new Error(
+          `SILPO_REQUEST_FAILED: HTTP ${silpoResponse.status} ${cleanText(errorBody, 300)}`
         );
+      }
 
-        const title = cleanText(
-          item.title ??
-          item.name ??
-          item.productName,
-          260
-        );
+      const silpoData = await silpoResponse.json();
 
-        const slug =
-          item.slug ??
-          item.productSlug ??
-          item.code;
+      const items = [
+        silpoData?.products,
+        silpoData?.items,
+        silpoData?.data?.products,
+        silpoData?.data?.items
+      ].find(Array.isArray) || [];
 
-        if (!price || price <= 0 || !title) {
-          return null;
-        }
+      totalFound = Math.max(
+        totalFound,
+        Number(
+          silpoData?.total ??
+          silpoData?.totalCount ??
+          silpoData?.data?.total
+        ) || items.length
+      );
 
-        return {
-          source: "Сільпо",
-          title,
-          price: Math.round(price * 100) / 100,
-          currency: "UAH",
-          link: slug
-            ? `https://silpo.ua/product/${encodeURIComponent(slug)}`
-            : null,
-          availability: item.inStock === false
-            ? "Немає в наявності"
-            : "В наявності"
-        };
-      })
-      .filter(Boolean);
+      return items
+        .map(item => {
+          const price = parsePrice(
+            item.price ??
+            item.currentPrice ??
+            item.priceWithDiscount ??
+            item.finalPrice
+          );
+
+          const title = cleanText(
+            item.title ??
+            item.name ??
+            item.productName,
+            260
+          );
+
+          const slug =
+            item.slug ??
+            item.productSlug ??
+            item.code;
+
+          if (!price || price <= 0 || !title) {
+            return null;
+          }
+
+          return {
+            source: "Сільпо",
+            title,
+            price: Math.round(price * 100) / 100,
+            currency: "UAH",
+            link: slug
+              ? `https://silpo.ua/product/${encodeURIComponent(
+                  slug
+                )}`
+              : null,
+            availability: item.inStock === false
+              ? "Немає в наявності"
+              : "В наявності"
+          };
+        })
+        .filter(Boolean);
+    });
 
     const result = buildSourceSummary(
       "Сільпо",
@@ -1814,14 +1904,12 @@ async function monitorProduct(requestBody) {
       {
         cached: false,
         location: "обраний магазин Сільпо",
-        totalFound:
-          Number(
-            silpoData?.total ??
-            silpoData?.totalCount ??
-            silpoData?.data?.total
-          ) || items.length,
+        totalFound,
+        searchQueries: attemptedQueries,
         searchLink:
-          `https://silpo.ua/search?find=${encodeURIComponent(query)}`
+          `https://silpo.ua/search?find=${encodeURIComponent(
+            attemptedQueries[0] || query
+          )}`
       }
     );
 
@@ -1833,8 +1921,10 @@ async function monitorProduct(requestBody) {
     return result;
   }
 
-    async function monitorAtb() {
-    const cacheKey = `atb:${query.toLocaleLowerCase("uk-UA")}`;
+  async function monitorAtb() {
+    const cacheKey =
+      `atb:${query.toLocaleLowerCase("uk-UA")}`;
+
     const cached = monitoringCache.get(cacheKey);
 
     if (cached && Date.now() - cached.savedAt < CACHE_TTL_MS) {
@@ -1844,83 +1934,101 @@ async function monitorProduct(requestBody) {
       };
     }
 
-    const atbUrl = new URL("https://api.multisearch.io/");
+    let totalFound = 0;
 
-    atbUrl.searchParams.set("query", query);
-    atbUrl.searchParams.set(
-      "q",
-      Math.random().toString(36).slice(-6)
-    );
-    atbUrl.searchParams.set("id", "11280");
-    atbUrl.searchParams.set("s", "large");
-    atbUrl.searchParams.set("m", String(Date.now()));
-    atbUrl.searchParams.set("lang", "uk");
-    atbUrl.searchParams.set("location", "1154");
-    atbUrl.searchParams.set(
-      "key",
-      "63a6d0a760fd2d0562c4061b78e64754"
-    );
-
-    const atbResponse = await fetch(atbUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "Accept-Language": "uk-UA,uk;q=0.9",
-        Origin: "https://www.atbmarket.com",
-        Referer: "https://www.atbmarket.com/",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36"
-      },
-      signal: AbortSignal.timeout(20000)
-    });
-
-    if (!atbResponse.ok) {
-      const errorBody = await atbResponse
-        .text()
-        .catch(() => "");
-
-      throw new Error(
-        `ATB_REQUEST_FAILED: HTTP ${atbResponse.status} ${cleanText(errorBody, 300)}`
+    const {
+      offers,
+      attemptedQueries
+    } = await runSearchCascade(async searchQuery => {
+      const atbUrl = new URL(
+        "https://api.multisearch.io/"
       );
-    }
 
-    const atbData = await atbResponse.json();
+      atbUrl.searchParams.set("query", searchQuery);
+      atbUrl.searchParams.set(
+        "q",
+        Math.random().toString(36).slice(-6)
+      );
+      atbUrl.searchParams.set("id", "11280");
+      atbUrl.searchParams.set("s", "large");
+      atbUrl.searchParams.set(
+        "m",
+        String(Date.now())
+      );
+      atbUrl.searchParams.set("lang", "uk");
+      atbUrl.searchParams.set("location", "1154");
+      atbUrl.searchParams.set(
+        "key",
+        "63a6d0a760fd2d0562c4061b78e64754"
+      );
 
-    const groups = Array.isArray(
-      atbData?.results?.item_groups
-    )
-      ? atbData.results.item_groups
-      : [];
+      const atbResponse = await fetch(atbUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Accept-Language": "uk-UA,uk;q=0.9",
+          Origin: "https://www.atbmarket.com",
+          Referer: "https://www.atbmarket.com/",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36"
+        },
+        signal: AbortSignal.timeout(20000)
+      });
 
-    const items = groups.flatMap(group =>
-      Array.isArray(group?.items)
-        ? group.items.flat()
-        : []
-    );
+      if (!atbResponse.ok) {
+        const errorBody = await atbResponse
+          .text()
+          .catch(() => "");
 
-    const offers = items
-      .map(item => {
-        const price = parsePrice(item.price);
-        const title = cleanText(item.name, 260);
-        const link = safeUrl(item.url);
+        throw new Error(
+          `ATB_REQUEST_FAILED: HTTP ${atbResponse.status} ${cleanText(errorBody, 300)}`
+        );
+      }
 
-        if (!price || price <= 0 || !title) {
-          return null;
-        }
+      const atbData = await atbResponse.json();
 
-        return {
-          source: "АТБ",
-          title,
-          price: Math.round(price * 100) / 100,
-          currency: cleanText(item.currency, 10) || "грн",
-          link,
-          availability:
-            item.is_presence === false
-              ? "Немає в наявності"
-              : "В наявності"
-        };
-      })
-      .filter(Boolean);
+      const groups = Array.isArray(
+        atbData?.results?.item_groups
+      )
+        ? atbData.results.item_groups
+        : [];
+
+      const items = groups.flatMap(group =>
+        Array.isArray(group?.items)
+          ? group.items.flat()
+          : []
+      );
+
+      totalFound = Math.max(
+        totalFound,
+        Number(atbData?.total) || items.length
+      );
+
+      return items
+        .map(item => {
+          const price = parsePrice(item.price);
+          const title = cleanText(item.name, 260);
+          const link = safeUrl(item.url);
+
+          if (!price || price <= 0 || !title) {
+            return null;
+          }
+
+          return {
+            source: "АТБ",
+            title,
+            price: Math.round(price * 100) / 100,
+            currency:
+              cleanText(item.currency, 10) || "грн",
+            link,
+            availability:
+              item.is_presence === false
+                ? "Немає в наявності"
+                : "В наявності"
+          };
+        })
+        .filter(Boolean);
+    });
 
     const result = buildSourceSummary(
       "АТБ",
@@ -1929,10 +2037,12 @@ async function monitorProduct(requestBody) {
       {
         cached: false,
         location: "магазин АТБ №1154",
-        totalFound:
-          Number(atbData?.total) || items.length,
+        totalFound,
+        searchQueries: attemptedQueries,
         searchLink:
-          `https://www.atbmarket.com/sch?lang=uk&location=1154&query=${encodeURIComponent(query)}`
+          `https://www.atbmarket.com/sch?lang=uk&location=1154&query=${encodeURIComponent(
+            attemptedQueries[0] || query
+          )}`
       }
     );
 
@@ -1944,7 +2054,7 @@ async function monitorProduct(requestBody) {
     return result;
   }
 
-    async function monitorKopiyochka() {
+  async function monitorKopiyochka() {
     const cacheKey =
       `kopiyochka:${query.toLocaleLowerCase("uk-UA")}`;
 
@@ -1957,39 +2067,18 @@ async function monitorProduct(requestBody) {
       };
     }
 
-    const kopiyochkaStopWords = new Set([
-      "для", "та", "і", "й", "з", "із", "зі",
-      "у", "в", "на", "по", "до", "від", "при", "або"
-    ]);
+    let totalFound = 0;
 
-    const kopiyochkaUnits = new Set([
-      "мл", "ml", "л", "liter", "litre",
-      "г", "гр", "gr", "кг", "kg",
-      "шт", "pcs", "табл", "капс", "пак"
-    ]);
-
-    const kopiyochkaQueryTokens =
-      tokenizeSearchText(productName)
-        .filter(token =>
-          !kopiyochkaStopWords.has(token) &&
-          !kopiyochkaUnits.has(token) &&
-          !/^\d+(?:[.,]\d+)?$/.test(token)
-        );
-
-    const kopiyochkaQuery =
-      kopiyochkaQueryTokens.join(" ") || productName;
-
-    const kopiyochkaQueries = [
-      ...new Set([
-        kopiyochkaQuery,
-        ...kopiyochkaQueryTokens.slice(0, 3)
-      ].filter(Boolean))
-    ];
-
-    const loadKopiyochkaItems = async searchQuery => {
+    const {
+      offers,
+      attemptedQueries
+    } = await runSearchCascade(async searchQuery => {
       const requestBody = new URLSearchParams();
 
-      requestBody.set("action", "get_catalog_products");
+      requestBody.set(
+        "action",
+        "get_catalog_products"
+      );
       requestBody.set("place_id", "");
       requestBody.set("category_term_id", "");
       requestBody.set("offset", "0");
@@ -2005,7 +2094,8 @@ async function monitorProduct(requestBody) {
             "Content-Type":
               "application/x-www-form-urlencoded;charset=UTF-8",
             Origin: "https://www.kopiyochka.ua",
-            Referer: "https://www.kopiyochka.ua/search/",
+            Referer:
+              "https://www.kopiyochka.ua/search/",
             "User-Agent":
               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36"
           },
@@ -2027,94 +2117,58 @@ async function monitorProduct(requestBody) {
       const kopiyochkaData =
         await kopiyochkaResponse.json();
 
-      return Array.isArray(kopiyochkaData?.items)
+      const items = Array.isArray(
+        kopiyochkaData?.items
+      )
         ? kopiyochkaData.items
         : Array.isArray(kopiyochkaData)
           ? kopiyochkaData
           : [];
-    };
 
-    const kopiyochkaQueryStates =
-      await Promise.allSettled(
-        kopiyochkaQueries.map(searchQuery =>
-          loadKopiyochkaItems(searchQuery)
-        )
+      totalFound = Math.max(
+        totalFound,
+        items.length
       );
 
-    const successfulQueries =
-      kopiyochkaQueryStates.filter(
-        state => state.status === "fulfilled"
-      );
+      return items
+        .map(item => {
+          const promoPrice = parsePrice(
+            item.promo_unit_price
+          );
 
-    if (!successfulQueries.length) {
-      const firstError = kopiyochkaQueryStates.find(
-        state => state.status === "rejected"
-      );
+          const basePrice = parsePrice(
+            item.base_unit_price
+          );
 
-      throw firstError?.reason ||
-        new Error("KOPIYOCHKA_REQUEST_FAILED");
-    }
+          const price =
+            promoPrice && promoPrice > 0
+              ? promoPrice
+              : basePrice;
 
-    const itemsByKey = new Map();
+          const title = cleanText(
+            decodeHtml(item.post_title),
+            260
+          );
 
-    successfulQueries.forEach(state => {
-      state.value.forEach(item => {
-        const itemKey = cleanText(
-          item.id ||
-          item.ID ||
-          item.sku ||
-          item.url ||
-          item.guid ||
-          `${item.post_title}|${item.promo_unit_price}|${item.base_unit_price}`,
-          500
-        );
+          const link = safeUrl(
+            item.url || item.guid
+          );
 
-        if (itemKey && !itemsByKey.has(itemKey)) {
-          itemsByKey.set(itemKey, item);
-        }
-      });
+          if (!price || price <= 0 || !title) {
+            return null;
+          }
+
+          return {
+            source: "Копійочка",
+            title,
+            price: Math.round(price * 100) / 100,
+            currency: "UAH",
+            link,
+            availability: "Онлайн-каталог"
+          };
+        })
+        .filter(Boolean);
     });
-
-    const items = [...itemsByKey.values()];
-
-    const offers = items
-      .map(item => {
-        const promoPrice = parsePrice(
-          item.promo_unit_price
-        );
-
-        const basePrice = parsePrice(
-          item.base_unit_price
-        );
-
-        const price =
-          promoPrice && promoPrice > 0
-            ? promoPrice
-            : basePrice;
-
-        const title = cleanText(
-          decodeHtml(item.post_title),
-          260
-        );
-
-        const link = safeUrl(
-          item.url || item.guid
-        );
-
-        if (!price || price <= 0 || !title) {
-          return null;
-        }
-
-        return {
-          source: "Копійочка",
-          title,
-          price: Math.round(price * 100) / 100,
-          currency: "UAH",
-          link,
-          availability: "Онлайн-каталог"
-        };
-      })
-      .filter(Boolean);
 
     const result = buildSourceSummary(
       "Копійочка",
@@ -2122,10 +2176,12 @@ async function monitorProduct(requestBody) {
       offers,
       {
         cached: false,
-        searchQuery: kopiyochkaQuery,
-        totalFound: items.length,
+        totalFound,
+        searchQueries: attemptedQueries,
         searchLink:
-          `https://www.kopiyochka.ua/search/?phrase=${encodeURIComponent(kopiyochkaQuery)}`
+          `https://www.kopiyochka.ua/search/?phrase=${encodeURIComponent(
+            attemptedQueries[0] || query
+          )}`
       }
     );
 
@@ -2146,7 +2202,7 @@ async function monitorProduct(requestBody) {
     atbState,
     kopiyochkaState
   ] = await Promise.allSettled([
-    monitorProm(productName, supplier),
+    monitorPromCascade(),
     monitorFora(),
     monitorAurora(),
     monitorEva(),
@@ -2155,35 +2211,17 @@ async function monitorProduct(requestBody) {
     monitorKopiyochka()
   ]);
 
-  let promResult;
-  let promSource;
-
-  if (promState.status === "fulfilled") {
-    promResult = promState.value;
-
-    promSource = buildSourceSummary(
-      "Prom.ua",
-      query,
-      Array.isArray(promResult.offers) ? promResult.offers : [],
-      {
-        cached: Boolean(promResult.cached),
-        searchLink: `https://prom.ua/ua/search?search_term=${encodeURIComponent(query)}`
-      }
-    );
-  } else {
-    console.error("[Prom.ua]", promState.reason);
-
-    promResult = {
-      offers: [],
-      market: calculateMarket([]),
-      cached: false
-    };
-
-    promSource = buildErrorSource(
+  const promSource = promState.status === "fulfilled"
+    ? promState.value
+    : buildErrorSource(
       "Prom.ua",
       "Prom тимчасово не відповідає."
     );
+
+  if (promState.status === "rejected") {
+    console.error("[Prom.ua]", promState.reason);
   }
+
 
   const foraSource = foraState.status === "fulfilled"
     ? foraState.value
@@ -2285,18 +2323,16 @@ async function monitorProduct(requestBody) {
   return {
     query,
     checkedAt: new Date().toISOString(),
-    cached: Boolean(
-      promResult.cached &&
-      foraSource.cached &&
-      auroraSource.cached &&
-      evaSource.cached &&
-      silpoSource.cached &&
-      atbSource.cached &&
-      kopiyochkaSource.cached
+    cached: sources.every(
+      source => source.cached === true
     ),
     provider: "multi-source",
-    offers: promResult.offers,
-    market: promResult.market,
+    offers: Array.isArray(promSource.offers)
+      ? promSource.offers
+      : [],
+    market:
+      promSource.market ||
+      calculateMarket([]),
     sources,
     aiReview
   };
