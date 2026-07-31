@@ -330,7 +330,6 @@ const AMAZON_MARKET_CONFIG = {
     ])
   }
 };
-};
 
 const AMAZON_SIGNAL_PATHS = {
   new: {
