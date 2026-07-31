@@ -106,6 +106,86 @@ function buildAbsoluteAmazonUrl(value) {
   }
 }
 
+function buildAbsoluteImageUrl(value) {
+  const decodedValue = decodeHtmlEntities(
+    String(value || "").trim()
+  );
+
+  if (!decodedValue) {
+    return null;
+  }
+
+  try {
+    const imageUrl = new URL(
+      decodedValue,
+      "https://www.amazon.co.uk"
+    );
+
+    if (
+      imageUrl.protocol !== "https:" &&
+      imageUrl.protocol !== "http:"
+    ) {
+      return null;
+    }
+
+    return imageUrl.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractAmazonImageUrl(linkContent) {
+  const imageTagMatch = String(
+    linkContent || ""
+  ).match(/<img\b[^>]*>/i);
+
+  if (!imageTagMatch) {
+    return null;
+  }
+
+  const imageTag = imageTagMatch[0];
+
+  const sourceMatch =
+    imageTag.match(
+      /\bdata-a-dynamic-image=["']([^"']+)["']/i
+    ) ||
+    imageTag.match(
+      /\bdata-src=["']([^"']+)["']/i
+    ) ||
+    imageTag.match(
+      /\bsrc=["']([^"']+)["']/i
+    );
+
+  if (!sourceMatch?.[1]) {
+    return null;
+  }
+
+  if (
+    sourceMatch[0]
+      .toLocaleLowerCase("en-US")
+      .startsWith("data-a-dynamic-image")
+  ) {
+    try {
+      const dynamicImages = JSON.parse(
+        decodeHtmlEntities(sourceMatch[1])
+      );
+
+      const firstImageUrl =
+        Object.keys(dynamicImages)[0];
+
+      return buildAbsoluteImageUrl(
+        firstImageUrl
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  return buildAbsoluteImageUrl(
+    sourceMatch[1]
+  );
+}
+
 function normalizeFilterWords(value) {
   return cleanTrendText(value, 300)
     .toLocaleLowerCase("uk-UA")
@@ -195,12 +275,16 @@ function extractAmazonUkProducts(html) {
       continue;
     }
 
+    const imageUrl =
+      extractAmazonImageUrl(linkContent);
+
     seenAsins.add(asin);
 
     products.push({
       asin,
       title,
-      link
+      link,
+      imageUrl
     });
   }
 
@@ -289,6 +373,7 @@ function buildIdeasFromAmazonUk(sourceResult) {
     (product, index) => ({
       id: `amazon-uk-${product.asin}`,
       title: product.title,
+      imageUrl: product.imageUrl || null,
       description:
         "Товар потрапив до відкритого рейтингу нових релізів Amazon UK.",
       signal:
