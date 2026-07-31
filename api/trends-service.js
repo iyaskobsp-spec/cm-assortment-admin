@@ -713,7 +713,6 @@ async function loadAmazonRanking({
   }
 
   const html = await response.text();
-  }
 
   const extractedProducts =
     extractAmazonProducts(
