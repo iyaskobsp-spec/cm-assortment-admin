@@ -59,6 +59,27 @@ const AMAZON_UK_SUPPORTED_MARKETS = new Set([
   "uk"
 ]);
 
+const AMAZON_SIGNAL_PATHS = {
+  new: {
+    path: "new-releases",
+    sourceName: "Amazon UK Hot New Releases",
+    description:
+      "Товар потрапив до відкритого рейтингу нових релізів Amazon UK."
+  },
+  trends: {
+    path: "movers-and-shakers",
+    sourceName: "Amazon UK Movers & Shakers",
+    description:
+      "Товар піднявся у відкритому рейтингу товарів, що швидко набирають позиції на Amazon UK."
+  },
+  popular: {
+    path: "bestsellers",
+    sourceName: "Amazon UK Best Sellers",
+    description:
+      "Товар потрапив до відкритого рейтингу найбільш популярних позицій Amazon UK."
+  }
+};
+
 function cleanTrendText(value, maxLength = 300) {
   return String(value || "")
     .replace(/\s+/g, " ")
@@ -291,26 +312,57 @@ function extractAmazonUkProducts(html) {
   return products.slice(0, 30);
 }
 
-function getAmazonUkUrl(category) {
+function getAmazonUkUrl(
+  category,
+  signalType
+) {
   const categoryPath =
     AMAZON_UK_CATEGORY_PATHS[category] || "";
 
+  const signalConfig =
+    AMAZON_SIGNAL_PATHS[signalType];
+
+  if (!signalConfig) {
+    return null;
+  }
+
+  const baseUrl =
+    `https://www.amazon.co.uk/gp/${signalConfig.path}`;
+
   if (!categoryPath) {
-    return "https://www.amazon.co.uk/gp/new-releases";
+    return baseUrl;
   }
 
   return (
-    "https://www.amazon.co.uk/gp/new-releases/" +
+    `${baseUrl}/` +
     encodeURIComponent(categoryPath)
   );
 }
 
-async function loadAmazonUkNewReleases({
+async function loadAmazonUkRanking({
   category,
+  signalType,
   searchDetails,
   exclusions
 }) {
-  const sourceUrl = getAmazonUkUrl(category);
+  const signalConfig =
+    AMAZON_SIGNAL_PATHS[signalType];
+
+  if (!signalConfig) {
+    return {
+      source: "Amazon UK",
+      sourceType: signalType,
+      sourceUrl: null,
+      status: "no_results",
+      totalExtracted: 0,
+      products: []
+    };
+  }
+
+  const sourceUrl = getAmazonUkUrl(
+    category,
+    signalType
+  );
 
   const response = await fetch(sourceUrl, {
     method: "GET",
@@ -354,11 +406,20 @@ async function loadAmazonUkNewReleases({
           exclusions
         )
       )
-      .slice(0, 12);
+      .slice(0, 12)
+      .map((product, index) => ({
+        ...product,
+        signalType,
+        sourceName:
+          signalConfig.sourceName,
+        description:
+          signalConfig.description,
+        sourcePosition: index + 1
+      }));
 
   return {
     source: "Amazon UK",
-    sourceType: "new-releases",
+    sourceType: signalType,
     sourceUrl,
     status: filteredProducts.length
       ? "ok"
@@ -370,29 +431,61 @@ async function loadAmazonUkNewReleases({
 
 function buildIdeasFromAmazonUk(sourceResult) {
   return sourceResult.products.map(
-    (product, index) => ({
-      id: `amazon-uk-${product.asin}`,
-      title: product.title,
-      imageUrl: product.imageUrl || null,
-      description:
-        "Товар потрапив до відкритого рейтингу нових релізів Amazon UK.",
-      signal:
-        index < 5
-          ? "Сильний сигнал новинки"
-          : "Новинка в рейтингу",
-      geography:
-        "Велика Британія",
-      sources: [
-        "Amazon UK Hot New Releases"
-      ],
-      links: [
-        {
-          label: "Відкрити на Amazon UK",
-          url: product.link
-        }
-      ],
-      sourcePosition: index + 1
-    })
+    product => {
+      let signalLabel =
+        "Товар у рейтингу Amazon";
+
+      if (product.signalType === "new") {
+        signalLabel =
+          product.sourcePosition <= 5
+            ? "Сильний сигнал новинки"
+            : "Новинка в рейтингу";
+      }
+
+      if (product.signalType === "trends") {
+        signalLabel =
+          product.sourcePosition <= 5
+            ? "Сильний трендовий сигнал"
+            : "Товар набирає позиції";
+      }
+
+      if (product.signalType === "popular") {
+        signalLabel =
+          product.sourcePosition <= 5
+            ? "Висока популярність"
+            : "Популярний товар";
+      }
+
+      return {
+        id:
+          `amazon-uk-${product.signalType}-${product.asin}`,
+        title: product.title,
+        imageUrl:
+          product.imageUrl || null,
+        description:
+          product.description ||
+          "Товар знайдений у відкритому рейтингу Amazon UK.",
+        signal:
+          signalLabel,
+        signalType:
+          product.signalType,
+        geography:
+          "Велика Британія",
+        sources: [
+          product.sourceName ||
+          "Amazon UK"
+        ],
+        links: [
+          {
+            label:
+              "Відкрити на Amazon UK",
+            url: product.link
+          }
+        ],
+        sourcePosition:
+          product.sourcePosition
+      };
+    }
   );
 }
 
@@ -469,64 +562,100 @@ export async function searchProductTrends(
   let ideas = [];
 
   if (
-    AMAZON_UK_SUPPORTED_MARKETS.has(market) &&
-    ["all", "new"].includes(signalType)
+    AMAZON_UK_SUPPORTED_MARKETS.has(market)
   ) {
-    try {
-      const amazonUkResult =
-        await loadAmazonUkNewReleases({
-          category,
-          searchDetails,
-          exclusions
-        });
+    const requestedSignalTypes =
+      signalType === "all"
+        ? [
+            "new",
+            "trends",
+            "popular"
+          ]
+        : [signalType];
 
-      sources.push(amazonUkResult);
+    for (
+      const amazonSignalType
+      of requestedSignalTypes
+    ) {
+      try {
+        const amazonUkResult =
+          await loadAmazonUkRanking({
+            category,
+            signalType:
+              amazonSignalType,
+            searchDetails,
+            exclusions
+          });
 
-      ideas = ideas.concat(
-        buildIdeasFromAmazonUk(
+        sources.push(
           amazonUkResult
-        )
-      );
-    } catch (error) {
-      console.error(
-        "[Amazon UK trends]",
-        error
-      );
+        );
 
-      sources.push({
-        source: "Amazon UK",
-        sourceType: "new-releases",
-        status: "error",
-        message:
-          "Amazon UK тимчасово не повернув рейтинг новинок.",
-        products: []
-      });
+        ideas = ideas.concat(
+          buildIdeasFromAmazonUk(
+            amazonUkResult
+          )
+        );
+      } catch (error) {
+        console.error(
+          `[Amazon UK ${amazonSignalType}]`,
+          error
+        );
+
+        sources.push({
+          source: "Amazon UK",
+          sourceType:
+            amazonSignalType,
+          status: "error",
+          message:
+            "Amazon UK тимчасово не повернув вибраний рейтинг.",
+          products: []
+        });
+      }
     }
   }
+
+  const uniqueIdeas = [];
+  const seenIdeaIds = new Set();
+
+  for (const idea of ideas) {
+    const ideaKey =
+      idea.id ||
+      `${idea.title}|${idea.geography}`;
+
+    if (seenIdeaIds.has(ideaKey)) {
+      continue;
+    }
+
+    seenIdeaIds.add(ideaKey);
+    uniqueIdeas.push(idea);
+  }
+
+  ideas = uniqueIdeas.slice(0, 30);
 
   let summary = "";
 
   if (ideas.length) {
+    const successfulSources =
+      sources.filter(
+        source =>
+          source.status === "ok"
+      );
+
     summary =
       `Знайдено товарних ідей: ${ideas.length}. ` +
-      "Поки результати базуються на рейтингу нових релізів Amazon UK. " +
-      "Наступними джерелами додамо інші країни Amazon і соціальні сигнали.";
+      `Успішно перевірено рейтингів Amazon UK: ${successfulSources.length}. ` +
+      "Результати можуть включати новинки, товари, що набирають позиції, та популярні товари.";
   } else if (
     !AMAZON_UK_SUPPORTED_MARKETS.has(market)
   ) {
     summary =
-      "Для вибраного ринку джерело Amazon UK не використовується. " +
-      "Потрібно підключити окреме джерело для цієї країни.";
-  } else if (
-    !["all", "new"].includes(signalType)
-  ) {
-    summary =
-      "Amazon Hot New Releases працює для новинок. " +
-      "Для трендів і популярного окремо підключимо Movers & Shakers та Best Sellers.";
+      "Для вибраного ринку Amazon UK не використовується. " +
+      "Окремі країни Amazon підключимо наступними кроками.";
   } else {
     summary =
       "Amazon UK не повернув товарів за вибраними параметрами. " +
-      "Спробуй прибрати уточнення або виключення.";
+      "Спробуй іншу категорію або прибери уточнення та виключення.";
   }
 
   return {
