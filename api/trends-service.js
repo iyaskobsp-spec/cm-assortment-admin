@@ -35,21 +35,76 @@ const ALLOWED_MARKETS = new Set([
   "spain"
 ]);
 
-const AMAZON_UK_CATEGORY_PATHS = {
-  "home-kitchen": "kitchen",
-  "storage-organization": "kitchen",
-  "decor": "kitchen",
-  "household": "kitchen",
-  "beauty-care": "beauty",
-  "kids": "baby",
-  "toys": "kids",
-  "stationery": "officeproduct",
-  "accessories": "fashion",
-  "pets": "pet-supplies",
-  "seasonal": "kitchen",
-  "gifts": "kitchen",
-  "electronics-accessories": "electronics",
-  "other": ""
+const AMAZON_CATEGORY_PATHS = {
+  "home-kitchen": {
+    uk: "kitchen",
+    germany: "kitchen"
+  },
+
+  "storage-organization": {
+    uk: "diy",
+    germany: "diy"
+  },
+
+  "decor": {
+    uk: "lighting",
+    germany: "lighting"
+  },
+
+  "household": {
+    uk: "grocery",
+    germany: "grocery"
+  },
+
+  "beauty-care": {
+    uk: "beauty",
+    germany: "beauty"
+  },
+
+  "kids": {
+    uk: "baby",
+    germany: "baby"
+  },
+
+  "toys": {
+    uk: "kids",
+    germany: "kids"
+  },
+
+  "stationery": {
+    uk: "officeproduct",
+    germany: "officeproduct"
+  },
+
+  "accessories": {
+    uk: "fashion",
+    germany: "fashion"
+  },
+
+  "pets": {
+    uk: "pet-supplies",
+    germany: "pet-supplies"
+  },
+
+  "seasonal": {
+    uk: "garden",
+    germany: "garden"
+  },
+
+  "gifts": {
+    uk: "handmade",
+    germany: "handmade"
+  },
+
+  "electronics-accessories": {
+    uk: "electronics",
+    germany: "electronics"
+  },
+
+  "other": {
+    uk: "",
+    germany: ""
+  }
 };
 
 const AMAZON_CATEGORY_SECTION_WORDS = {
@@ -632,8 +687,11 @@ function getAmazonRankingUrl(
   category,
   signalType
 ) {
+  const categoryConfig =
+    AMAZON_CATEGORY_PATHS[category] || {};
+
   const categoryPath =
-    AMAZON_UK_CATEGORY_PATHS[category] || "";
+    categoryConfig[amazonConfig.code] || "";
 
   const signalConfig =
     AMAZON_SIGNAL_PATHS[signalType];
