@@ -11,7 +11,7 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
 
 const MAX_BODY_SIZE = 10 * 1024;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
-const MAX_REQUESTS_PER_WINDOW = 30;
+const MAX_REQUESTS_PER_WINDOW = 150;
 const CACHE_TTL_MS = 15 * 60 * 1000;
 
 const requestLog = new Map();
