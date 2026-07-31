@@ -254,50 +254,144 @@ function extractAmazonUkProducts(html) {
   const products = [];
   const seenAsins = new Set();
 
-  const productLinkPattern =
-    /<a\b[^>]*href=["']([^"']*\/dp\/([A-Z0-9]{10})[^"']*)["'][^>]*>([\s\S]{0,3500}?)<\/a>/gi;
+  const htmlText = String(html || "");
 
-  for (const match of html.matchAll(productLinkPattern)) {
-    const relativeLink = match[1];
-    const asin = match[2];
-    const linkContent = match[3];
+  const asinMarkerPattern =
+    /\bdata-asin=["']([A-Z0-9]{10})["']/gi;
+
+  const asinMarkers = [
+    ...htmlText.matchAll(asinMarkerPattern)
+  ];
+
+  const blockedTitleParts = [
+    "barclays instalments",
+    "amazon barclaycard",
+    "apply for a credit card",
+    "amazon business",
+    "audible",
+    "prime membership",
+    "sponsored"
+  ];
+
+  for (
+    let index = 0;
+    index < asinMarkers.length;
+    index += 1
+  ) {
+    const marker = asinMarkers[index];
+    const asin = marker[1];
 
     if (!asin || seenAsins.has(asin)) {
       continue;
     }
 
-    const imageAltMatch = linkContent.match(
-      /<img\b[^>]*alt=["']([^"']+)["'][^>]*>/i
+    const blockStart = marker.index;
+
+    const blockEnd =
+      asinMarkers[index + 1]?.index ||
+      Math.min(
+        blockStart + 18000,
+        htmlText.length
+      );
+
+    const productBlock = htmlText.slice(
+      blockStart,
+      blockEnd
     );
 
-    const titleMatch = linkContent.match(
-      /<span\b[^>]*>([\s\S]*?)<\/span>/i
+    const hasRankingMarker =
+      /\bzg-bdg-text\b/i.test(productBlock) ||
+      /\bp13n-sc-uncoverable-faceout\b/i.test(
+        productBlock
+      ) ||
+      /aria-label=["']#?\d+["']/i.test(
+        productBlock
+      ) ||
+      />\s*#\d+\s*</i.test(productBlock);
+
+    if (!hasRankingMarker) {
+      continue;
+    }
+
+    const linkMatch = productBlock.match(
+      /href=["']([^"']*\/dp\/[A-Z0-9]{10}[^"']*)["']/i
+    );
+
+    if (!linkMatch?.[1]) {
+      continue;
+    }
+
+    const imageTagMatch = productBlock.match(
+      /<img\b[^>]*>/i
+    );
+
+    const imageTag =
+      imageTagMatch?.[0] || "";
+
+    const imageAltMatch = imageTag.match(
+      /\balt=["']([^"']+)["']/i
+    );
+
+    const titleClassMatch = productBlock.match(
+      /<[^>]+\bclass=["'][^"']*(?:p13n-sc-truncate-desktop-type2|_cDEzb_p13n-sc-css-line-clamp)[^"']*["'][^>]*>([\s\S]*?)<\/[^>]+>/i
+    );
+
+    const fallbackTitleMatch = productBlock.match(
+      /<span\b[^>]*>([\s\S]{8,500}?)<\/span>/i
     );
 
     const title = cleanTrendText(
       imageAltMatch?.[1] ||
-      stripHtml(titleMatch?.[1]) ||
-      stripHtml(linkContent),
+      stripHtml(titleClassMatch?.[1]) ||
+      stripHtml(fallbackTitleMatch?.[1]),
       300
     );
 
-    if (
-      !title ||
-      title.length < 8 ||
-      title.toLowerCase() === "amazon"
-    ) {
+    if (!title || title.length < 8) {
+      continue;
+    }
+
+    const normalizedTitle =
+      title.toLocaleLowerCase("en-GB");
+
+    const isBlockedTitle =
+      blockedTitleParts.some(part =>
+        normalizedTitle.includes(part)
+      );
+
+    if (isBlockedTitle) {
       continue;
     }
 
     const link =
-      buildAbsoluteAmazonUrl(relativeLink);
+      buildAbsoluteAmazonUrl(
+        linkMatch[1]
+      );
 
     if (!link) {
       continue;
     }
 
     const imageUrl =
-      extractAmazonImageUrl(linkContent);
+      extractAmazonImageUrl(
+        productBlock
+      );
+
+    const rankMatch =
+      productBlock.match(
+        /\bzg-bdg-text\b[^>]*>\s*#?(\d+)/i
+      ) ||
+      productBlock.match(
+        /aria-label=["']#?(\d+)["']/i
+      ) ||
+      productBlock.match(
+        />\s*#(\d+)\s*</i
+      );
+
+    const sourcePosition =
+      Number(rankMatch?.[1]) > 0
+        ? Number(rankMatch[1])
+        : products.length + 1;
 
     seenAsins.add(asin);
 
@@ -305,11 +399,18 @@ function extractAmazonUkProducts(html) {
       asin,
       title,
       link,
-      imageUrl
+      imageUrl,
+      sourcePosition
     });
   }
 
-  return products.slice(0, 30);
+  return products
+    .sort(
+      (first, second) =>
+        first.sourcePosition -
+        second.sourcePosition
+    )
+    .slice(0, 30);
 }
 
 function getAmazonUkUrl(
@@ -414,7 +515,10 @@ async function loadAmazonUkRanking({
           signalConfig.sourceName,
         description:
           signalConfig.description,
-        sourcePosition: index + 1
+        sourcePosition:
+          Number(product.sourcePosition) > 0
+            ? Number(product.sourcePosition)
+            : index + 1
       }));
 
   return {
