@@ -52,12 +52,35 @@ const AMAZON_UK_CATEGORY_PATHS = {
   "other": ""
 };
 
-const AMAZON_UK_SUPPORTED_MARKETS = new Set([
-  "europe-usa",
-  "world",
-  "europe",
-  "uk"
-]);
+const AMAZON_MARKET_CONFIG = {
+  uk: {
+    code: "uk",
+    domain: "https://www.amazon.co.uk",
+    sourceName: "Amazon UK",
+    geography: "Велика Британія",
+    language: "en-GB,en;q=0.9",
+    supportedMarkets: new Set([
+      "europe-usa",
+      "world",
+      "europe",
+      "uk"
+    ])
+  },
+
+  germany: {
+    code: "germany",
+    domain: "https://www.amazon.de",
+    sourceName: "Amazon Germany",
+    geography: "Німеччина",
+    language: "de-DE,de;q=0.9,en;q=0.7",
+    supportedMarkets: new Set([
+      "europe-usa",
+      "world",
+      "europe",
+      "germany"
+    ])
+  }
+};
 
 const AMAZON_SIGNAL_PATHS = {
   new: {
@@ -116,18 +139,24 @@ function stripHtml(value) {
     .trim();
 }
 
-function buildAbsoluteAmazonUrl(value) {
+function buildAbsoluteAmazonUrl(
+  value,
+  amazonDomain
+) {
   try {
     return new URL(
       decodeHtmlEntities(value),
-      "https://www.amazon.co.uk"
+      amazonDomain
     ).toString();
   } catch {
     return null;
   }
 }
 
-function buildAbsoluteImageUrl(value) {
+function buildAbsoluteImageUrl(
+  value,
+  amazonDomain
+) {
   const decodedValue = decodeHtmlEntities(
     String(value || "").trim()
   );
@@ -139,7 +168,7 @@ function buildAbsoluteImageUrl(value) {
   try {
     const imageUrl = new URL(
       decodedValue,
-      "https://www.amazon.co.uk"
+      amazonDomain
     );
 
     if (
@@ -155,7 +184,10 @@ function buildAbsoluteImageUrl(value) {
   }
 }
 
-function extractAmazonImageUrl(linkContent) {
+function extractAmazonImageUrl(
+  linkContent,
+  amazonDomain
+) {
   const imageTagMatch = String(
     linkContent || ""
   ).match(/<img\b[^>]*>/i);
@@ -195,7 +227,8 @@ function extractAmazonImageUrl(linkContent) {
         Object.keys(dynamicImages)[0];
 
       return buildAbsoluteImageUrl(
-        firstImageUrl
+        firstImageUrl,
+        amazonDomain
       );
     } catch {
       return null;
@@ -203,7 +236,8 @@ function extractAmazonImageUrl(linkContent) {
   }
 
   return buildAbsoluteImageUrl(
-    sourceMatch[1]
+    sourceMatch[1],
+    amazonDomain
   );
 }
 
