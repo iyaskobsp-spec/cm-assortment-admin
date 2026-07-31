@@ -902,6 +902,41 @@ async function loadAmazonRanking({
 
   const html = await response.text();
 
+  const htmlDiagnostics = {
+    requestedUrl: sourceUrl,
+    finalUrl: response.url,
+    status: response.status,
+    htmlLength: html.length,
+    asinMarkers: (
+      html.match(
+        /\bdata-asin=["'][A-Z0-9]{10}["']/gi
+      ) || []
+    ).length,
+    dpLinks: (
+      html.match(
+        /\/dp\/[A-Z0-9]{10}/gi
+      ) || []
+    ).length,
+    productLinks: (
+      html.match(
+        /\/gp\/product\/[A-Z0-9]{10}/gi
+      ) || []
+    ).length,
+    hasCaptcha:
+      /captcha|robot check|enter the characters/i.test(
+        html
+      ),
+    hasMoversText:
+      /movers\s*&amp;\s*shakers|movers\s*&\s*shakers/i.test(
+        html
+      )
+  };
+
+  console.log(
+    `[Amazon diagnostics] ${amazonConfig.sourceName} ${signalType}`,
+    htmlDiagnostics
+  );  
+
   const primaryProducts =
     extractAmazonProducts(
       html,
