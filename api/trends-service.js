@@ -38,72 +38,86 @@ const ALLOWED_MARKETS = new Set([
 const AMAZON_CATEGORY_PATHS = {
   "home-kitchen": {
     uk: "kitchen",
-    germany: "kitchen"
+    germany: "kitchen",
+    france: "kitchen"
   },
 
   "storage-organization": {
     uk: "diy",
-    germany: "diy"
+    germany: "diy",
+    france: "hi"
   },
 
   "decor": {
     uk: "lighting",
-    germany: "lighting"
+    germany: "lighting",
+    france: "lighting"
   },
 
   "household": {
     uk: "grocery",
-    germany: "grocery"
+    germany: "grocery",
+    france: "grocery"
   },
 
   "beauty-care": {
     uk: "beauty",
-    germany: "beauty"
+    germany: "beauty",
+    france: "beauty"
   },
 
   "kids": {
     uk: "baby",
-    germany: "baby"
+    germany: "baby",
+    france: "baby"
   },
 
   "toys": {
     uk: "kids",
-    germany: "kids"
+    germany: "kids",
+    france: "toys"
   },
 
   "stationery": {
     uk: "officeproduct",
-    germany: "officeproduct"
+    germany: "officeproduct",
+    france: "officeproduct"
   },
 
   "accessories": {
     uk: "fashion",
-    germany: "fashion"
+    germany: "fashion",
+    france: "fashion"
   },
 
   "pets": {
     uk: "pet-supplies",
-    germany: "pet-supplies"
+    germany: "pet-supplies",
+    france: "pet-supplies"
   },
 
   "seasonal": {
     uk: "garden",
-    germany: "garden"
+    germany: "garden",
+    france: "garden"
   },
 
   "gifts": {
     uk: "handmade",
-    germany: "handmade"
+    germany: "handmade",
+    france: "handmade"
   },
 
   "electronics-accessories": {
     uk: "electronics",
-    germany: "electronics"
+    germany: "electronics",
+    france: "electronics"
   },
 
   "other": {
     uk: "",
-    germany: ""
+    germany: "",
+    france: ""
   }
 };
 
@@ -243,6 +257,20 @@ const AMAZON_MARKET_CONFIG = {
       "world",
       "europe",
       "germany"
+    ])
+  },
+
+    france: {
+    code: "france",
+    domain: "https://www.amazon.fr",
+    sourceName: "Amazon France",
+    geography: "Франція",
+    language: "fr-FR,fr;q=0.9,en;q=0.7",
+    supportedMarkets: new Set([
+      "europe-usa",
+      "world",
+      "europe",
+      "france"
     ])
   }
 };
