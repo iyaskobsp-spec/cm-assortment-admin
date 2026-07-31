@@ -1,5 +1,6 @@
 import http from "node:http";
 import { URL } from "node:url";
+import { searchProductTrends } from "./api/trends-service.js";
 
 const PORT = Number.parseInt(process.env.PORT || "3000", 10);
 
@@ -2707,6 +2708,92 @@ const server = http.createServer(async (request, response) => {
         error: error.message || "INTERNAL_ERROR",
         message: knownError?.message || "Не вдалося виконати моніторинг."
       });
+    }
+
+    return;
+  }
+
+    if (
+    request.method === "POST" &&
+    requestUrl.pathname === "/api/trends"
+  ) {
+    const rateLimit = checkRateLimit(
+      getClientIp(request)
+    );
+
+    if (!rateLimit.allowed) {
+      response.setHeader(
+        "Retry-After",
+        String(rateLimit.retryAfter)
+      );
+
+      sendJson(response, 429, {
+        error: "RATE_LIMITED",
+        message:
+          "Забагато запитів. Спробуйте пізніше."
+      });
+
+      return;
+    }
+
+    try {
+      const requestBody =
+        await readJsonBody(request);
+
+      const result =
+        await searchProductTrends(requestBody);
+
+      sendJson(response, 200, result);
+    } catch (error) {
+      const knownErrors = {
+        REQUEST_TOO_LARGE: {
+          statusCode: 413,
+          message: "Запит завеликий."
+        },
+        INVALID_JSON: {
+          statusCode: 400,
+          message: "Некоректний формат запиту."
+        },
+        TREND_CATEGORY_REQUIRED: {
+          statusCode: 400,
+          message: "Оберіть категорію товару."
+        },
+        TREND_CATEGORY_INVALID: {
+          statusCode: 400,
+          message:
+            "Обрана категорія не підтримується."
+        },
+        TREND_SIGNAL_TYPE_INVALID: {
+          statusCode: 400,
+          message:
+            "Обраний тип сигналу не підтримується."
+        },
+        TREND_MARKET_INVALID: {
+          statusCode: 400,
+          message:
+            "Обраний ринок не підтримується."
+        }
+      };
+
+      const knownError =
+        knownErrors[error.message];
+
+      console.error("[trends-api]", error);
+
+      sendJson(
+        response,
+        knownError?.statusCode ||
+          error.statusCode ||
+          500,
+        {
+          error:
+            error.message ||
+            "INTERNAL_ERROR",
+          message:
+            knownError?.message ||
+            "Не вдалося виконати пошук новинок."
+        }
+      );
     }
 
     return;
