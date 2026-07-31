@@ -1,6 +1,6 @@
 import http from "node:http";
 import { URL } from "node:url";
-import { searchProductTrends } from "./api/trends-service.js";
+import { searchProductTrends } from "./trends-service.js";
 
 const PORT = Number.parseInt(process.env.PORT || "3000", 10);
 
