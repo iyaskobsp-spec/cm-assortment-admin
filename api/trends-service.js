@@ -39,85 +39,113 @@ const AMAZON_CATEGORY_PATHS = {
   "home-kitchen": {
     uk: "kitchen",
     germany: "kitchen",
-    france: "kitchen"
+    france: "kitchen",
+    italy: "kitchen",
+    poland: "kitchen"
   },
 
   "storage-organization": {
     uk: "diy",
     germany: "diy",
-    france: "hi"
+    france: "hi",
+    italy: "tools",
+    poland: "tools"
   },
 
   "decor": {
     uk: "lighting",
     germany: "lighting",
-    france: "lighting"
+    france: "lighting",
+    italy: "lighting",
+    poland: "lighting"
   },
 
   "household": {
     uk: "grocery",
     germany: "grocery",
-    france: "grocery"
+    france: "grocery",
+    italy: "grocery",
+    poland: "grocery"
   },
 
   "beauty-care": {
     uk: "beauty",
     germany: "beauty",
-    france: "beauty"
+    france: "beauty",
+    italy: "beauty",
+    poland: "beauty"
   },
 
   "kids": {
     uk: "baby",
     germany: "baby",
-    france: "baby"
+    france: "baby",
+    italy: "baby",
+    poland: "baby"
   },
 
   "toys": {
     uk: "kids",
     germany: "kids",
-    france: "toys"
+    france: "toys",
+    italy: "toys",
+    poland: "toys"
   },
 
   "stationery": {
     uk: "officeproduct",
     germany: "officeproduct",
-    france: "officeproduct"
+    france: "officeproduct",
+    italy: "officeproduct",
+    poland: "officeproduct"
   },
 
   "accessories": {
     uk: "fashion",
     germany: "fashion",
-    france: "fashion"
+    france: "fashion",
+    italy: "fashion",
+    poland: "fashion"
   },
 
   "pets": {
     uk: "pet-supplies",
     germany: "pet-supplies",
-    france: "pet-supplies"
+    france: "pet-supplies",
+    italy: "pet-supplies",
+    poland: "pet-supplies"
   },
 
   "seasonal": {
     uk: "garden",
     germany: "garden",
-    france: "garden"
+    france: "garden",
+    italy: "garden",
+    poland: "garden"
   },
 
   "gifts": {
     uk: "handmade",
     germany: "handmade",
-    france: "handmade"
+    france: "handmade",
+    italy: "handmade",
+    poland: "handmade"
   },
 
   "electronics-accessories": {
     uk: "electronics",
     germany: "electronics",
-    france: "electronics"
+    france: "electronics",
+    italy: "electronics",
+    poland: "electronics"
   },
 
   "other": {
     uk: "",
     germany: "",
-    france: ""
+    france: "",
+    italy: "",
+    poland: ""
   }
 };
 
@@ -260,7 +288,7 @@ const AMAZON_MARKET_CONFIG = {
     ])
   },
 
-    france: {
+  france: {
     code: "france",
     domain: "https://www.amazon.fr",
     sourceName: "Amazon France",
@@ -272,7 +300,36 @@ const AMAZON_MARKET_CONFIG = {
       "europe",
       "france"
     ])
+  },
+
+  italy: {
+    code: "italy",
+    domain: "https://www.amazon.it",
+    sourceName: "Amazon Italy",
+    geography: "Італія",
+    language: "it-IT,it;q=0.9,en;q=0.7",
+    supportedMarkets: new Set([
+      "europe-usa",
+      "world",
+      "europe",
+      "italy"
+    ])
+  },
+
+  poland: {
+    code: "poland",
+    domain: "https://www.amazon.pl",
+    sourceName: "Amazon Poland",
+    geography: "Польща",
+    language: "pl-PL,pl;q=0.9,en;q=0.7",
+    supportedMarkets: new Set([
+      "europe-usa",
+      "world",
+      "europe",
+      "poland"
+    ])
   }
+};
 };
 
 const AMAZON_SIGNAL_PATHS = {
