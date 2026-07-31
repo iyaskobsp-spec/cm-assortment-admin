@@ -907,6 +907,119 @@ async function loadAmazonRanking({
   };
 }
 
+async function loadAmazonTrendCandidates({
+  amazonConfig,
+  category,
+  searchDetails,
+  exclusions
+}) {
+  const [
+    newReleasesResult,
+    bestSellersResult
+  ] = await Promise.all([
+    loadAmazonRanking({
+      amazonConfig,
+      category,
+      signalType: "new",
+      searchDetails,
+      exclusions
+    }),
+
+    loadAmazonRanking({
+      amazonConfig,
+      category,
+      signalType: "popular",
+      searchDetails,
+      exclusions
+    })
+  ]);
+
+  const bestSellersByAsin = new Map(
+    bestSellersResult.products.map(product => [
+      product.asin,
+      product
+    ])
+  );
+
+  const trendProducts =
+    newReleasesResult.products
+      .map(newProduct => {
+        const popularProduct =
+          bestSellersByAsin.get(
+            newProduct.asin
+          );
+
+        if (!popularProduct) {
+          return null;
+        }
+
+        const newReleasePosition =
+          Number(newProduct.sourcePosition) || 99;
+
+        const bestSellerPosition =
+          Number(popularProduct.sourcePosition) || 99;
+
+        return {
+          ...newProduct,
+          signalType: "trends",
+
+          sourceName:
+            `${amazonConfig.sourceName} Hot New Releases + Best Sellers`,
+
+          description:
+            "Товар одночасно входить до рейтингу нових релізів і рейтингу популярних товарів Amazon.",
+
+          sourcePosition:
+            Math.min(
+              newReleasePosition,
+              bestSellerPosition
+            ),
+
+          newReleasePosition,
+          bestSellerPosition,
+
+          trendScore:
+            newReleasePosition +
+            bestSellerPosition
+        };
+      })
+      .filter(Boolean)
+      .sort(
+        (first, second) =>
+          first.trendScore -
+          second.trendScore
+      )
+      .slice(0, 12);
+
+  return {
+    source:
+      amazonConfig.sourceName,
+
+    sourceType:
+      "trends",
+
+    sourceUrl:
+      bestSellersResult.sourceUrl,
+
+    status:
+      trendProducts.length
+        ? "ok"
+        : "no_results",
+
+    totalExtracted:
+      newReleasesResult.totalExtracted +
+      bestSellersResult.totalExtracted,
+
+    products:
+      trendProducts,
+
+    checkedSources: [
+      newReleasesResult.sourceUrl,
+      bestSellersResult.sourceUrl
+    ]
+  };
+}
+
 function buildIdeasFromAmazon(
   sourceResult,
   amazonConfig
@@ -926,8 +1039,8 @@ function buildIdeasFromAmazon(
       if (product.signalType === "trends") {
         signalLabel =
           product.sourcePosition <= 5
-            ? "Сильний трендовий сигнал"
-            : "Товар набирає позиції";
+            ? "Сильний тренд: новинка-бестселер"
+            : "Новинка вже серед бестселерів";
       }
 
       if (product.signalType === "popular") {
@@ -1072,15 +1185,21 @@ export async function searchProductTrends(
     ) {
       try {
         const amazonResult =
-          await loadAmazonRanking({
-            amazonConfig,
-            category,
-            signalType:
-              amazonSignalType,
-            searchDetails,
-            exclusions
-          });
-
+          amazonSignalType === "trends"
+            ? await loadAmazonTrendCandidates({
+                amazonConfig,
+                category,
+                searchDetails,
+                exclusions
+              })
+            : await loadAmazonRanking({
+                amazonConfig,
+                category,
+                signalType:
+                  amazonSignalType,
+                searchDetails,
+                exclusions
+              });
         sources.push(
           amazonResult
         );
