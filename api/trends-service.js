@@ -52,6 +52,116 @@ const AMAZON_UK_CATEGORY_PATHS = {
   "other": ""
 };
 
+const AMAZON_CATEGORY_SECTION_WORDS = {
+  "home-kitchen": [
+    "home & kitchen",
+    "home and kitchen",
+    "küche, haushalt & wohnen",
+    "küche haushalt wohnen"
+  ],
+
+  "storage-organization": [
+    "home & kitchen",
+    "home and kitchen",
+    "storage",
+    "organisation",
+    "organization",
+    "küche, haushalt & wohnen",
+    "aufbewahrung"
+  ],
+
+  "decor": [
+    "home & kitchen",
+    "home and kitchen",
+    "home décor",
+    "home decor",
+    "wohnaccessoires",
+    "dekoration",
+    "küche, haushalt & wohnen"
+  ],
+
+  "household": [
+    "home & kitchen",
+    "home and kitchen",
+    "household",
+    "cleaning",
+    "haushalt",
+    "küche, haushalt & wohnen"
+  ],
+
+  "beauty-care": [
+    "beauty",
+    "health & personal care",
+    "health and personal care",
+    "beauty & personal care",
+    "beauty and personal care",
+    "drogerie & körperpflege",
+    "beauty"
+  ],
+
+  "kids": [
+    "baby products",
+    "baby",
+    "babyartikel"
+  ],
+
+  "toys": [
+    "toys & games",
+    "toys and games",
+    "spielzeug"
+  ],
+
+  "stationery": [
+    "stationery & office supplies",
+    "stationery and office supplies",
+    "office products",
+    "bürobedarf & schreibwaren",
+    "bürobedarf"
+  ],
+
+  "accessories": [
+    "fashion",
+    "clothing, shoes & jewellery",
+    "clothing shoes and jewellery",
+    "fashion"
+  ],
+
+  "pets": [
+    "pet supplies",
+    "pet products",
+    "haustier"
+  ],
+
+  "seasonal": [
+    "home & kitchen",
+    "home and kitchen",
+    "garden",
+    "garten",
+    "küche, haushalt & wohnen"
+  ],
+
+  "gifts": [
+    "home & kitchen",
+    "home and kitchen",
+    "toys & games",
+    "toys and games",
+    "fashion",
+    "küche, haushalt & wohnen",
+    "spielzeug"
+  ],
+
+  "electronics-accessories": [
+    "electronics & photo",
+    "electronics and photo",
+    "computers & accessories",
+    "computers and accessories",
+    "elektronik & foto",
+    "computer & zubehör"
+  ],
+
+  "other": []
+};
+
 const AMAZON_MARKET_CONFIG = {
   uk: {
     code: "uk",
@@ -286,6 +396,32 @@ function matchesExclusions(title, exclusions) {
   );
 }
 
+function matchesAmazonCategorySection(
+  sectionTitle,
+  category
+) {
+  const categoryWords =
+    AMAZON_CATEGORY_SECTION_WORDS[category] || [];
+
+  if (!categoryWords.length) {
+    return true;
+  }
+
+  const normalizedSectionTitle =
+    cleanTrendText(sectionTitle, 300)
+      .toLocaleLowerCase("en-US");
+
+  if (!normalizedSectionTitle) {
+    return false;
+  }
+
+  return categoryWords.some(word =>
+    normalizedSectionTitle.includes(
+      word.toLocaleLowerCase("en-US")
+    )
+  );
+}
+
 function extractAmazonProducts(
   html,
   amazonConfig
@@ -338,6 +474,28 @@ function extractAmazonProducts(
     const productBlock = htmlText.slice(
       blockStart,
       blockEnd
+    );
+
+    const sectionContextStart =
+      Math.max(0, blockStart - 12000);
+
+    const sectionContext =
+      htmlText.slice(
+        sectionContextStart,
+        blockStart
+      );
+
+    const sectionHeadingMatches = [
+      ...sectionContext.matchAll(
+        /<h[1-4]\b[^>]*>([\s\S]*?)<\/h[1-4]>/gi
+      )
+    ];
+
+    const sectionTitle = cleanTrendText(
+      stripHtml(
+        sectionHeadingMatches.at(-1)?.[1] || ""
+      ),
+      300
     );
 
     const hasRankingMarker =
@@ -443,7 +601,8 @@ function extractAmazonProducts(
       title,
       link,
       imageUrl,
-      sourcePosition
+      sourcePosition,
+      sectionTitle
     });
   }
 
@@ -474,7 +633,10 @@ function getAmazonRankingUrl(
   const baseUrl =
     `${amazonConfig.domain}/gp/${signalConfig.path}`;
 
-  if (!categoryPath) {
+  if (
+    signalType === "trends" ||
+    !categoryPath
+  ) {
     return baseUrl;
   }
 
@@ -551,6 +713,13 @@ async function loadAmazonRanking({
 
   const filteredProducts =
     extractedProducts
+      .filter(product =>
+        signalType !== "trends" ||
+        matchesAmazonCategorySection(
+          product.sectionTitle,
+          category
+        )
+      )
       .filter(product =>
         matchesSearchDetails(
           product.title,
