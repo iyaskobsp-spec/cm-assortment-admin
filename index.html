@@ -338,6 +338,53 @@
     </section>
   </div>
 
+    <div
+    id="trendResultsModal"
+    class="trend-results-modal"
+    hidden
+  >
+    <section
+      class="trend-results-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="trendResultsTitle"
+    >
+      <div class="trend-results-header">
+        <div>
+          <p class="eyebrow">Пошук новинок / трендів</p>
+
+          <h2 id="trendResultsTitle">
+            Знайдені товарні ідеї
+          </h2>
+
+          <span
+            id="trendResultsCount"
+            class="trend-results-count"
+          ></span>
+        </div>
+
+        <button
+          type="button"
+          id="closeTrendResultsButton"
+          class="trend-results-close"
+          aria-label="Закрити результати"
+        >
+          ×
+        </button>
+      </div>
+
+      <div
+        id="trendResultsSummary"
+        class="trend-results-summary"
+      ></div>
+
+      <div
+        id="trendResultsGrid"
+        class="trend-results-grid"
+      ></div>
+    </section>
+  </div>
+
   <script>
     const segmentSelect = document.getElementById("segmentSelect");
     const categorySelect = document.getElementById("categorySelect");
