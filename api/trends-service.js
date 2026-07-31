@@ -48,8 +48,8 @@ const AMAZON_CATEGORY_PATHS = {
     uk: "diy",
     germany: "diy",
     france: "hi",
-    italy: "tools",
-    poland: "tools"
+    italy: "kitchen",
+    poland: "kitchen"
   },
 
   "decor": {
@@ -57,15 +57,15 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "lighting",
     france: "lighting",
     italy: "lighting",
-    poland: "lighting"
+    poland: "kitchen"
   },
 
   "household": {
     uk: "grocery",
     germany: "grocery",
     france: "grocery",
-    italy: "grocery",
-    poland: "grocery"
+    italy: "kitchen",
+    poland: "kitchen"
   },
 
   "beauty-care": {
@@ -96,8 +96,8 @@ const AMAZON_CATEGORY_PATHS = {
     uk: "officeproduct",
     germany: "officeproduct",
     france: "officeproduct",
-    italy: "officeproduct",
-    poland: "officeproduct"
+    italy: "office-products",
+    poland: "office-products"
   },
 
   "accessories": {
@@ -129,7 +129,7 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "handmade",
     france: "handmade",
     italy: "handmade",
-    poland: "handmade"
+    poland: "kitchen"
   },
 
   "electronics-accessories": {
