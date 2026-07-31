@@ -424,7 +424,8 @@ function matchesAmazonCategorySection(
 
 function extractAmazonProducts(
   html,
-  amazonConfig
+  amazonConfig,
+  signalType
 ) {
   const products = [];
   const seenAsins = new Set();
@@ -508,13 +509,24 @@ function extractAmazonProducts(
       ) ||
       />\s*#\d+\s*</i.test(productBlock);
 
-    if (!hasRankingMarker) {
+    const linkMatch = productBlock.match(
+      new RegExp(
+        `href=["']([^"']*\\/dp\\/${asin}[^"']*)["']`,
+        "i"
+      )
+    );
+
+    const isMoversAndShakersProduct =
+      signalType === "trends" &&
+      Boolean(linkMatch?.[1]) &&
+      /<img\b/i.test(productBlock);
+
+    if (
+      !hasRankingMarker &&
+      !isMoversAndShakersProduct
+    ) {
       continue;
     }
-
-    const linkMatch = productBlock.match(
-      /href=["']([^"']*\/dp\/[A-Z0-9]{10}[^"']*)["']/i
-    );
 
     if (!linkMatch?.[1]) {
       continue;
@@ -705,9 +717,9 @@ async function loadAmazonRanking({
   const extractedProducts =
     extractAmazonProducts(
       html,
-      amazonConfig
+      amazonConfig,
+      signalType
     );
-
   const filteredProducts =
     extractedProducts
       .filter(product =>
