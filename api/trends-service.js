@@ -85,21 +85,23 @@ const AMAZON_MARKET_CONFIG = {
 const AMAZON_SIGNAL_PATHS = {
   new: {
     path: "new-releases",
-    sourceName: "Amazon UK Hot New Releases",
+    rankingName: "Hot New Releases",
     description:
-      "Товар потрапив до відкритого рейтингу нових релізів Amazon UK."
+      "Товар потрапив до рейтингу нових релізів Amazon."
   },
+
   trends: {
     path: "movers-and-shakers",
-    sourceName: "Amazon UK Movers & Shakers",
+    rankingName: "Movers & Shakers",
     description:
-      "Товар піднявся у відкритому рейтингу товарів, що швидко набирають позиції на Amazon UK."
+      "Товар потрапив до рейтингу позицій, що швидко зростають на Amazon."
   },
+
   popular: {
     path: "bestsellers",
-    sourceName: "Amazon UK Best Sellers",
+    rankingName: "Best Sellers",
     description:
-      "Товар потрапив до відкритого рейтингу найбільш популярних позицій Amazon UK."
+      "Товар потрапив до рейтингу найбільш популярних позицій Amazon."
   }
 };
 
@@ -284,7 +286,10 @@ function matchesExclusions(title, exclusions) {
   );
 }
 
-function extractAmazonUkProducts(html) {
+function extractAmazonProducts(
+  html,
+  amazonConfig
+) {
   const products = [];
   const seenAsins = new Set();
 
@@ -304,7 +309,9 @@ function extractAmazonUkProducts(html) {
     "amazon business",
     "audible",
     "prime membership",
-    "sponsored"
+    "sponsored",
+    "werbung",
+    "anzeige"
   ];
 
   for (
@@ -386,7 +393,7 @@ function extractAmazonUkProducts(html) {
     }
 
     const normalizedTitle =
-      title.toLocaleLowerCase("en-GB");
+      title.toLocaleLowerCase("en-US");
 
     const isBlockedTitle =
       blockedTitleParts.some(part =>
@@ -399,7 +406,8 @@ function extractAmazonUkProducts(html) {
 
     const link =
       buildAbsoluteAmazonUrl(
-        linkMatch[1]
+        linkMatch[1],
+        amazonConfig.domain
       );
 
     if (!link) {
@@ -408,7 +416,8 @@ function extractAmazonUkProducts(html) {
 
     const imageUrl =
       extractAmazonImageUrl(
-        productBlock
+        productBlock,
+        amazonConfig.domain
       );
 
     const rankMatch =
@@ -447,7 +456,8 @@ function extractAmazonUkProducts(html) {
     .slice(0, 30);
 }
 
-function getAmazonUkUrl(
+function getAmazonRankingUrl(
+  amazonConfig,
   category,
   signalType
 ) {
@@ -462,7 +472,7 @@ function getAmazonUkUrl(
   }
 
   const baseUrl =
-    `https://www.amazon.co.uk/gp/${signalConfig.path}`;
+    `${amazonConfig.domain}/gp/${signalConfig.path}`;
 
   if (!categoryPath) {
     return baseUrl;
@@ -474,7 +484,8 @@ function getAmazonUkUrl(
   );
 }
 
-async function loadAmazonUkRanking({
+async function loadAmazonRanking({
+  amazonConfig,
   category,
   signalType,
   searchDetails,
@@ -485,19 +496,27 @@ async function loadAmazonUkRanking({
 
   if (!signalConfig) {
     return {
-      source: "Amazon UK",
-      sourceType: signalType,
-      sourceUrl: null,
-      status: "no_results",
-      totalExtracted: 0,
-      products: []
+      source:
+        amazonConfig.sourceName,
+      sourceType:
+        signalType,
+      sourceUrl:
+        null,
+      status:
+        "no_results",
+      totalExtracted:
+        0,
+      products:
+        []
     };
   }
 
-  const sourceUrl = getAmazonUkUrl(
-    category,
-    signalType
-  );
+  const sourceUrl =
+    getAmazonRankingUrl(
+      amazonConfig,
+      category,
+      signalType
+    );
 
   const response = await fetch(sourceUrl, {
     method: "GET",
@@ -505,7 +524,7 @@ async function loadAmazonUkRanking({
       Accept:
         "text/html,application/xhtml+xml",
       "Accept-Language":
-        "en-GB,en;q=0.9",
+        amazonConfig.language,
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
         "AppleWebKit/537.36 Chrome/124 Safari/537.36"
@@ -515,7 +534,7 @@ async function loadAmazonUkRanking({
 
   if (!response.ok) {
     const error = new Error(
-      `AMAZON_UK_REQUEST_FAILED_${response.status}`
+      `AMAZON_${amazonConfig.code.toUpperCase()}_REQUEST_FAILED_${response.status}`
     );
 
     error.statusCode = 502;
@@ -525,7 +544,10 @@ async function loadAmazonUkRanking({
   const html = await response.text();
 
   const extractedProducts =
-    extractAmazonUkProducts(html);
+    extractAmazonProducts(
+      html,
+      amazonConfig
+    );
 
   const filteredProducts =
     extractedProducts
@@ -546,7 +568,7 @@ async function loadAmazonUkRanking({
         ...product,
         signalType,
         sourceName:
-          signalConfig.sourceName,
+          `${amazonConfig.sourceName} ${signalConfig.rankingName}`,
         description:
           signalConfig.description,
         sourcePosition:
@@ -556,18 +578,26 @@ async function loadAmazonUkRanking({
       }));
 
   return {
-    source: "Amazon UK",
-    sourceType: signalType,
+    source:
+      amazonConfig.sourceName,
+    sourceType:
+      signalType,
     sourceUrl,
-    status: filteredProducts.length
-      ? "ok"
-      : "no_results",
-    totalExtracted: extractedProducts.length,
-    products: filteredProducts
+    status:
+      filteredProducts.length
+        ? "ok"
+        : "no_results",
+    totalExtracted:
+      extractedProducts.length,
+    products:
+      filteredProducts
   };
 }
 
-function buildIdeasFromAmazonUk(sourceResult) {
+function buildIdeasFromAmazon(
+  sourceResult,
+  amazonConfig
+) {
   return sourceResult.products.map(
     product => {
       let signalLabel =
@@ -596,28 +626,30 @@ function buildIdeasFromAmazonUk(sourceResult) {
 
       return {
         id:
-          `amazon-uk-${product.signalType}-${product.asin}`,
-        title: product.title,
+          `amazon-${amazonConfig.code}-${product.signalType}-${product.asin}`,
+        title:
+          product.title,
         imageUrl:
           product.imageUrl || null,
         description:
           product.description ||
-          "Товар знайдений у відкритому рейтингу Amazon UK.",
+          `Товар знайдений у рейтингу ${amazonConfig.sourceName}.`,
         signal:
           signalLabel,
         signalType:
           product.signalType,
         geography:
-          "Велика Британія",
+          amazonConfig.geography,
         sources: [
           product.sourceName ||
-          "Amazon UK"
+          amazonConfig.sourceName
         ],
         links: [
           {
             label:
-              "Відкрити на Amazon UK",
-            url: product.link
+              `Відкрити на ${amazonConfig.sourceName}`,
+            url:
+              product.link
           }
         ],
         sourcePosition:
@@ -699,25 +731,36 @@ export async function searchProductTrends(
   const sources = [];
   let ideas = [];
 
-  if (
-    AMAZON_UK_SUPPORTED_MARKETS.has(market)
-  ) {
-    const requestedSignalTypes =
-      signalType === "all"
-        ? [
-            "new",
-            "trends",
-            "popular"
-          ]
-        : [signalType];
+  const requestedSignalTypes =
+    signalType === "all"
+      ? [
+          "new",
+          "trends",
+          "popular"
+        ]
+      : [signalType];
 
+  const amazonConfigs =
+    Object.values(
+      AMAZON_MARKET_CONFIG
+    ).filter(amazonConfig =>
+      amazonConfig.supportedMarkets.has(
+        market
+      )
+    );
+
+  for (
+    const amazonConfig
+    of amazonConfigs
+  ) {
     for (
       const amazonSignalType
       of requestedSignalTypes
     ) {
       try {
-        const amazonUkResult =
-          await loadAmazonUkRanking({
+        const amazonResult =
+          await loadAmazonRanking({
+            amazonConfig,
             category,
             signalType:
               amazonSignalType,
@@ -726,28 +769,32 @@ export async function searchProductTrends(
           });
 
         sources.push(
-          amazonUkResult
+          amazonResult
         );
 
         ideas = ideas.concat(
-          buildIdeasFromAmazonUk(
-            amazonUkResult
+          buildIdeasFromAmazon(
+            amazonResult,
+            amazonConfig
           )
         );
       } catch (error) {
         console.error(
-          `[Amazon UK ${amazonSignalType}]`,
+          `[${amazonConfig.sourceName} ${amazonSignalType}]`,
           error
         );
 
         sources.push({
-          source: "Amazon UK",
+          source:
+            amazonConfig.sourceName,
           sourceType:
             amazonSignalType,
-          status: "error",
+          status:
+            "error",
           message:
-            "Amazon UK тимчасово не повернув вибраний рейтинг.",
-          products: []
+            `${amazonConfig.sourceName} тимчасово не повернув вибраний рейтинг.`,
+          products:
+            []
         });
       }
     }
@@ -780,19 +827,29 @@ export async function searchProductTrends(
           source.status === "ok"
       );
 
+    const successfulMarkets = [
+      ...new Set(
+        successfulSources.map(
+          source => source.source
+        )
+      )
+    ];
+
     summary =
       `Знайдено товарних ідей: ${ideas.length}. ` +
-      `Успішно перевірено рейтингів Amazon UK: ${successfulSources.length}. ` +
+      `Успішно перевірено рейтингів Amazon: ${successfulSources.length}. ` +
+      (
+        successfulMarkets.length
+          ? `Джерела: ${successfulMarkets.join(", ")}. `
+          : ""
+      ) +
       "Результати можуть включати новинки, товари, що набирають позиції, та популярні товари.";
-  } else if (
-    !AMAZON_UK_SUPPORTED_MARKETS.has(market)
-  ) {
+  } else if (!amazonConfigs.length) {
     summary =
-      "Для вибраного ринку Amazon UK не використовується. " +
-      "Окремі країни Amazon підключимо наступними кроками.";
+      "Для вибраного ринку ще не підключено відповідний сайт Amazon.";
   } else {
     summary =
-      "Amazon UK не повернув товарів за вибраними параметрами. " +
+      "Amazon не повернув товарів за вибраними параметрами. " +
       "Спробуй іншу категорію або прибери уточнення та виключення.";
   }
 
