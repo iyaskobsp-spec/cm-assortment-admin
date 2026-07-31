@@ -935,7 +935,37 @@ async function loadAmazonRanking({
   console.log(
     `[Amazon diagnostics] ${amazonConfig.sourceName} ${signalType}`,
     htmlDiagnostics
-  );  
+  );
+
+    if (signalType === "trends") {
+    const dpLinkContexts = [
+      ...html.matchAll(
+        /\/dp\/[A-Z0-9]{10}/gi
+      )
+    ].map(match => {
+      const start = Math.max(
+        0,
+        match.index - 350
+      );
+
+      const end = Math.min(
+        html.length,
+        match.index + 650
+      );
+
+      return cleanTrendText(
+        stripHtml(
+          html.slice(start, end)
+        ),
+        1000
+      );
+    });
+
+    console.log(
+      `[Amazon dp contexts] ${amazonConfig.sourceName}`,
+      dpLinkContexts
+    );
+  }
 
   const primaryProducts =
     extractAmazonProducts(
