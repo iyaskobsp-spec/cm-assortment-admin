@@ -633,10 +633,7 @@ function getAmazonRankingUrl(
   const baseUrl =
     `${amazonConfig.domain}/gp/${signalConfig.path}`;
 
-  if (
-    signalType === "trends" ||
-    !categoryPath
-  ) {
+  if (!categoryPath) {
     return baseUrl;
   }
 
@@ -713,13 +710,6 @@ async function loadAmazonRanking({
 
   const filteredProducts =
     extractedProducts
-      .filter(product =>
-        signalType !== "trends" ||
-        matchesAmazonCategorySection(
-          product.sectionTitle,
-          category
-        )
-      )
       .filter(product =>
         matchesSearchDetails(
           product.title,
