@@ -648,6 +648,61 @@ function matchesExclusions(title, exclusions) {
   );
 }
 
+function buildChinaSearchQueries(
+  category,
+  searchDetails
+) {
+  const categoryQueries =
+    CHINA_CATEGORY_QUERIES[category] ||
+    CHINA_CATEGORY_QUERIES.other;
+
+  const details = cleanTrendText(
+    searchDetails,
+    160
+  );
+
+  const queryCandidates =
+    categoryQueries.flatMap(baseQuery => {
+      if (!details) {
+        return [baseQuery];
+      }
+
+      return [
+        `${baseQuery} ${details}`,
+        baseQuery
+      ];
+    });
+
+  const uniqueQueries = [];
+  const seenQueries = new Set();
+
+  for (const query of queryCandidates) {
+    const cleanedQuery = cleanTrendText(
+      query,
+      240
+    );
+
+    const queryKey =
+      cleanedQuery.toLocaleLowerCase(
+        "en-US"
+      );
+
+    if (
+      !cleanedQuery ||
+      seenQueries.has(queryKey)
+    ) {
+      continue;
+    }
+
+    seenQueries.add(queryKey);
+    uniqueQueries.push(
+      cleanedQuery
+    );
+  }
+
+  return uniqueQueries.slice(0, 6);
+}
+
 function matchesAmazonCategorySection(
   sectionTitle,
   category
