@@ -32,7 +32,7 @@ const ALLOWED_MARKETS = new Set([
   "poland",
   "france",
   "italy",
-  "spain"
+  "china"
 ]);
 
 const AMAZON_CATEGORY_PATHS = {
