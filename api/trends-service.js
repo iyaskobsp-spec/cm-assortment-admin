@@ -41,7 +41,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "kitchen",
     france: "kitchen",
     italy: "kitchen",
-    poland: "kitchen"
+    poland: "kitchen",
+    usa: "kitchen"
   },
 
   "storage-organization": {
@@ -49,7 +50,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "diy",
     france: "hi",
     italy: "kitchen",
-    poland: "kitchen"
+    poland: "kitchen",
+    usa: "kitchen"
   },
 
   "decor": {
@@ -57,7 +59,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "lighting",
     france: "lighting",
     italy: "lighting",
-    poland: "kitchen"
+    poland: "kitchen",
+    usa: "home-garden"
   },
 
   "household": {
@@ -65,7 +68,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "grocery",
     france: "grocery",
     italy: "kitchen",
-    poland: "kitchen"
+    poland: "kitchen",
+    usa: "hpc"
   },
 
   "beauty-care": {
@@ -73,7 +77,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "beauty",
     france: "beauty",
     italy: "beauty",
-    poland: "beauty"
+    poland: "beauty",
+    usa: "beauty"
   },
 
   "kids": {
@@ -81,7 +86,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "baby",
     france: "baby",
     italy: "baby",
-    poland: "baby"
+    poland: "baby",
+    usa: "baby-products"
   },
 
   "toys": {
@@ -89,7 +95,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "kids",
     france: "toys",
     italy: "toys",
-    poland: "toys"
+    poland: "toys",
+    usa: "toys-and-games"
   },
 
   "stationery": {
@@ -97,7 +104,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "officeproduct",
     france: "officeproduct",
     italy: "office-products",
-    poland: "office-products"
+    poland: "office-products",
+    usa: "office-products"
   },
 
   "accessories": {
@@ -105,7 +113,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "fashion",
     france: "fashion",
     italy: "fashion",
-    poland: "fashion"
+    poland: "fashion",
+    usa: "fashion"
   },
 
   "pets": {
@@ -113,7 +122,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "pet-supplies",
     france: "pet-supplies",
     italy: "pet-supplies",
-    poland: "pet-supplies"
+    poland: "pet-supplies",
+    usa: "pet-supplies"
   },
 
   "seasonal": {
@@ -121,7 +131,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "garden",
     france: "garden",
     italy: "garden",
-    poland: "garden"
+    poland: "garden",
+    usa: "lawngarden"
   },
 
   "gifts": {
@@ -129,7 +140,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "handmade",
     france: "handmade",
     italy: "handmade",
-    poland: "kitchen"
+    poland: "kitchen",
+    usa: "handmade"
   },
 
   "electronics-accessories": {
@@ -137,7 +149,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "electronics",
     france: "electronics",
     italy: "electronics",
-    poland: "electronics"
+    poland: "electronics",
+    usa: "electronics"
   },
 
   "other": {
@@ -145,7 +158,8 @@ const AMAZON_CATEGORY_PATHS = {
     germany: "",
     france: "",
     italy: "",
-    poland: ""
+    poland: "",
+    usa: ""
   }
 };
 
@@ -328,7 +342,20 @@ const AMAZON_MARKET_CONFIG = {
       "europe",
       "poland"
     ])
-  }
+  },
+
+  usa: {
+    code: "usa",
+    domain: "https://www.amazon.com",
+    sourceName: "Amazon USA",
+    geography: "США",
+    language: "en-US,en;q=0.9",
+    supportedMarkets: new Set([
+      "europe-usa",
+      "world",
+      "usa"
+    ])
+  }  
 };
 
 const AMAZON_SIGNAL_PATHS = {
