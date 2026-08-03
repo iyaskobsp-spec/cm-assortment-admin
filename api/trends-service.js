@@ -1667,6 +1667,27 @@ export async function searchProductTrends(
             "en-US"
           );
 
+        const extractedProducts =
+        extractAliExpressProducts(
+          pageResult.html,
+          chinaConfig
+        );
+
+      const productSamples =
+        extractedProducts
+          .slice(0, 3)
+          .map(product => ({
+            productId:
+              product.productId,
+            title:
+              product.title,
+            link:
+              product.link,
+            imageUrl:
+              product.imageUrl
+          }));
+    
+
       const diagnostics = {
         source:
           chinaConfig.sourceName,
@@ -1702,7 +1723,10 @@ export async function searchProductTrends(
             testQuery.toLocaleLowerCase(
               "en-US"
             )
-          )
+          ),
+        extractedProductsCount:
+          extractedProducts.length,
+        productSamples
       };
 
       console.log(
