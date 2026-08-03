@@ -798,6 +798,16 @@ function extractAliExpressProducts(
     )
   ];
 
+  const blockedTitlePatterns = [
+    /^save\s+[$€£]?\s*\d/i,
+    /^shop now$/i,
+    /^view more$/i,
+    /^free shipping$/i,
+    /^welcome deal$/i,
+    /^choice$/i,
+    /^sponsored$/i
+  ];
+
   for (
     let index = 0;
     index < linkMatches.length;
@@ -819,17 +829,33 @@ function extractAliExpressProducts(
       continue;
     }
 
+    const previousLinkIndex =
+      linkMatches[index - 1]?.index;
+
+    const nextLinkIndex =
+      linkMatches[index + 1]?.index;
+
     const blockStart =
-      Math.max(
-        0,
-        linkMatch.index - 6000
-      );
+      Number.isFinite(previousLinkIndex)
+        ? Math.max(
+            previousLinkIndex + 1,
+            linkMatch.index - 1800
+          )
+        : Math.max(
+            0,
+            linkMatch.index - 1800
+          );
 
     const blockEnd =
-      Math.min(
-        htmlText.length,
-        linkMatch.index + 9000
-      );
+      Number.isFinite(nextLinkIndex)
+        ? Math.min(
+            nextLinkIndex,
+            linkMatch.index + 10000
+          )
+        : Math.min(
+            htmlText.length,
+            linkMatch.index + 10000
+          );
 
     const productBlock =
       htmlText.slice(
@@ -837,52 +863,103 @@ function extractAliExpressProducts(
         blockEnd
       );
 
-    const imageMatch =
-      productBlock.match(
-        /<img\b[^>]*(?:src|data-src)=["']([^"']+)["'][^>]*>/i
-      );
+    const titleCandidates = [];
 
-    const imageAltMatch =
-      productBlock.match(
-        /<img\b[^>]*alt=["']([^"']{6,400})["'][^>]*>/i
-      );
+    const jsonTitlePatterns = [
+      /"productTitle"\s*:\s*"([^"]{6,500})"/gi,
+      /"displayTitle"\s*:\s*"([^"]{6,500})"/gi,
+      /"title"\s*:\s*"([^"]{6,500})"/gi
+    ];
 
-    const titleMatch =
-      productBlock.match(
-        /"title"\s*:\s*"([^"]{6,500})"/i
-      ) ||
-      productBlock.match(
-        /"productTitle"\s*:\s*"([^"]{6,500})"/i
-      ) ||
-      productBlock.match(
-        /title=["']([^"']{6,500})["']/i
-      );
-
-    const title = cleanTrendText(
-      decodeHtmlEntities(
-        titleMatch?.[1] ||
-        imageAltMatch?.[1] ||
-        ""
-      ),
-      300
-    );
-
-    if (
-      !title ||
-      title.length < 8
+    for (
+      const titlePattern
+      of jsonTitlePatterns
     ) {
+      for (
+        const titleMatch
+        of productBlock.matchAll(
+          titlePattern
+        )
+      ) {
+        titleCandidates.push(
+          titleMatch[1]
+        );
+      }
+    }
+
+    const imageTags = [
+      ...productBlock.matchAll(
+        /<img\b[^>]*>/gi
+      )
+    ];
+
+    for (const imageTagMatch of imageTags) {
+      const imageTag =
+        imageTagMatch[0];
+
+      const altMatch =
+        imageTag.match(
+          /\balt=["']([^"']{6,500})["']/i
+        );
+
+      if (altMatch?.[1]) {
+        titleCandidates.push(
+          altMatch[1]
+        );
+      }
+    }
+
+    const cleanedTitles =
+      titleCandidates
+        .map(candidate =>
+          cleanTrendText(
+            decodeHtmlEntities(
+              candidate
+            ),
+            300
+          )
+        )
+        .filter(title =>
+          title.length >= 8
+        )
+        .filter(title =>
+          !blockedTitlePatterns.some(
+            pattern =>
+              pattern.test(title)
+          )
+        )
+        .filter(title =>
+          !/^[\d\s.,%+$€£-]+$/.test(
+            title
+          )
+        );
+
+    const title =
+      cleanedTitles
+        .sort(
+          (first, second) =>
+            second.length -
+            first.length
+        )[0] || "";
+
+    if (!title) {
       continue;
     }
 
     let link = null;
 
     try {
-      link = new URL(
+      const productUrl = new URL(
         decodeHtmlEntities(
           relativeLink
         ),
         chinaConfig.domain
-      ).toString();
+      );
+
+      productUrl.hash = "";
+
+      link =
+        productUrl.toString();
     } catch {
       link = null;
     }
@@ -893,21 +970,47 @@ function extractAliExpressProducts(
 
     let imageUrl = null;
 
-    if (imageMatch?.[1]) {
+    for (const imageTagMatch of imageTags) {
+      const imageTag =
+        imageTagMatch[0];
+
+      const imageMatch =
+        imageTag.match(
+          /\b(?:src|data-src)=["']([^"']+)["']/i
+        );
+
+      if (!imageMatch?.[1]) {
+        continue;
+      }
+
       try {
         const rawImageUrl =
           decodeHtmlEntities(
             imageMatch[1]
           );
 
-        imageUrl = rawImageUrl.startsWith("//")
-          ? `https:${rawImageUrl}`
-          : new URL(
-              rawImageUrl,
-              chinaConfig.domain
-            ).toString();
+        const candidateImageUrl =
+          rawImageUrl.startsWith("//")
+            ? `https:${rawImageUrl}`
+            : new URL(
+                rawImageUrl,
+                chinaConfig.domain
+              ).toString();
+
+        if (
+          candidateImageUrl.includes(
+            "alicdn"
+          ) ||
+          candidateImageUrl.includes(
+            "aliexpress-media"
+          )
+        ) {
+          imageUrl =
+            candidateImageUrl;
+          break;
+        }
       } catch {
-        imageUrl = null;
+        // Пропускаємо некоректну адресу зображення.
       }
     }
 
