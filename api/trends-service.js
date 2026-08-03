@@ -1420,6 +1420,15 @@ export async function searchProductTrends(
       )
     );
 
+  const chinaConfigs =
+    Object.values(
+      CHINA_SOURCE_CONFIG
+    ).filter(chinaConfig =>
+      chinaConfig.supportedMarkets.has(
+        market
+      )
+    );  
+
   for (
     const amazonConfig
     of amazonConfigs
@@ -1476,6 +1485,121 @@ export async function searchProductTrends(
       }
     }
   }
+
+  for (
+    const chinaConfig
+    of chinaConfigs
+  ) {
+    const chinaQueries =
+      buildChinaSearchQueries(
+        category,
+        searchDetails
+      );
+
+    const testQuery =
+      chinaQueries[0];
+
+    if (!testQuery) {
+      continue;
+    }
+
+    try {
+      const pageResult =
+        await loadAliExpressSearchPage({
+          chinaConfig,
+          searchQuery:
+            testQuery
+        });
+
+      const normalizedHtml =
+        pageResult.html
+          .toLocaleLowerCase(
+            "en-US"
+          );
+
+      const diagnostics = {
+        source:
+          chinaConfig.sourceName,
+        query:
+          testQuery,
+        sourceUrl:
+          pageResult.sourceUrl,
+        finalUrl:
+          pageResult.finalUrl,
+        htmlLength:
+          pageResult.html.length,
+        hasProductLinks:
+          normalizedHtml.includes(
+            "/item/"
+          ),
+        hasProductId:
+          normalizedHtml.includes(
+            "productid"
+          ),
+        hasCaptcha:
+          normalizedHtml.includes(
+            "captcha"
+          ),
+        hasRobotCheck:
+          normalizedHtml.includes(
+            "robot"
+          ) ||
+          normalizedHtml.includes(
+            "verify"
+          ),
+        hasSearchText:
+          normalizedHtml.includes(
+            testQuery.toLocaleLowerCase(
+              "en-US"
+            )
+          )
+      };
+
+      console.log(
+        "[AliExpress diagnostics]",
+        diagnostics
+      );
+
+      sources.push({
+        source:
+          chinaConfig.sourceName,
+        sourceType:
+          "diagnostic",
+        sourceUrl:
+          pageResult.sourceUrl,
+        finalUrl:
+          pageResult.finalUrl,
+        status:
+          "diagnostic_ok",
+        query:
+          testQuery,
+        diagnostics,
+        products:
+          []
+      });
+    } catch (error) {
+      console.error(
+        `[${chinaConfig.sourceName} diagnostics]`,
+        error
+      );
+
+      sources.push({
+        source:
+          chinaConfig.sourceName,
+        sourceType:
+          "diagnostic",
+        status:
+          "error",
+        message:
+          error.message ||
+          `${chinaConfig.sourceName} не відповів.`,
+        products:
+          []
+      });
+    }
+  }
+
+  const uniqueIdeas = [];  
 
   const uniqueIdeas = [];
   const seenIdeaIds = new Set();
