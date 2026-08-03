@@ -1599,8 +1599,6 @@ export async function searchProductTrends(
     }
   }
 
-  const uniqueIdeas = [];  
-
   const uniqueIdeas = [];
   const seenIdeaIds = new Set();
 
