@@ -381,6 +381,92 @@ const AMAZON_SIGNAL_PATHS = {
   }
 };
 
+const CHINA_CATEGORY_QUERIES = {
+  "home-kitchen": [
+    "home kitchen new products",
+    "kitchen gadgets",
+    "household innovations"
+  ],
+
+  "storage-organization": [
+    "home storage organizer",
+    "space saving organizer",
+    "storage organization"
+  ],
+
+  "decor": [
+    "home decor",
+    "modern home decoration",
+    "creative interior decor"
+  ],
+
+  "household": [
+    "household products",
+    "home cleaning tools",
+    "daily use household"
+  ],
+
+  "beauty-care": [
+    "beauty tools",
+    "personal care products",
+    "beauty accessories"
+  ],
+
+  "kids": [
+    "baby products",
+    "kids daily products",
+    "children accessories"
+  ],
+
+  "toys": [
+    "new toys",
+    "creative toys",
+    "educational toys"
+  ],
+
+  "stationery": [
+    "creative stationery",
+    "office supplies",
+    "school stationery"
+  ],
+
+  "accessories": [
+    "fashion accessories",
+    "daily accessories",
+    "trending accessories"
+  ],
+
+  "pets": [
+    "pet supplies",
+    "pet accessories",
+    "smart pet products"
+  ],
+
+  "seasonal": [
+    "seasonal products",
+    "holiday decorations",
+    "outdoor seasonal products"
+  ],
+
+  "gifts": [
+    "creative gifts",
+    "unique gift ideas",
+    "novelty gifts"
+  ],
+
+  "electronics-accessories": [
+    "electronic accessories",
+    "mobile accessories",
+    "smart gadgets"
+  ],
+
+  "other": [
+    "new innovative products",
+    "trending products",
+    "creative products"
+  ]
+};
+
 function cleanTrendText(value, maxLength = 300) {
   return String(value || "")
     .replace(/\s+/g, " ")
