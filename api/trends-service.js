@@ -780,6 +780,156 @@ async function loadAliExpressSearchPage({
   };
 }
 
+function extractAliExpressProducts(
+  html,
+  chinaConfig
+) {
+  const products = [];
+  const seenProductIds = new Set();
+
+  const htmlText = String(html || "");
+
+  const productLinkPattern =
+    /href=["']([^"']*\/item\/(\d+)\.html[^"']*)["']/gi;
+
+  const linkMatches = [
+    ...htmlText.matchAll(
+      productLinkPattern
+    )
+  ];
+
+  for (
+    let index = 0;
+    index < linkMatches.length;
+    index += 1
+  ) {
+    const linkMatch =
+      linkMatches[index];
+
+    const relativeLink =
+      linkMatch[1];
+
+    const productId =
+      linkMatch[2];
+
+    if (
+      !productId ||
+      seenProductIds.has(productId)
+    ) {
+      continue;
+    }
+
+    const blockStart =
+      Math.max(
+        0,
+        linkMatch.index - 6000
+      );
+
+    const blockEnd =
+      Math.min(
+        htmlText.length,
+        linkMatch.index + 9000
+      );
+
+    const productBlock =
+      htmlText.slice(
+        blockStart,
+        blockEnd
+      );
+
+    const imageMatch =
+      productBlock.match(
+        /<img\b[^>]*(?:src|data-src)=["']([^"']+)["'][^>]*>/i
+      );
+
+    const imageAltMatch =
+      productBlock.match(
+        /<img\b[^>]*alt=["']([^"']{6,400})["'][^>]*>/i
+      );
+
+    const titleMatch =
+      productBlock.match(
+        /"title"\s*:\s*"([^"]{6,500})"/i
+      ) ||
+      productBlock.match(
+        /"productTitle"\s*:\s*"([^"]{6,500})"/i
+      ) ||
+      productBlock.match(
+        /title=["']([^"']{6,500})["']/i
+      );
+
+    const title = cleanTrendText(
+      decodeHtmlEntities(
+        titleMatch?.[1] ||
+        imageAltMatch?.[1] ||
+        ""
+      ),
+      300
+    );
+
+    if (
+      !title ||
+      title.length < 8
+    ) {
+      continue;
+    }
+
+    let link = null;
+
+    try {
+      link = new URL(
+        decodeHtmlEntities(
+          relativeLink
+        ),
+        chinaConfig.domain
+      ).toString();
+    } catch {
+      link = null;
+    }
+
+    if (!link) {
+      continue;
+    }
+
+    let imageUrl = null;
+
+    if (imageMatch?.[1]) {
+      try {
+        const rawImageUrl =
+          decodeHtmlEntities(
+            imageMatch[1]
+          );
+
+        imageUrl = rawImageUrl.startsWith("//")
+          ? `https:${rawImageUrl}`
+          : new URL(
+              rawImageUrl,
+              chinaConfig.domain
+            ).toString();
+      } catch {
+        imageUrl = null;
+      }
+    }
+
+    seenProductIds.add(productId);
+
+    products.push({
+      productId,
+      title,
+      link,
+      imageUrl,
+      sourcePosition:
+        products.length + 1
+    });
+
+    if (products.length >= 30) {
+      break;
+    }
+  }
+
+  return products;
+}
+
 function matchesAmazonCategorySection(
   sectionTitle,
   category
