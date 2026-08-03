@@ -733,6 +733,53 @@ function buildAliExpressSearchUrl(
   return searchUrl.toString();
 }
 
+async function loadAliExpressSearchPage({
+  chinaConfig,
+  searchQuery
+}) {
+  const sourceUrl =
+    buildAliExpressSearchUrl(
+      chinaConfig,
+      searchQuery
+    );
+
+  const response = await fetch(sourceUrl, {
+    method: "GET",
+    headers: {
+      Accept:
+        "text/html,application/xhtml+xml",
+      "Accept-Language":
+        "en-US,en;q=0.9",
+      Referer:
+        chinaConfig.domain,
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+        "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+    },
+    redirect: "follow",
+    signal:
+      AbortSignal.timeout(20000)
+  });
+
+  if (!response.ok) {
+    const error = new Error(
+      `ALIEXPRESS_REQUEST_FAILED_${response.status}`
+    );
+
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const html = await response.text();
+
+  return {
+    sourceUrl,
+    finalUrl:
+      response.url || sourceUrl,
+    html
+  };
+}
+
 function matchesAmazonCategorySection(
   sectionTitle,
   category
