@@ -949,33 +949,47 @@ function extractAliExpressProducts(
     let link = null;
 
     try {
-      const productUrl = new URL(
-        decodeHtmlEntities(
-          relativeLink
-        ),
-        chinaConfig.domain
-      );
-
-      productUrl.hash = "";
-
       link =
-        productUrl.toString();
+        `${chinaConfig.domain}/item/${productId}.html`;
     } catch {
       link = null;
     }
-
+    
     if (!link) {
       continue;
     }
 
     let imageUrl = null;
 
-    for (const imageTagMatch of imageTags) {
-      const imageTag =
-        imageTagMatch[0];
+    const localLinkIndex =
+      Math.max(
+        0,
+        linkMatch.index - blockStart
+      );
 
+    const sortedImageTags =
+      imageTags
+        .map(imageTagMatch => ({
+          imageTag:
+            imageTagMatch[0],
+          distance:
+            Math.abs(
+              Number(imageTagMatch.index) -
+              localLinkIndex
+            )
+        }))
+        .sort(
+          (first, second) =>
+            first.distance -
+            second.distance
+        );
+
+    for (
+      const imageTagItem
+      of sortedImageTags
+    ) {
       const imageMatch =
-        imageTag.match(
+        imageTagItem.imageTag.match(
           /\b(?:src|data-src)=["']([^"']+)["']/i
         );
 
@@ -998,17 +1012,30 @@ function extractAliExpressProducts(
               ).toString();
 
         if (
-          candidateImageUrl.includes(
+          !candidateImageUrl.includes(
             "alicdn"
-          ) ||
-          candidateImageUrl.includes(
+          ) &&
+          !candidateImageUrl.includes(
             "aliexpress-media"
           )
         ) {
-          imageUrl =
-            candidateImageUrl;
-          break;
+          continue;
         }
+
+        if (
+          candidateImageUrl.includes(
+            "48x48"
+          ) ||
+          candidateImageUrl.includes(
+            "32x32"
+          )
+        ) {
+          continue;
+        }
+
+        imageUrl =
+          candidateImageUrl;
+        break;
       } catch {
         // Пропускаємо некоректну адресу зображення.
       }
