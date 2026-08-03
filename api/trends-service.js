@@ -467,6 +467,19 @@ const CHINA_CATEGORY_QUERIES = {
   ]
 };
 
+const CHINA_SOURCE_CONFIG = {
+  aliexpress: {
+    code: "aliexpress",
+    sourceName: "AliExpress",
+    geography: "Китай",
+    domain: "https://www.aliexpress.com",
+    supportedMarkets: new Set([
+      "world",
+      "china"
+    ])
+  }
+};
+
 function cleanTrendText(value, maxLength = 300) {
   return String(value || "")
     .replace(/\s+/g, " ")
@@ -701,6 +714,23 @@ function buildChinaSearchQueries(
   }
 
   return uniqueQueries.slice(0, 6);
+}
+
+function buildAliExpressSearchUrl(
+  chinaConfig,
+  searchQuery
+) {
+  const searchUrl = new URL(
+    "/wholesale",
+    chinaConfig.domain
+  );
+
+  searchUrl.searchParams.set(
+    "SearchText",
+    searchQuery
+  );
+
+  return searchUrl.toString();
 }
 
 function matchesAmazonCategorySection(
