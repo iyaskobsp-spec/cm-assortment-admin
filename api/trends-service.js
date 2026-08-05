@@ -1610,6 +1610,63 @@ function buildIdeasFromAmazon(
   );
 }
 
+function buildIdeasFromAliExpress(
+  products,
+  chinaConfig,
+  signalType
+) {
+  return products.map(
+    product => {
+      let signalLabel =
+        "Товар знайдений на AliExpress";
+
+      if (signalType === "new") {
+        signalLabel =
+          "Новинка у китайській товарній видачі";
+      }
+
+      if (signalType === "trends") {
+        signalLabel =
+          "Потенційний трендовий товар";
+      }
+
+      if (signalType === "popular") {
+        signalLabel =
+          "Популярний товар у видачі";
+      }
+
+      return {
+        id:
+          `aliexpress-${signalType}-${product.productId}`,
+        title:
+          product.title,
+        imageUrl:
+          product.imageUrl || null,
+        description:
+          "Товар знайдений у міжнародній видачі AliExpress за вибраною категорією.",
+        signal:
+          signalLabel,
+        signalType,
+        geography:
+          chinaConfig.geography,
+        sources: [
+          chinaConfig.sourceName
+        ],
+        links: [
+          {
+            label:
+              "Відкрити на AliExpress",
+            url:
+              product.link
+          }
+        ],
+        sourcePosition:
+          product.sourcePosition
+      };
+    }
+  );
+}
+
 export async function searchProductTrends(
   requestBody
 ) {
