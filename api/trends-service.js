@@ -831,6 +831,12 @@ const CHINA_SOURCE_CONFIG = {
   }
 };
 
+const ALIEXPRESS_CACHE_TTL_MS =
+  20 * 60 * 1000;
+
+const aliexpressPageCache =
+  new Map();
+
 function cleanTrendText(value, maxLength = 300) {
   return String(value || "")
     .replace(/\s+/g, " ")
@@ -1058,37 +1064,28 @@ function buildChinaSearchQueries(
     160
   );
 
-  const queries =
-    categoryConfig.queries.map(
-      (baseQuery, index) => {
-        const signalWords =
-          signalConfig.queryWords[
-            index %
-            signalConfig.queryWords.length
-          ];
+  const baseQuery =
+    categoryConfig.queries[0] ||
+    CHINA_CATEGORY_CONFIG.other
+      .queries[0];
 
-        return [
-          baseQuery,
-          signalWords,
-          details
-        ]
-          .filter(Boolean)
-          .join(" ");
-      }
-    );
+  const signalWords =
+    signalConfig.queryWords[0];
+
+  const primaryQuery = [
+    baseQuery,
+    signalWords,
+    details
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return [
-    ...new Set(
-      queries
-        .map(query =>
-          cleanTrendText(
-            query,
-            240
-          )
-        )
-        .filter(Boolean)
+    cleanTrendText(
+      primaryQuery,
+      240
     )
-  ].slice(0, 2);
+  ].filter(Boolean);
 }
 
 function buildAliExpressSearchUrl(
@@ -1144,6 +1141,28 @@ async function loadAliExpressSearchPage({
       signalType
     );
 
+  const cacheKey =
+    sourceUrl.toLocaleLowerCase(
+      "en-US"
+    );
+
+  const cachedPage =
+    aliexpressPageCache.get(
+      cacheKey
+    );
+
+  if (
+    cachedPage &&
+    Date.now() -
+      cachedPage.savedAt <
+      ALIEXPRESS_CACHE_TTL_MS
+  ) {
+    return {
+      ...cachedPage.result,
+      cached: true
+    };
+  }
+
   const response = await fetch(sourceUrl, {
     method: "GET",
     headers: {
@@ -1151,6 +1170,8 @@ async function loadAliExpressSearchPage({
         "text/html,application/xhtml+xml",
       "Accept-Language":
         "en-US,en;q=0.9",
+      "Cache-Control":
+        "no-cache",
       Referer:
         chinaConfig.domain,
       "User-Agent":
@@ -1164,6 +1185,14 @@ async function loadAliExpressSearchPage({
   });
 
   if (!response.ok) {
+    if (cachedPage?.result) {
+      return {
+        ...cachedPage.result,
+        cached: true,
+        stale: true
+      };
+    }
+
     const error = new Error(
       `ALIEXPRESS_REQUEST_FAILED_${response.status}`
     );
@@ -1180,18 +1209,32 @@ async function loadAliExpressSearchPage({
       "en-US"
     );
 
+  const hasProductContent =
+    normalizedHtml.includes(
+      "/item/"
+    ) ||
+    normalizedHtml.includes(
+      "productid"
+    );
+
   const isBlockedPage =
     html.length < 10000 ||
     (
       normalizedHtml.includes(
         "captcha"
       ) &&
-      !normalizedHtml.includes(
-        "/item/"
-      )
+      !hasProductContent
     );
 
   if (isBlockedPage) {
+    if (cachedPage?.result) {
+      return {
+        ...cachedPage.result,
+        cached: true,
+        stale: true
+      };
+    }
+
     const error = new Error(
       "ALIEXPRESS_BLOCKED_PAGE"
     );
@@ -1200,12 +1243,24 @@ async function loadAliExpressSearchPage({
     throw error;
   }
 
-  return {
+  const result = {
     sourceUrl,
     finalUrl:
       response.url || sourceUrl,
-    html
+    html,
+    cached: false
   };
+
+  aliexpressPageCache.set(
+    cacheKey,
+    {
+      savedAt:
+        Date.now(),
+      result
+    }
+  );
+
+  return result;
 }
 
 function getAliExpressImageUrl(
@@ -1656,10 +1711,17 @@ function getChinaCategoryScore(
   if (
     !categoryConfig.include.length
   ) {
-    return 1;
+    return 2;
   }
 
-  return includeMatches.length;
+  if (includeMatches.length) {
+    return Math.min(
+      includeMatches.length + 2,
+      8
+    );
+  }
+
+  return 1;
 }
 
 function getChinaQueryScore(
@@ -1776,7 +1838,7 @@ async function loadAliExpressSignal({
             category
           );
 
-        if (categoryScore <= 0) {
+        if (categoryScore < 0) {
           continue;
         }
 
@@ -1873,13 +1935,13 @@ async function loadAliExpressSignal({
         );
 
       const relevanceScore =
-        product.categoryScore * 10 +
-        product.queryScore * 4 +
-        product.occurrenceCount * 8 +
-        positionScore +
+        product.categoryScore * 12 +
+        product.queryScore * 3 +
+        product.occurrenceCount * 6 +
+        positionScore * 2 +
         (
           product.imageUrl
-            ? 5
+            ? 8
             : 0
         );
 
