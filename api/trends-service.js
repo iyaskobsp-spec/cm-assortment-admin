@@ -381,90 +381,441 @@ const AMAZON_SIGNAL_PATHS = {
   }
 };
 
-const CHINA_CATEGORY_QUERIES = {
-  "home-kitchen": [
-    "home kitchen new products",
-    "kitchen gadgets",
-    "household innovations"
-  ],
+const CHINA_CATEGORY_CONFIG = {
+  "home-kitchen": {
+    queries: [
+      "home kitchen products",
+      "kitchen household products"
+    ],
+    include: [
+      "kitchen",
+      "cooking",
+      "cookware",
+      "utensil",
+      "pan",
+      "pot",
+      "dish",
+      "sink",
+      "mixer",
+      "blender",
+      "storage",
+      "organizer",
+      "household"
+    ],
+    exclude: [
+      "industrial",
+      "commercial sink",
+      "restaurant equipment",
+      "garage",
+      "campervan bracket",
+      "motorcycle",
+      "automotive"
+    ]
+  },
 
-  "storage-organization": [
-    "home storage organizer",
-    "space saving organizer",
-    "storage organization"
-  ],
+  "storage-organization": {
+    queries: [
+      "home storage organizer",
+      "space saving organization"
+    ],
+    include: [
+      "storage",
+      "organizer",
+      "organisation",
+      "organization",
+      "holder",
+      "rack",
+      "shelf",
+      "drawer",
+      "basket",
+      "container",
+      "box",
+      "cabinet",
+      "space saving"
+    ],
+    exclude: [
+      "car storage",
+      "motorcycle",
+      "server rack",
+      "industrial",
+      "warehouse"
+    ]
+  },
 
-  "decor": [
-    "home decor",
-    "modern home decoration",
-    "creative interior decor"
-  ],
+  "decor": {
+    queries: [
+      "modern home decor",
+      "creative interior decoration"
+    ],
+    include: [
+      "decor",
+      "decoration",
+      "ornament",
+      "vase",
+      "candle holder",
+      "figurine",
+      "wall art",
+      "poster",
+      "mirror",
+      "lamp",
+      "lighting",
+      "pillow",
+      "artificial flower",
+      "interior"
+    ],
+    exclude: [
+      "car decor",
+      "motorcycle",
+      "industrial",
+      "machine",
+      "spare part",
+      "replacement part",
+      "sink",
+      "commercial"
+    ]
+  },
 
-  "household": [
-    "household products",
-    "home cleaning tools",
-    "daily use household"
-  ],
+  "household": {
+    queries: [
+      "household daily use products",
+      "home cleaning tools"
+    ],
+    include: [
+      "household",
+      "cleaning",
+      "cleaner",
+      "brush",
+      "mop",
+      "sponge",
+      "cloth",
+      "laundry",
+      "trash",
+      "waste",
+      "bathroom",
+      "home care",
+      "daily use"
+    ],
+    exclude: [
+      "industrial",
+      "commercial machine",
+      "car cleaning",
+      "automotive",
+      "replacement motor"
+    ]
+  },
 
-  "beauty-care": [
-    "beauty tools",
-    "personal care products",
-    "beauty accessories"
-  ],
+  "beauty-care": {
+    queries: [
+      "beauty personal care tools",
+      "beauty accessories"
+    ],
+    include: [
+      "beauty",
+      "cosmetic",
+      "makeup",
+      "skin care",
+      "skincare",
+      "hair",
+      "nail",
+      "manicure",
+      "massage",
+      "facial",
+      "brush",
+      "mirror",
+      "personal care"
+    ],
+    exclude: [
+      "car",
+      "automotive",
+      "industrial",
+      "medical surgery",
+      "tattoo machine"
+    ]
+  },
 
-  "kids": [
-    "baby products",
-    "kids daily products",
-    "children accessories"
-  ],
+  "kids": {
+    queries: [
+      "baby kids daily products",
+      "children accessories"
+    ],
+    include: [
+      "baby",
+      "kids",
+      "child",
+      "children",
+      "toddler",
+      "infant",
+      "feeding",
+      "stroller",
+      "nursery",
+      "school",
+      "learning"
+    ],
+    exclude: [
+      "adult",
+      "sexy",
+      "car part",
+      "motorcycle",
+      "industrial"
+    ]
+  },
 
-  "toys": [
-    "new toys",
-    "creative toys",
-    "educational toys"
-  ],
+  "toys": {
+    queries: [
+      "creative educational toys",
+      "kids interactive toys"
+    ],
+    include: [
+      "toy",
+      "game",
+      "puzzle",
+      "doll",
+      "figure",
+      "blocks",
+      "building",
+      "educational",
+      "learning",
+      "interactive",
+      "kids"
+    ],
+    exclude: [
+      "adult",
+      "weapon",
+      "knife",
+      "car part",
+      "industrial"
+    ]
+  },
 
-  "stationery": [
-    "creative stationery",
-    "office supplies",
-    "school stationery"
-  ],
+  "stationery": {
+    queries: [
+      "creative stationery supplies",
+      "school office stationery"
+    ],
+    include: [
+      "stationery",
+      "pen",
+      "pencil",
+      "marker",
+      "notebook",
+      "paper",
+      "sticker",
+      "eraser",
+      "school",
+      "office",
+      "desk",
+      "folder",
+      "journal",
+      "planner"
+    ],
+    exclude: [
+      "printer machine",
+      "industrial",
+      "car",
+      "motorcycle",
+      "clothing",
+      "shoe"
+    ]
+  },
 
-  "accessories": [
-    "fashion accessories",
-    "daily accessories",
-    "trending accessories"
-  ],
+  "accessories": {
+    queries: [
+      "fashion daily accessories",
+      "trending personal accessories"
+    ],
+    include: [
+      "accessory",
+      "accessories",
+      "bag",
+      "wallet",
+      "belt",
+      "scarf",
+      "glasses",
+      "sunglasses",
+      "jewelry",
+      "jewellery",
+      "hair clip",
+      "keychain",
+      "watch strap"
+    ],
+    exclude: [
+      "shirt",
+      "t-shirt",
+      "dress",
+      "pants",
+      "jeans",
+      "shoe",
+      "slipper",
+      "jacket",
+      "car accessory",
+      "motorcycle"
+    ]
+  },
 
-  "pets": [
-    "pet supplies",
-    "pet accessories",
-    "smart pet products"
-  ],
+  "pets": {
+    queries: [
+      "smart pet supplies",
+      "pet accessories products"
+    ],
+    include: [
+      "pet",
+      "dog",
+      "cat",
+      "puppy",
+      "kitten",
+      "animal",
+      "feeder",
+      "leash",
+      "collar",
+      "grooming",
+      "pet toy",
+      "litter"
+    ],
+    exclude: [
+      "human",
+      "car",
+      "motorcycle",
+      "industrial",
+      "livestock machine"
+    ]
+  },
 
-  "seasonal": [
-    "seasonal products",
-    "holiday decorations",
-    "outdoor seasonal products"
-  ],
+  "seasonal": {
+    queries: [
+      "seasonal holiday products",
+      "outdoor seasonal decoration"
+    ],
+    include: [
+      "seasonal",
+      "holiday",
+      "christmas",
+      "halloween",
+      "easter",
+      "party",
+      "summer",
+      "winter",
+      "outdoor",
+      "garden",
+      "decoration"
+    ],
+    exclude: [
+      "industrial",
+      "commercial machine",
+      "car part",
+      "motorcycle"
+    ]
+  },
 
-  "gifts": [
-    "creative gifts",
-    "unique gift ideas",
-    "novelty gifts"
-  ],
+  "gifts": {
+    queries: [
+      "creative unique gift ideas",
+      "novelty gift products"
+    ],
+    include: [
+      "gift",
+      "present",
+      "novelty",
+      "souvenir",
+      "creative",
+      "custom",
+      "personalized",
+      "personalised",
+      "birthday",
+      "anniversary",
+      "gift box"
+    ],
+    exclude: [
+      "gift card",
+      "digital code",
+      "commercial machine",
+      "industrial",
+      "car part"
+    ]
+  },
 
-  "electronics-accessories": [
-    "electronic accessories",
-    "mobile accessories",
-    "smart gadgets"
-  ],
+  "electronics-accessories": {
+    queries: [
+      "smart electronic accessories",
+      "mobile digital accessories"
+    ],
+    include: [
+      "electronic",
+      "electronics",
+      "phone",
+      "mobile",
+      "usb",
+      "charger",
+      "cable",
+      "adapter",
+      "holder",
+      "stand",
+      "smart",
+      "digital",
+      "headphone",
+      "earphone"
+    ],
+    exclude: [
+      "industrial machine",
+      "car engine",
+      "motorcycle part",
+      "replacement motherboard"
+    ]
+  },
 
-  "other": [
-    "new innovative products",
-    "trending products",
-    "creative products"
-  ]
+  "other": {
+    queries: [
+      "innovative consumer products",
+      "creative useful products"
+    ],
+    include: [],
+    exclude: [
+      "industrial machine",
+      "commercial equipment",
+      "car engine",
+      "motorcycle part"
+    ]
+  }
+};
+
+const CHINA_SIGNAL_CONFIG = {
+  new: {
+    queryWords: [
+      "new arrivals 2026",
+      "latest new design"
+    ],
+    sortType:
+      "create_desc",
+    label:
+      "Новинка у видачі AliExpress",
+    description:
+      "Товар знайдений за запитами нових надходжень і нових дизайнів AliExpress."
+  },
+
+  trends: {
+    queryWords: [
+      "trending viral products",
+      "hot trend 2026"
+    ],
+    sortType:
+      "default",
+    label:
+      "Трендовий пошуковий сигнал AliExpress",
+    description:
+      "Товар повторюється у трендових пошукових добірках AliExpress."
+  },
+
+  popular: {
+    queryWords: [
+      "best seller",
+      "top selling most ordered"
+    ],
+    sortType:
+      "total_tranpro_desc",
+    label:
+      "Популярний пошуковий сигнал AliExpress",
+    description:
+      "Товар знайдений у добірках бестселерів і товарів із високими продажами AliExpress."
+  }
 };
 
 const CHINA_SOURCE_CONFIG = {
@@ -661,64 +1012,89 @@ function matchesExclusions(title, exclusions) {
   );
 }
 
+function normalizeChinaText(value) {
+  return cleanTrendText(
+    value,
+    500
+  )
+    .normalize("NFKC")
+    .toLocaleLowerCase("en-US")
+    .replace(/&amp;/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getChinaWords(value) {
+  return [
+    ...new Set(
+      normalizeChinaText(value)
+        .split(" ")
+        .filter(word =>
+          word.length >= 3
+        )
+    )
+  ];
+}
+
 function buildChinaSearchQueries(
   category,
+  signalType,
   searchDetails
 ) {
-  const categoryQueries =
-    CHINA_CATEGORY_QUERIES[category] ||
-    CHINA_CATEGORY_QUERIES.other;
+  const categoryConfig =
+    CHINA_CATEGORY_CONFIG[category] ||
+    CHINA_CATEGORY_CONFIG.other;
+
+  const signalConfig =
+    CHINA_SIGNAL_CONFIG[signalType];
+
+  if (!signalConfig) {
+    return [];
+  }
 
   const details = cleanTrendText(
     searchDetails,
     160
   );
 
-  const queryCandidates =
-    categoryQueries.flatMap(baseQuery => {
-      if (!details) {
-        return [baseQuery];
+  const queries =
+    categoryConfig.queries.map(
+      (baseQuery, index) => {
+        const signalWords =
+          signalConfig.queryWords[
+            index %
+            signalConfig.queryWords.length
+          ];
+
+        return [
+          baseQuery,
+          signalWords,
+          details
+        ]
+          .filter(Boolean)
+          .join(" ");
       }
-
-      return [
-        `${baseQuery} ${details}`,
-        baseQuery
-      ];
-    });
-
-  const uniqueQueries = [];
-  const seenQueries = new Set();
-
-  for (const query of queryCandidates) {
-    const cleanedQuery = cleanTrendText(
-      query,
-      240
     );
 
-    const queryKey =
-      cleanedQuery.toLocaleLowerCase(
-        "en-US"
-      );
-
-    if (
-      !cleanedQuery ||
-      seenQueries.has(queryKey)
-    ) {
-      continue;
-    }
-
-    seenQueries.add(queryKey);
-    uniqueQueries.push(
-      cleanedQuery
-    );
-  }
-
-  return uniqueQueries.slice(0, 6);
+  return [
+    ...new Set(
+      queries
+        .map(query =>
+          cleanTrendText(
+            query,
+            240
+          )
+        )
+        .filter(Boolean)
+    )
+  ].slice(0, 2);
 }
 
 function buildAliExpressSearchUrl(
   chinaConfig,
-  searchQuery
+  searchQuery,
+  signalType
 ) {
   const searchUrl = new URL(
     "/wholesale",
@@ -730,17 +1106,42 @@ function buildAliExpressSearchUrl(
     searchQuery
   );
 
+  searchUrl.searchParams.set(
+    "trafficChannel",
+    "main"
+  );
+
+  searchUrl.searchParams.set(
+    "g",
+    "y"
+  );
+
+  const signalConfig =
+    CHINA_SIGNAL_CONFIG[signalType];
+
+  if (
+    signalConfig?.sortType &&
+    signalConfig.sortType !== "default"
+  ) {
+    searchUrl.searchParams.set(
+      "SortType",
+      signalConfig.sortType
+    );
+  }
+
   return searchUrl.toString();
 }
 
 async function loadAliExpressSearchPage({
   chinaConfig,
-  searchQuery
+  searchQuery,
+  signalType
 }) {
   const sourceUrl =
     buildAliExpressSearchUrl(
       chinaConfig,
-      searchQuery
+      searchQuery,
+      signalType
     );
 
   const response = await fetch(sourceUrl, {
@@ -756,7 +1157,8 @@ async function loadAliExpressSearchPage({
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
         "AppleWebKit/537.36 Chrome/124 Safari/537.36"
     },
-    redirect: "follow",
+    redirect:
+      "follow",
     signal:
       AbortSignal.timeout(20000)
   });
@@ -770,7 +1172,33 @@ async function loadAliExpressSearchPage({
     throw error;
   }
 
-  const html = await response.text();
+  const html =
+    await response.text();
+
+  const normalizedHtml =
+    html.toLocaleLowerCase(
+      "en-US"
+    );
+
+  const isBlockedPage =
+    html.length < 10000 ||
+    (
+      normalizedHtml.includes(
+        "captcha"
+      ) &&
+      !normalizedHtml.includes(
+        "/item/"
+      )
+    );
+
+  if (isBlockedPage) {
+    const error = new Error(
+      "ALIEXPRESS_BLOCKED_PAGE"
+    );
+
+    error.statusCode = 502;
+    throw error;
+  }
 
   return {
     sourceUrl,
@@ -780,14 +1208,207 @@ async function loadAliExpressSearchPage({
   };
 }
 
+function getAliExpressImageUrl(
+  imageTag,
+  chinaConfig
+) {
+  const imageCandidates = [];
+
+  const sourcePatterns = [
+    /\bdata-src=["']([^"']+)["']/i,
+    /\bsrc=["']([^"']+)["']/i,
+    /\bsrcset=["']([^"']+)["']/i
+  ];
+
+  for (
+    const sourcePattern
+    of sourcePatterns
+  ) {
+    const sourceMatch =
+      imageTag.match(
+        sourcePattern
+      );
+
+    if (!sourceMatch?.[1]) {
+      continue;
+    }
+
+    if (
+      sourcePattern
+        .toString()
+        .includes("srcset")
+    ) {
+      const srcsetCandidates =
+        sourceMatch[1]
+          .split(",")
+          .map(item =>
+            item.trim().split(/\s+/)[0]
+          )
+          .filter(Boolean);
+
+      imageCandidates.push(
+        ...srcsetCandidates
+      );
+    } else {
+      imageCandidates.push(
+        sourceMatch[1]
+      );
+    }
+  }
+
+  for (
+    const rawCandidate
+    of imageCandidates
+  ) {
+    try {
+      const decodedCandidate =
+        decodeHtmlEntities(
+          rawCandidate
+        );
+
+      const imageUrl =
+        decodedCandidate.startsWith("//")
+          ? `https:${decodedCandidate}`
+          : new URL(
+              decodedCandidate,
+              chinaConfig.domain
+            ).toString();
+
+      const normalizedUrl =
+        imageUrl.toLocaleLowerCase(
+          "en-US"
+        );
+
+      const isMediaDomain =
+        normalizedUrl.includes(
+          "alicdn"
+        ) ||
+        normalizedUrl.includes(
+          "aliexpress-media"
+        );
+
+      const isBlockedImage =
+        normalizedUrl.includes(
+          "48x48"
+        ) ||
+        normalizedUrl.includes(
+          "32x32"
+        ) ||
+        normalizedUrl.includes(
+          "16x16"
+        ) ||
+        normalizedUrl.includes(
+          "logo"
+        ) ||
+        normalizedUrl.includes(
+          "icon"
+        ) ||
+        normalizedUrl.includes(
+          "sprite"
+        ) ||
+        normalizedUrl.includes(
+          "banner"
+        ) ||
+        normalizedUrl.includes(
+          "arrow"
+        ) ||
+        normalizedUrl.includes(
+          "loading"
+        ) ||
+        normalizedUrl.endsWith(
+          ".gif"
+        );
+
+      if (
+        isMediaDomain &&
+        !isBlockedImage
+      ) {
+        return imageUrl;
+      }
+    } catch {
+      // Пропускаємо некоректну адресу.
+    }
+  }
+
+  return null;
+}
+
+function isBlockedAliExpressTitle(title) {
+  const normalizedTitle =
+    normalizeChinaText(title);
+
+  if (
+    !normalizedTitle ||
+    normalizedTitle.length < 8
+  ) {
+    return true;
+  }
+
+  const blockedPatterns = [
+    /^save \d/,
+    /^shop now$/,
+    /^view more$/,
+    /^free shipping$/,
+    /^welcome deal$/,
+    /^choice$/,
+    /^sponsored$/,
+    /^school ready sale$/,
+    /^super deals$/,
+    /^big sale$/,
+    /^new user bonus$/,
+    /^download app$/,
+    /^sign in$/,
+    /^register$/,
+    /^add to cart$/,
+    /^buy now$/
+  ];
+
+  return blockedPatterns.some(
+    pattern =>
+      pattern.test(
+        normalizedTitle
+      )
+  );
+}
+
+function getTitleImageSimilarity(
+  title,
+  imageAlt
+) {
+  const titleWords =
+    getChinaWords(title);
+
+  const altWords =
+    new Set(
+      getChinaWords(imageAlt)
+    );
+
+  if (
+    !titleWords.length ||
+    !altWords.size
+  ) {
+    return 0;
+  }
+
+  const matches =
+    titleWords.filter(word =>
+      altWords.has(word)
+    ).length;
+
+  return matches /
+    titleWords.length;
+}
+
 function extractAliExpressProducts(
   html,
   chinaConfig
 ) {
   const products = [];
-  const seenProductIds = new Set();
+  const seenProductIds =
+    new Set();
 
-  const htmlText = String(html || "");
+  const htmlText =
+    String(html || "");
 
   const productLinkPattern =
     /href=["']([^"']*\/item\/(\d+)\.html[^"']*)["']/gi;
@@ -798,16 +1419,6 @@ function extractAliExpressProducts(
     )
   ];
 
-  const blockedTitlePatterns = [
-    /^save\s+[$€£]?\s*\d/i,
-    /^shop now$/i,
-    /^view more$/i,
-    /^free shipping$/i,
-    /^welcome deal$/i,
-    /^choice$/i,
-    /^sponsored$/i
-  ];
-
   for (
     let index = 0;
     index < linkMatches.length;
@@ -816,68 +1427,61 @@ function extractAliExpressProducts(
     const linkMatch =
       linkMatches[index];
 
-    const relativeLink =
-      linkMatch[1];
-
     const productId =
       linkMatch[2];
 
     if (
       !productId ||
-      seenProductIds.has(productId)
+      seenProductIds.has(
+        productId
+      )
     ) {
       continue;
     }
 
-    const previousLinkIndex =
-      linkMatches[index - 1]?.index;
+    const anchorStart =
+      htmlText.lastIndexOf(
+        "<a",
+        linkMatch.index
+      );
 
-    const nextLinkIndex =
-      linkMatches[index + 1]?.index;
+    const anchorEnd =
+      htmlText.indexOf(
+        "</a>",
+        linkMatch.index
+      );
 
-    const blockStart =
-      Number.isFinite(previousLinkIndex)
-        ? Math.max(
-            previousLinkIndex + 1,
-            linkMatch.index - 1800
-          )
-        : Math.max(
-            0,
-            linkMatch.index - 1800
-          );
+    if (
+      anchorStart < 0 ||
+      anchorEnd < 0 ||
+      anchorEnd - anchorStart > 30000
+    ) {
+      continue;
+    }
 
-    const blockEnd =
-      Number.isFinite(nextLinkIndex)
-        ? Math.min(
-            nextLinkIndex,
-            linkMatch.index + 10000
-          )
-        : Math.min(
-            htmlText.length,
-            linkMatch.index + 10000
-          );
-
-    const productBlock =
+    const productAnchor =
       htmlText.slice(
-        blockStart,
-        blockEnd
+        anchorStart,
+        anchorEnd + 4
       );
 
     const titleCandidates = [];
 
-    const jsonTitlePatterns = [
-      /"productTitle"\s*:\s*"([^"]{6,500})"/gi,
-      /"displayTitle"\s*:\s*"([^"]{6,500})"/gi,
-      /"title"\s*:\s*"([^"]{6,500})"/gi
+    const titlePatterns = [
+      /\baria-label=["']([^"']{8,500})["']/gi,
+      /\btitle=["']([^"']{8,500})["']/gi,
+      /"productTitle"\s*:\s*"([^"]{8,500})"/gi,
+      /"displayTitle"\s*:\s*"([^"]{8,500})"/gi,
+      /"title"\s*:\s*"([^"]{8,500})"/gi
     ];
 
     for (
       const titlePattern
-      of jsonTitlePatterns
+      of titlePatterns
     ) {
       for (
         const titleMatch
-        of productBlock.matchAll(
+        of productAnchor.matchAll(
           titlePattern
         )
       ) {
@@ -887,52 +1491,74 @@ function extractAliExpressProducts(
       }
     }
 
-    const imageTags = [
-      ...productBlock.matchAll(
+    const imageItems = [
+      ...productAnchor.matchAll(
         /<img\b[^>]*>/gi
       )
-    ];
+    ]
+      .map(imageMatch => {
+        const imageTag =
+          imageMatch[0];
 
-    for (const imageTagMatch of imageTags) {
-      const imageTag =
-        imageTagMatch[0];
+        const altMatch =
+          imageTag.match(
+            /\balt=["']([^"']{4,500})["']/i
+          );
 
-      const altMatch =
-        imageTag.match(
-          /\balt=["']([^"']{6,500})["']/i
-        );
+        return {
+          imageTag,
+          alt:
+            cleanTrendText(
+              decodeHtmlEntities(
+                altMatch?.[1] || ""
+              ),
+              300
+            ),
+          imageUrl:
+            getAliExpressImageUrl(
+              imageTag,
+              chinaConfig
+            )
+        };
+      })
+      .filter(item =>
+        item.imageUrl
+      );
 
-      if (altMatch?.[1]) {
+    for (
+      const imageItem
+      of imageItems
+    ) {
+      if (imageItem.alt) {
         titleCandidates.push(
-          altMatch[1]
+          imageItem.alt
         );
       }
     }
 
-    const cleanedTitles =
-      titleCandidates
-        .map(candidate =>
-          cleanTrendText(
-            decodeHtmlEntities(
-              candidate
-            ),
-            300
+    const cleanedTitles = [
+      ...new Set(
+        titleCandidates
+          .map(candidate =>
+            cleanTrendText(
+              decodeHtmlEntities(
+                candidate
+              ),
+              300
+            )
           )
-        )
-        .filter(title =>
-          title.length >= 8
-        )
-        .filter(title =>
-          !blockedTitlePatterns.some(
-            pattern =>
-              pattern.test(title)
+          .filter(title =>
+            !isBlockedAliExpressTitle(
+              title
+            )
           )
-        )
-        .filter(title =>
-          !/^[\d\s.,%+$€£-]+$/.test(
-            title
+          .filter(title =>
+            !/^[\d\s.,%+$€£-]+$/.test(
+              title
+            )
           )
-        );
+      )
+    ];
 
     const title =
       cleanedTitles
@@ -946,102 +1572,36 @@ function extractAliExpressProducts(
       continue;
     }
 
-    let link = null;
-
-    try {
-      link =
-        `${chinaConfig.domain}/item/${productId}.html`;
-    } catch {
-      link = null;
-    }
-    
-    if (!link) {
-      continue;
-    }
-
-    let imageUrl = null;
-
-    const localLinkIndex =
-      Math.max(
-        0,
-        linkMatch.index - blockStart
-      );
-
-    const sortedImageTags =
-      imageTags
-        .map(imageTagMatch => ({
-          imageTag:
-            imageTagMatch[0],
-          distance:
-            Math.abs(
-              Number(imageTagMatch.index) -
-              localLinkIndex
+    const rankedImages =
+      imageItems
+        .map(imageItem => ({
+          ...imageItem,
+          similarity:
+            getTitleImageSimilarity(
+              title,
+              imageItem.alt
             )
         }))
         .sort(
           (first, second) =>
-            first.distance -
-            second.distance
+            second.similarity -
+            first.similarity
         );
 
-    for (
-      const imageTagItem
-      of sortedImageTags
-    ) {
-      const imageMatch =
-        imageTagItem.imageTag.match(
-          /\b(?:src|data-src)=["']([^"']+)["']/i
-        );
+    const imageUrl =
+      rankedImages[0]?.imageUrl ||
+      null;
 
-      if (!imageMatch?.[1]) {
-        continue;
-      }
-
-      try {
-        const rawImageUrl =
-          decodeHtmlEntities(
-            imageMatch[1]
-          );
-
-        const candidateImageUrl =
-          rawImageUrl.startsWith("//")
-            ? `https:${rawImageUrl}`
-            : new URL(
-                rawImageUrl,
-                chinaConfig.domain
-              ).toString();
-
-        if (
-          !candidateImageUrl.includes(
-            "alicdn"
-          ) &&
-          !candidateImageUrl.includes(
-            "aliexpress-media"
-          )
-        ) {
-          continue;
-        }
-
-        if (
-          candidateImageUrl.includes(
-            "48x48"
-          ) ||
-          candidateImageUrl.includes(
-            "32x32"
-          )
-        ) {
-          continue;
-        }
-
-        imageUrl =
-          candidateImageUrl;
-        break;
-      } catch {
-        // Пропускаємо некоректну адресу зображення.
-      }
+    if (!imageUrl) {
+      continue;
     }
 
-    seenProductIds.add(productId);
+    const link =
+      `${chinaConfig.domain}/item/${productId}.html`;
+
+    seenProductIds.add(
+      productId
+    );
 
     products.push({
       productId,
@@ -1052,12 +1612,311 @@ function extractAliExpressProducts(
         products.length + 1
     });
 
-    if (products.length >= 30) {
+    if (
+      products.length >= 40
+    ) {
       break;
     }
   }
 
   return products;
+}
+
+function getChinaCategoryScore(
+  title,
+  category
+) {
+  const categoryConfig =
+    CHINA_CATEGORY_CONFIG[category] ||
+    CHINA_CATEGORY_CONFIG.other;
+
+  const normalizedTitle =
+    normalizeChinaText(title);
+
+  const includeMatches =
+    categoryConfig.include.filter(
+      word =>
+        normalizedTitle.includes(
+          normalizeChinaText(word)
+        )
+    );
+
+  const excludeMatches =
+    categoryConfig.exclude.filter(
+      word =>
+        normalizedTitle.includes(
+          normalizeChinaText(word)
+        )
+    );
+
+  if (excludeMatches.length) {
+    return -10;
+  }
+
+  if (
+    !categoryConfig.include.length
+  ) {
+    return 1;
+  }
+
+  return includeMatches.length;
+}
+
+function getChinaQueryScore(
+  title,
+  searchQuery
+) {
+  const titleWords =
+    new Set(
+      getChinaWords(title)
+    );
+
+  const ignoredWords =
+    new Set([
+      "new",
+      "latest",
+      "design",
+      "trending",
+      "viral",
+      "products",
+      "product",
+      "popular",
+      "seller",
+      "selling",
+      "ordered",
+      "2026",
+      "home",
+      "daily"
+    ]);
+
+  const queryWords =
+    getChinaWords(
+      searchQuery
+    ).filter(word =>
+      !ignoredWords.has(word)
+    );
+
+  if (!queryWords.length) {
+    return 0;
+  }
+
+  return queryWords.filter(word =>
+    titleWords.has(word)
+  ).length;
+}
+
+async function loadAliExpressSignal({
+  chinaConfig,
+  category,
+  signalType,
+  searchDetails,
+  exclusions
+}) {
+  const searchQueries =
+    buildChinaSearchQueries(
+      category,
+      signalType,
+      searchDetails
+    );
+
+  const productsById =
+    new Map();
+
+  const checkedSources = [];
+  let successfulRequests = 0;
+  let totalExtracted = 0;
+  let firstError = null;
+
+  for (
+    const searchQuery
+    of searchQueries
+  ) {
+    try {
+      const pageResult =
+        await loadAliExpressSearchPage({
+          chinaConfig,
+          searchQuery,
+          signalType
+        });
+
+      successfulRequests += 1;
+
+      checkedSources.push({
+        query:
+          searchQuery,
+        url:
+          pageResult.sourceUrl
+      });
+
+      const extractedProducts =
+        extractAliExpressProducts(
+          pageResult.html,
+          chinaConfig
+        );
+
+      totalExtracted +=
+        extractedProducts.length;
+
+      for (
+        const product
+        of extractedProducts
+      ) {
+        if (
+          matchesExclusions(
+            product.title,
+            exclusions
+          )
+        ) {
+          continue;
+        }
+
+        const categoryScore =
+          getChinaCategoryScore(
+            product.title,
+            category
+          );
+
+        if (categoryScore <= 0) {
+          continue;
+        }
+
+        const queryScore =
+          getChinaQueryScore(
+            product.title,
+            searchQuery
+          );
+
+        const currentProduct =
+          productsById.get(
+            product.productId
+          );
+
+        if (!currentProduct) {
+          productsById.set(
+            product.productId,
+            {
+              ...product,
+              signalType,
+              categoryScore,
+              queryScore,
+              occurrenceCount:
+                1,
+              matchedQueries: [
+                searchQuery
+              ],
+              bestPosition:
+                product.sourcePosition
+            }
+          );
+
+          continue;
+        }
+
+        currentProduct.occurrenceCount += 1;
+
+        currentProduct.categoryScore =
+          Math.max(
+            currentProduct.categoryScore,
+            categoryScore
+          );
+
+        currentProduct.queryScore =
+          Math.max(
+            currentProduct.queryScore,
+            queryScore
+          );
+
+        currentProduct.bestPosition =
+          Math.min(
+            currentProduct.bestPosition,
+            product.sourcePosition
+          );
+
+        if (
+          !currentProduct.matchedQueries.includes(
+            searchQuery
+          )
+        ) {
+          currentProduct.matchedQueries.push(
+            searchQuery
+          );
+        }
+      }
+    } catch (error) {
+      firstError ||= error;
+
+      console.error(
+        `[${chinaConfig.sourceName} ${signalType}]`,
+        error
+      );
+    }
+  }
+
+  if (
+    !successfulRequests &&
+    firstError
+  ) {
+    throw firstError;
+  }
+
+  const products = [
+    ...productsById.values()
+  ]
+    .map(product => {
+      const positionScore =
+        Math.max(
+          0,
+          20 -
+          Number(
+            product.bestPosition || 20
+          )
+        );
+
+      const relevanceScore =
+        product.categoryScore * 10 +
+        product.queryScore * 4 +
+        product.occurrenceCount * 8 +
+        positionScore +
+        (
+          product.imageUrl
+            ? 5
+            : 0
+        );
+
+      return {
+        ...product,
+        relevanceScore
+      };
+    })
+    .sort(
+      (first, second) =>
+        second.relevanceScore -
+        first.relevanceScore ||
+        second.occurrenceCount -
+        first.occurrenceCount ||
+        first.bestPosition -
+        second.bestPosition
+    )
+    .slice(0, 12)
+    .map((product, index) => ({
+      ...product,
+      sourcePosition:
+        index + 1
+    }));
+
+  return {
+    source:
+      chinaConfig.sourceName,
+    sourceType:
+      signalType,
+    status:
+      products.length
+        ? "ok"
+        : "no_results",
+    totalExtracted,
+    checkedSources,
+    products
+  };
 }
 
 function matchesAmazonCategorySection(
@@ -1611,46 +2470,43 @@ function buildIdeasFromAmazon(
 }
 
 function buildIdeasFromAliExpress(
-  products,
-  chinaConfig,
-  signalType
+  sourceResult,
+  chinaConfig
 ) {
-  return products.map(
+  const signalConfig =
+    CHINA_SIGNAL_CONFIG[
+      sourceResult.sourceType
+    ];
+
+  return sourceResult.products.map(
     product => {
-      let signalLabel =
-        "Товар знайдений на AliExpress";
-
-      if (signalType === "new") {
-        signalLabel =
-          "Новинка у китайській товарній видачі";
-      }
-
-      if (signalType === "trends") {
-        signalLabel =
-          "Потенційний трендовий товар";
-      }
-
-      if (signalType === "popular") {
-        signalLabel =
-          "Популярний товар у видачі";
-      }
+      const repeatText =
+        product.occurrenceCount > 1
+          ? ` Товар знайдений у ${product.occurrenceCount} різних пошукових добірках.`
+          : "";
 
       return {
         id:
-          `aliexpress-${signalType}-${product.productId}`,
+          `aliexpress-${sourceResult.sourceType}-${product.productId}`,
         title:
           product.title,
         imageUrl:
           product.imageUrl || null,
         description:
-          "Товар знайдений у міжнародній видачі AliExpress за вибраною категорією.",
+          (
+            signalConfig?.description ||
+            "Товар знайдений у товарній видачі AliExpress."
+          ) +
+          repeatText,
         signal:
-          signalLabel,
-        signalType,
+          signalConfig?.label ||
+          "Товарна видача AliExpress",
+        signalType:
+          sourceResult.sourceType,
         geography:
           chinaConfig.geography,
         sources: [
-          chinaConfig.sourceName
+          `${chinaConfig.sourceName} · пошуковий сигнал`
         ],
         links: [
           {
@@ -1827,97 +2683,53 @@ export async function searchProductTrends(
     const chinaConfig
     of chinaConfigs
   ) {
-    const chinaQueries =
-      buildChinaSearchQueries(
-        category,
-        searchDetails
-      );
+    for (
+      const chinaSignalType
+      of requestedSignalTypes
+    ) {
+      try {
+        const chinaResult =
+          await loadAliExpressSignal({
+            chinaConfig,
+            category,
+            signalType:
+              chinaSignalType,
+            searchDetails,
+            exclusions
+          });
 
-    const searchQuery =
-      chinaQueries[0];
-
-    if (!searchQuery) {
-      continue;
-    }
-
-    try {
-      const pageResult =
-        await loadAliExpressSearchPage({
-          chinaConfig,
-          searchQuery
-        });
-
-      const extractedProducts =
-        extractAliExpressProducts(
-          pageResult.html,
-          chinaConfig
+        sources.push(
+          chinaResult
         );
 
-      const filteredProducts =
-        extractedProducts
-          .filter(product =>
-            !matchesExclusions(
-              product.title,
-              exclusions
-            )
+        ideas = ideas.concat(
+          buildIdeasFromAliExpress(
+            chinaResult,
+            chinaConfig
           )
-          .slice(0, 12)
-          .map((product, index) => ({
-            ...product,
-            sourcePosition:
-              index + 1
-          }));
+        );
+      } catch (error) {
+        console.error(
+          `[${chinaConfig.sourceName} ${chinaSignalType}]`,
+          error
+        );
 
-      const chinaResult = {
-        source:
-          chinaConfig.sourceName,
-        sourceType:
-          signalType,
-        sourceUrl:
-          pageResult.sourceUrl,
-        finalUrl:
-          pageResult.finalUrl,
-        status:
-          filteredProducts.length
-            ? "ok"
-            : "no_results",
-        query:
-          searchQuery,
-        totalExtracted:
-          extractedProducts.length,
-        products:
-          filteredProducts
-      };
-
-      sources.push(
-        chinaResult
-      );
-
-      ideas = ideas.concat(
-        buildIdeasFromAliExpress(
-          filteredProducts,
-          chinaConfig,
-          signalType
-        )
-      );
-    } catch (error) {
-      console.error(
-        `[${chinaConfig.sourceName}]`,
-        error
-      );
-
-      sources.push({
-        source:
-          chinaConfig.sourceName,
-        sourceType:
-          signalType,
-        status:
-          "error",
-        message:
-          `${chinaConfig.sourceName} тимчасово не повернув товарну видачу.`,
-        products:
-          []
-      });
+        sources.push({
+          source:
+            chinaConfig.sourceName,
+          sourceType:
+            chinaSignalType,
+          status:
+            "error",
+          message:
+            error.message ===
+            "ALIEXPRESS_BLOCKED_PAGE"
+              ? "AliExpress тимчасово повернув перевірку замість товарної видачі."
+              : `${chinaConfig.sourceName} тимчасово не повернув товарну видачу.`,
+          products:
+            []
+        });
+      }
     }
   }
 
@@ -1937,7 +2749,13 @@ export async function searchProductTrends(
     uniqueIdeas.push(idea);
   }
 
-  ideas = uniqueIdeas.slice(0, 30);
+  ideas = uniqueIdeas
+    .sort(
+      (first, second) =>
+        Number(first.sourcePosition || 99) -
+        Number(second.sourcePosition || 99)
+    )
+    .slice(0, 36);
 
   let summary = "";
 
