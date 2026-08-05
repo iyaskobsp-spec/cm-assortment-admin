@@ -1833,10 +1833,10 @@ export async function searchProductTrends(
         searchDetails
       );
 
-    const testQuery =
+    const searchQuery =
       chinaQueries[0];
 
-    if (!testQuery) {
+    if (!searchQuery) {
       continue;
     }
 
@@ -1844,103 +1844,65 @@ export async function searchProductTrends(
       const pageResult =
         await loadAliExpressSearchPage({
           chinaConfig,
-          searchQuery:
-            testQuery
+          searchQuery
         });
 
-      const normalizedHtml =
-        pageResult.html
-          .toLocaleLowerCase(
-            "en-US"
-          );
-
-        const extractedProducts =
+      const extractedProducts =
         extractAliExpressProducts(
           pageResult.html,
           chinaConfig
         );
 
-      const productSamples =
+      const filteredProducts =
         extractedProducts
-          .slice(0, 3)
-          .map(product => ({
-            productId:
-              product.productId,
-            title:
+          .filter(product =>
+            !matchesExclusions(
               product.title,
-            link:
-              product.link,
-            imageUrl:
-              product.imageUrl
-          }));
-    
-
-      const diagnostics = {
-        source:
-          chinaConfig.sourceName,
-        query:
-          testQuery,
-        sourceUrl:
-          pageResult.sourceUrl,
-        finalUrl:
-          pageResult.finalUrl,
-        htmlLength:
-          pageResult.html.length,
-        hasProductLinks:
-          normalizedHtml.includes(
-            "/item/"
-          ),
-        hasProductId:
-          normalizedHtml.includes(
-            "productid"
-          ),
-        hasCaptcha:
-          normalizedHtml.includes(
-            "captcha"
-          ),
-        hasRobotCheck:
-          normalizedHtml.includes(
-            "robot"
-          ) ||
-          normalizedHtml.includes(
-            "verify"
-          ),
-        hasSearchText:
-          normalizedHtml.includes(
-            testQuery.toLocaleLowerCase(
-              "en-US"
+              exclusions
             )
-          ),
-        extractedProductsCount:
-          extractedProducts.length,
-        productSamples
-      };
+          )
+          .slice(0, 12)
+          .map((product, index) => ({
+            ...product,
+            sourcePosition:
+              index + 1
+          }));
 
-      console.log(
-        "[AliExpress diagnostics]",
-        diagnostics
-      );
-
-      sources.push({
+      const chinaResult = {
         source:
           chinaConfig.sourceName,
         sourceType:
-          "diagnostic",
+          signalType,
         sourceUrl:
           pageResult.sourceUrl,
         finalUrl:
           pageResult.finalUrl,
         status:
-          "diagnostic_ok",
+          filteredProducts.length
+            ? "ok"
+            : "no_results",
         query:
-          testQuery,
-        diagnostics,
+          searchQuery,
+        totalExtracted:
+          extractedProducts.length,
         products:
-          []
-      });
+          filteredProducts
+      };
+
+      sources.push(
+        chinaResult
+      );
+
+      ideas = ideas.concat(
+        buildIdeasFromAliExpress(
+          filteredProducts,
+          chinaConfig,
+          signalType
+        )
+      );
     } catch (error) {
       console.error(
-        `[${chinaConfig.sourceName} diagnostics]`,
+        `[${chinaConfig.sourceName}]`,
         error
       );
 
@@ -1948,12 +1910,11 @@ export async function searchProductTrends(
         source:
           chinaConfig.sourceName,
         sourceType:
-          "diagnostic",
+          signalType,
         status:
           "error",
         message:
-          error.message ||
-          `${chinaConfig.sourceName} не відповів.`,
+          `${chinaConfig.sourceName} тимчасово не повернув товарну видачу.`,
         products:
           []
       });
@@ -1997,19 +1958,22 @@ export async function searchProductTrends(
 
     summary =
       `Знайдено товарних ідей: ${ideas.length}. ` +
-      `Успішно перевірено рейтингів Amazon: ${successfulSources.length}. ` +
+      `Успішно перевірено джерел: ${successfulSources.length}. ` +
       (
         successfulMarkets.length
           ? `Джерела: ${successfulMarkets.join(", ")}. `
           : ""
       ) +
       "Результати можуть включати новинки, товари, що набирають позиції, та популярні товари.";
-  } else if (!amazonConfigs.length) {
+  } else if (
+    !amazonConfigs.length &&
+    !chinaConfigs.length
+  ) {
     summary =
-      "Для вибраного ринку ще не підключено відповідний сайт Amazon.";
+      "Для вибраного ринку ще не підключено товарне джерело.";
   } else {
     summary =
-      "Amazon не повернув товарів за вибраними параметрами. " +
+      "Підключені джерела не повернули товарів за вибраними параметрами. " +
       "Спробуй іншу категорію або прибери уточнення та виключення.";
   }
 
