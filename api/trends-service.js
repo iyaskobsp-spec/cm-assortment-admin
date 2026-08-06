@@ -1076,26 +1076,26 @@ function buildChinaSearchQueries(
     160
   );
 
-  const baseQuery =
-    categoryConfig.queries[0] ||
-    CHINA_CATEGORY_CONFIG.other
-      .queries[0];
-
   const signalWords =
     signalConfig.queryWords[0];
 
-  const primaryQuery = [
-    baseQuery,
-    signalWords,
-    details
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const queryCandidates =
+    categoryConfig.queries.map(
+      categoryQuery =>
+        [
+          categoryQuery,
+          signalWords,
+          details
+        ]
+          .filter(Boolean)
+          .join(" ")
+    );
 
   return [
-    cleanTrendText(
-      primaryQuery,
-      240
+    ...new Set(
+      queryCandidates.map(query =>
+        cleanTrendText(query, 240)
+      )
     )
   ].filter(Boolean);
 }
@@ -1606,6 +1606,81 @@ function extractAliExpressProducts(
   return products;
 }
 
+async function loadAliExpressProductImage(
+  product
+) {
+  if (product.imageUrl) {
+    return product;
+  }
+
+  const readerUrl =
+    `https://r.jina.ai/${product.link}`;
+
+  try {
+    const response = await fetch(
+      readerUrl,
+      {
+        method: "GET",
+        headers: {
+          Authorization:
+            `Bearer ${process.env.JINA_API_KEY}`,
+          Accept:
+            "text/plain",
+          "X-With-Images-Summary":
+            "all",
+          "X-Timeout":
+            "20"
+        },
+        signal:
+          AbortSignal.timeout(25000)
+      }
+    );
+
+    if (!response.ok) {
+      return product;
+    }
+
+    const pageText =
+      await response.text();
+
+    const imageMatches = [
+      ...pageText.matchAll(
+        /https?:\/\/[^\s)"']+(?:alicdn|aliexpress-media)[^\s)"']+\.(?:jpg|jpeg|png|webp)/gi
+      )
+    ];
+
+    const imageUrl =
+      imageMatches
+        .map(match =>
+          match[0]
+            .replace(/\\u002F/g, "/")
+            .replace(/&amp;/g, "&")
+        )
+        .find(candidate => {
+          const normalized =
+            candidate.toLocaleLowerCase(
+              "en-US"
+            );
+
+          return (
+            !normalized.includes("48x48") &&
+            !normalized.includes("32x32") &&
+            !normalized.includes("16x16") &&
+            !normalized.includes("logo") &&
+            !normalized.includes("icon") &&
+            !normalized.includes("avatar")
+          );
+        }) || null;
+
+    return {
+      ...product,
+      imageUrl
+    };
+  } catch {
+    return product;
+  }
+}
+
 function getChinaCategoryScore(
   title,
   category
@@ -1850,7 +1925,7 @@ async function loadAliExpressSignal({
     throw firstError;
   }
 
-  const products = [
+  const rankedProducts = [
     ...productsById.values()
   ]
     .map(product => {
@@ -1864,15 +1939,10 @@ async function loadAliExpressSignal({
         );
 
       const relevanceScore =
-        product.categoryScore * 12 +
-        product.queryScore * 3 +
-        product.occurrenceCount * 6 +
-        positionScore * 2 +
-        (
-          product.imageUrl
-            ? 8
-            : 0
-        );
+        product.categoryScore * 18 +
+        product.queryScore * 8 +
+        product.occurrenceCount * 10 +
+        positionScore;
 
       return {
         ...product,
@@ -1883,17 +1953,30 @@ async function loadAliExpressSignal({
       (first, second) =>
         second.relevanceScore -
         first.relevanceScore ||
-        second.occurrenceCount -
-        first.occurrenceCount ||
+        second.categoryScore -
+        first.categoryScore ||
         first.bestPosition -
         second.bestPosition
     )
-    .slice(0, 12)
-    .map((product, index) => ({
-      ...product,
-      sourcePosition:
-        index + 1
-    }));
+    .slice(0, 16);
+
+  const productsWithImages =
+    await Promise.all(
+      rankedProducts.map(product =>
+        loadAliExpressProductImage(
+          product
+        )
+      )
+    );
+
+  const products =
+    productsWithImages
+      .slice(0, 12)
+      .map((product, index) => ({
+        ...product,
+        sourcePosition:
+          index + 1
+      }));
 
   return {
     source:
