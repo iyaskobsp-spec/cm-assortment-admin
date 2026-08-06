@@ -901,6 +901,12 @@ const aliexpressImageCache =
 const ALIEXPRESS_IMAGE_CACHE_TTL_MS =
   24 * 60 * 60 * 1000;
 
+const madeInChinaImageCache =
+  new Map();
+
+const MADE_IN_CHINA_IMAGE_CACHE_TTL_MS =
+  24 * 60 * 60 * 1000;
+
 function cleanTrendText(value, maxLength = 300) {
   return String(value || "")
     .replace(/\s+/g, " ")
@@ -3694,6 +3700,248 @@ function extractMadeInChinaProducts(
   return products;
 }
 
+async function loadMadeInChinaProductImage(
+  product
+) {
+  const cachedImage =
+    madeInChinaImageCache.get(
+      product.productId
+    );
+
+  if (
+    cachedImage &&
+    Date.now() -
+      cachedImage.savedAt <
+      MADE_IN_CHINA_IMAGE_CACHE_TTL_MS
+  ) {
+    return {
+      ...product,
+      imageUrl:
+        cachedImage.imageUrl ||
+        product.imageUrl ||
+        null
+    };
+  }
+
+  try {
+    const response = await fetch(
+      product.link,
+      {
+        method:
+          "GET",
+        headers: {
+          Accept:
+            "text/html,application/xhtml+xml",
+          "Accept-Language":
+            "en-US,en;q=0.9",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+        },
+        redirect:
+          "follow",
+        signal:
+          AbortSignal.timeout(
+            8000
+          )
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `MADE_IN_CHINA_IMAGE_${response.status}`
+      );
+    }
+
+    const productHtml =
+      await response.text();
+
+    const imageCandidates = [];
+
+    const metaPatterns = [
+      /<meta\b[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i,
+      /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["'][^>]*>/i,
+      /<meta\b[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["'][^>]*>/i,
+      /<meta\b[^>]*content=["']([^"']+)["'][^>]*name=["']twitter:image["'][^>]*>/i,
+      /<link\b[^>]*rel=["']image_src["'][^>]*href=["']([^"']+)["'][^>]*>/i,
+      /<link\b[^>]*href=["']([^"']+)["'][^>]*rel=["']image_src["'][^>]*>/i
+    ];
+
+    for (
+      const pattern
+      of metaPatterns
+    ) {
+      const match =
+        productHtml.match(
+          pattern
+        );
+
+      if (match?.[1]) {
+        imageCandidates.push(
+          match[1]
+        );
+      }
+    }
+
+    const jsonLdPattern =
+      /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+
+    for (
+      const jsonMatch
+      of productHtml.matchAll(
+        jsonLdPattern
+      )
+    ) {
+      try {
+        const parsed =
+          JSON.parse(
+            jsonMatch[1]
+          );
+
+        const jsonItems =
+          Array.isArray(parsed)
+            ? parsed
+            : (
+                Array.isArray(
+                  parsed?.["@graph"]
+                )
+                  ? parsed["@graph"]
+                  : [parsed]
+              );
+
+        for (
+          const jsonItem
+          of jsonItems
+        ) {
+          const imageValue =
+            jsonItem?.image;
+
+          if (
+            typeof imageValue ===
+            "string"
+          ) {
+            imageCandidates.push(
+              imageValue
+            );
+          } else if (
+            Array.isArray(
+              imageValue
+            )
+          ) {
+            imageCandidates.push(
+              ...imageValue
+            );
+          } else if (
+            imageValue?.url
+          ) {
+            imageCandidates.push(
+              imageValue.url
+            );
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    const imageUrl =
+      imageCandidates
+        .map(candidate =>
+          decodeHtmlEntities(
+            String(candidate || "")
+          )
+            .replace(/\\u002F/g, "/")
+            .replace(/\\\//g, "/")
+            .trim()
+        )
+        .map(candidate => {
+          try {
+            return candidate.startsWith(
+              "//"
+            )
+              ? `https:${candidate}`
+              : new URL(
+                  candidate,
+                  product.link
+                ).toString();
+          } catch {
+            return "";
+          }
+        })
+        .find(candidate => {
+          if (!candidate) {
+            return false;
+          }
+
+          const normalized =
+            candidate.toLocaleLowerCase(
+              "en-US"
+            );
+
+          return (
+            !normalized.includes(
+              "logo"
+            ) &&
+            !normalized.includes(
+              "icon"
+            ) &&
+            !normalized.includes(
+              "sprite"
+            ) &&
+            !normalized.includes(
+              "avatar"
+            ) &&
+            !normalized.includes(
+              "default"
+            ) &&
+            !normalized.includes(
+              "loading"
+            ) &&
+            !normalized.endsWith(
+              ".svg"
+            ) &&
+            !normalized.endsWith(
+              ".gif"
+            )
+          );
+        }) ||
+      product.imageUrl ||
+      null;
+
+    madeInChinaImageCache.set(
+      product.productId,
+      {
+        savedAt:
+          Date.now(),
+        imageUrl
+      }
+    );
+
+    return {
+      ...product,
+      imageUrl
+    };
+  } catch {
+    const imageUrl =
+      product.imageUrl ||
+      null;
+
+    madeInChinaImageCache.set(
+      product.productId,
+      {
+        savedAt:
+          Date.now(),
+        imageUrl
+      }
+    );
+
+    return {
+      ...product,
+      imageUrl
+    };
+  }
+}
+
 async function loadMadeInChinaSignal({
   category,
   signalType,
@@ -3792,18 +4040,30 @@ async function loadMadeInChinaSignal({
           second.sourcePosition
       );
 
-  const products =
+  const selectedProducts =
     selectDiverseChinaProducts(
       rankedProducts,
       15
-    )
-      .map(
-        (product, index) => ({
-          ...product,
-          sourcePosition:
-            index + 1
-        })
-      );
+    );
+
+  const productsWithImages =
+    await Promise.all(
+      selectedProducts.map(
+        product =>
+          loadMadeInChinaProductImage(
+            product
+          )
+      )
+    );
+
+  const products =
+    productsWithImages.map(
+      (product, index) => ({
+        ...product,
+        sourcePosition:
+          index + 1
+      })
+    );
 
   return {
     source:
