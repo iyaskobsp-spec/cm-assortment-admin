@@ -1714,7 +1714,7 @@ async function loadAliExpressProductImage(
     return {
       ...product,
       imageUrl:
-        cachedImage.imageUrl
+        cachedImage.imageUrl || null
     };
   }
 
@@ -1730,7 +1730,27 @@ async function loadAliExpressProductImage(
 
   metadataUrl.searchParams.set(
     "screenshot",
+    "true"
+  );
+
+  metadataUrl.searchParams.set(
+    "screenshot.type",
+    "jpeg"
+  );
+
+  metadataUrl.searchParams.set(
+    "screenshot.fullPage",
     "false"
+  );
+
+  metadataUrl.searchParams.set(
+    "viewport.width",
+    "1000"
+  );
+
+  metadataUrl.searchParams.set(
+    "viewport.height",
+    "800"
   );
 
   metadataUrl.searchParams.set(
@@ -1760,55 +1780,95 @@ async function loadAliExpressProductImage(
         },
         signal:
           AbortSignal.timeout(
-            12000
+            15000
           )
       }
     );
 
     if (!response.ok) {
+      aliexpressImageCache.set(
+        product.productId,
+        {
+          savedAt:
+            Date.now(),
+          imageUrl:
+            null
+        }
+      );
+
       return product;
     }
 
     const responseData =
       await response.json();
 
-    const imageValue =
-      responseData?.data?.image;
+    const pageData =
+      responseData?.data || {};
+
+    const imageCandidates = [
+      pageData?.image,
+      pageData?.screenshot
+    ]
+      .map(imageValue =>
+        typeof imageValue === "string"
+          ? imageValue
+          : (
+              imageValue?.url ||
+              imageValue?.src ||
+              ""
+            )
+      )
+      .map(imageUrl =>
+        String(imageUrl || "")
+          .replace(/\\u002F/g, "/")
+          .replace(/\\\//g, "/")
+          .trim()
+      )
+      .filter(Boolean);
 
     const imageUrl =
-      typeof imageValue === "string"
-        ? imageValue
-        : (
-            imageValue?.url ||
-            imageValue?.src ||
-            null
-          );
+      imageCandidates.find(
+        candidate => {
+          try {
+            const parsedUrl =
+              new URL(candidate);
 
-    if (!imageUrl) {
-      return product;
-    }
-
-    const normalizedImageUrl =
-      String(imageUrl)
-        .replace(/\\u002F/g, "/")
-        .replace(/\\\//g, "/");
+            return (
+              parsedUrl.protocol ===
+                "https:" ||
+              parsedUrl.protocol ===
+                "http:"
+            );
+          } catch {
+            return false;
+          }
+        }
+      ) || null;
 
     aliexpressImageCache.set(
       product.productId,
       {
         savedAt:
           Date.now(),
-        imageUrl:
-          normalizedImageUrl
+        imageUrl
       }
     );
 
     return {
       ...product,
-      imageUrl:
-        normalizedImageUrl
+      imageUrl
     };
   } catch {
+    aliexpressImageCache.set(
+      product.productId,
+      {
+        savedAt:
+          Date.now(),
+        imageUrl:
+          null
+      }
+    );
+
     return product;
   }
 }
@@ -2282,33 +2342,50 @@ async function loadAliExpressSignal({
       15
     );
 
-  const productsWithImages = [];
-
-  for (
-    let index = 0;
-    index < selectedProducts.length;
-    index += 5
-  ) {
-    const productBatch =
-      selectedProducts.slice(
-        index,
-        index + 5
-      );
-
-    const loadedBatch =
-      await Promise.all(
-        productBatch.map(
-          product =>
-            loadAliExpressProductImage(
-              product
-            )
-        )
-      );
-
-    productsWithImages.push(
-      ...loadedBatch
+  const productsWithImages =
+    new Array(
+      selectedProducts.length
     );
+
+  let nextProductIndex = 0;
+
+  async function loadNextProductImage() {
+    while (
+      nextProductIndex <
+      selectedProducts.length
+    ) {
+      const currentIndex =
+        nextProductIndex;
+
+      nextProductIndex += 1;
+
+      productsWithImages[
+        currentIndex
+      ] =
+        await loadAliExpressProductImage(
+          selectedProducts[
+            currentIndex
+          ]
+        );
+    }
   }
+
+  const imageWorkers =
+    Array.from(
+      {
+        length:
+          Math.min(
+            8,
+            selectedProducts.length
+          )
+      },
+      () =>
+        loadNextProductImage()
+    );
+
+  await Promise.all(
+    imageWorkers
+  );
 
   const products =
     productsWithImages.map(
