@@ -1197,13 +1197,15 @@ async function loadAliExpressSearchPage({
         Accept:
           "application/json",
         "X-Respond-With":
-          "no-content",
+          "markdown",
         "X-With-Links-Summary":
           "false",
         "X-With-Images-Summary":
-          "false",
+          "true",
+        "X-Retain-Images":
+          "all",
         "X-Timeout":
-          "30"
+          "20"
       },
       signal:
         AbortSignal.timeout(40000)
@@ -1552,21 +1554,100 @@ function extractAliExpressProducts(
         500
       );
 
-    const rawImage =
-      Array.isArray(
-        searchResult?.images
+    const imageCandidates = [];
+
+    if (Array.isArray(searchResult?.images)) {
+      imageCandidates.push(
+        ...searchResult.images
+      );
+    } else if (
+      searchResult?.images &&
+      typeof searchResult.images === "object"
+    ) {
+      imageCandidates.push(
+        ...Object.values(
+          searchResult.images
+        )
+      );
+    }
+
+    if (searchResult?.image) {
+      imageCandidates.push(
+        searchResult.image
+      );
+    }
+
+    const resultContent =
+      String(
+        searchResult?.content ||
+        searchResult?.description ||
+        ""
+      );
+
+    for (
+      const imageMatch
+      of resultContent.matchAll(
+        /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/gi
       )
-        ? searchResult.images[0]
-        : searchResult?.image;
+    ) {
+      imageCandidates.push(
+        imageMatch[1]
+      );
+    }
 
     const imageUrl =
-      typeof rawImage === "string"
-        ? rawImage
-        : (
-            rawImage?.url ||
-            rawImage?.src ||
-            null
+      imageCandidates
+        .map(candidate =>
+          typeof candidate === "string"
+            ? candidate
+            : (
+                candidate?.url ||
+                candidate?.src ||
+                ""
+              )
+        )
+        .map(candidate =>
+          decodeHtmlEntities(
+            String(candidate || "")
+          )
+            .replace(/\\u002F/g, "/")
+            .replace(/\\\//g, "/")
+        )
+        .find(candidate => {
+          const normalized =
+            candidate.toLocaleLowerCase(
+              "en-US"
+            );
+
+          return (
+            (
+              normalized.includes(
+                "alicdn"
+              ) ||
+              normalized.includes(
+                "aliexpress-media"
+              )
+            ) &&
+            !normalized.includes(
+              "48x48"
+            ) &&
+            !normalized.includes(
+              "32x32"
+            ) &&
+            !normalized.includes(
+              "16x16"
+            ) &&
+            !normalized.includes(
+              "logo"
+            ) &&
+            !normalized.includes(
+              "icon"
+            ) &&
+            !normalized.includes(
+              "avatar"
+            )
           );
+        }) || null;
 
     const link =
       `${chinaConfig.domain}/item/${productId}.html`;
@@ -2102,24 +2183,15 @@ async function loadAliExpressSignal({
     )
     .slice(0, 16);
 
-  const productsWithImages =
-    await Promise.all(
-      rankedProducts.map(product =>
-        loadAliExpressProductImage(
-          product
-        )
-      )
-    );
-
   const products =
-    productsWithImages
+    rankedProducts
       .slice(0, 12)
       .map((product, index) => ({
         ...product,
         sourcePosition:
           index + 1
       }));
-
+  
   return {
     source:
       chinaConfig.sourceName,
