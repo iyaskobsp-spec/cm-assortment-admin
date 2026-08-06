@@ -174,6 +174,8 @@ function renderTrendResults(ideas, summary) {
             src="${escapeTrendHtml(imageUrl)}"
             alt="${title}"
             loading="lazy"
+            referrerpolicy="no-referrer"
+            crossorigin="anonymous"
           >
         `
         : `
