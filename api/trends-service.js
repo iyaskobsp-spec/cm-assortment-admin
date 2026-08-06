@@ -849,6 +849,12 @@ const ALIEXPRESS_CACHE_TTL_MS =
 const aliexpressPageCache =
   new Map();
 
+const aliexpressImageCache =
+  new Map();
+
+const ALIEXPRESS_IMAGE_CACHE_TTL_MS =
+  24 * 60 * 60 * 1000;
+
 function cleanTrendText(value, maxLength = 300) {
   return String(value || "")
     .replace(/\s+/g, " ")
@@ -1694,28 +1700,68 @@ async function loadAliExpressProductImage(
     return product;
   }
 
-  const readerUrl =
-    `https://r.jina.ai/${product.link}`;
+  const cachedImage =
+    aliexpressImageCache.get(
+      product.productId
+    );
+
+  if (
+    cachedImage &&
+    Date.now() -
+      cachedImage.savedAt <
+      ALIEXPRESS_IMAGE_CACHE_TTL_MS
+  ) {
+    return {
+      ...product,
+      imageUrl:
+        cachedImage.imageUrl
+    };
+  }
+
+  const metadataUrl =
+    new URL(
+      "https://api.microlink.io"
+    );
+
+  metadataUrl.searchParams.set(
+    "url",
+    product.link
+  );
+
+  metadataUrl.searchParams.set(
+    "screenshot",
+    "false"
+  );
+
+  metadataUrl.searchParams.set(
+    "video",
+    "false"
+  );
+
+  metadataUrl.searchParams.set(
+    "audio",
+    "false"
+  );
+
+  metadataUrl.searchParams.set(
+    "palette",
+    "false"
+  );
 
   try {
     const response = await fetch(
-      readerUrl,
+      metadataUrl,
       {
-        method: "GET",
+        method:
+          "GET",
         headers: {
-          Authorization:
-            `Bearer ${process.env.JINA_API_KEY}`,
           Accept:
-            "text/plain",
-          "X-With-Images-Summary":
-            "true",
-          "X-Retain-Images":
-            "all",
-          "X-Timeout":
-            "8"
+            "application/json"
         },
         signal:
-          AbortSignal.timeout(10000)
+          AbortSignal.timeout(
+            12000
+          )
       }
     );
 
@@ -1723,47 +1769,44 @@ async function loadAliExpressProductImage(
       return product;
     }
 
-    const pageText =
-      await response.text();
+    const responseData =
+      await response.json();
 
-    const imageUrls = [
-      ...pageText.matchAll(
-        /https?:\/\/[^"'()\s<>]+(?:alicdn|aliexpress-media)[^"'()\s<>]+/gi
-      )
-    ]
-      .map(match =>
-        decodeHtmlEntities(
-          match[0]
-        )
-          .replace(/\\u002F/g, "/")
-          .replace(/\\\//g, "/")
-          .replace(/[),.;]+$/g, "")
-      )
-      .filter(imageUrl => {
-        const normalized =
-          imageUrl.toLocaleLowerCase(
-            "en-US"
+    const imageValue =
+      responseData?.data?.image;
+
+    const imageUrl =
+      typeof imageValue === "string"
+        ? imageValue
+        : (
+            imageValue?.url ||
+            imageValue?.src ||
+            null
           );
 
-        return (
-          !normalized.includes("48x48") &&
-          !normalized.includes("32x32") &&
-          !normalized.includes("16x16") &&
-          !normalized.includes("logo") &&
-          !normalized.includes("icon") &&
-          !normalized.includes("avatar") &&
-          !normalized.includes("robot") &&
-          !normalized.includes("banner") &&
-          !normalized.includes("sprite") &&
-          !normalized.endsWith(".gif") &&
-          !normalized.endsWith(".svg")
-        );
-      });
+    if (!imageUrl) {
+      return product;
+    }
+
+    const normalizedImageUrl =
+      String(imageUrl)
+        .replace(/\\u002F/g, "/")
+        .replace(/\\\//g, "/");
+
+    aliexpressImageCache.set(
+      product.productId,
+      {
+        savedAt:
+          Date.now(),
+        imageUrl:
+          normalizedImageUrl
+      }
+    );
 
     return {
       ...product,
       imageUrl:
-        imageUrls[0] || null
+        normalizedImageUrl
     };
   } catch {
     return product;
@@ -2239,15 +2282,33 @@ async function loadAliExpressSignal({
       15
     );
 
-  const productsWithImages =
-    await Promise.all(
-      selectedProducts.map(
-        product =>
-          loadAliExpressProductImage(
-            product
-          )
-      )
+  const productsWithImages = [];
+
+  for (
+    let index = 0;
+    index < selectedProducts.length;
+    index += 5
+  ) {
+    const productBatch =
+      selectedProducts.slice(
+        index,
+        index + 5
+      );
+
+    const loadedBatch =
+      await Promise.all(
+        productBatch.map(
+          product =>
+            loadAliExpressProductImage(
+              product
+            )
+        )
+      );
+
+    productsWithImages.push(
+      ...loadedBatch
     );
+  }
 
   const products =
     productsWithImages.map(
