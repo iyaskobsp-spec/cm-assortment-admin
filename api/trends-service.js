@@ -1153,11 +1153,20 @@ async function loadAliExpressSearchPage({
       signalType
     );
 
-  const readerUrl =
-    `https://r.jina.ai/${sourceUrl}`;
+  const jinaQuery = [
+    "site:aliexpress.com/item",
+    searchQuery
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const searchUrl =
+    `https://s.jina.ai/${encodeURIComponent(
+      jinaQuery
+    )}`;
 
   const cacheKey =
-    sourceUrl.toLocaleLowerCase(
+    searchUrl.toLocaleLowerCase(
       "en-US"
     );
 
@@ -1179,22 +1188,20 @@ async function loadAliExpressSearchPage({
   }
 
   const response = await fetch(
-    readerUrl,
+    searchUrl,
     {
       method: "GET",
       headers: {
         Accept:
           "text/plain",
         "X-Respond-With":
-          "html",
-        "X-Engine":
-          "browser",
-        "X-Respond-Timing":
-          "mutation-idle",
+          "markdown",
+        "X-With-Links-Summary":
+          "all",
+        "X-With-Images-Summary":
+          "all",
         "X-Timeout":
-          "30",
-        "X-Locale":
-          "en-US"
+          "30"
       },
       signal:
         AbortSignal.timeout(40000)
@@ -1203,7 +1210,7 @@ async function loadAliExpressSearchPage({
 
   if (!response.ok) {
     const error = new Error(
-      `ALIEXPRESS_READER_FAILED_${response.status}`
+      `ALIEXPRESS_SEARCH_FAILED_${response.status}`
     );
 
     error.statusCode = 502;
@@ -1213,25 +1220,14 @@ async function loadAliExpressSearchPage({
   const html =
     await response.text();
 
-  const normalizedHtml =
-    html.toLocaleLowerCase(
-      "en-US"
-    );
-
-  const hasProductContent =
-    normalizedHtml.includes(
-      "/item/"
-    ) ||
-    normalizedHtml.includes(
-      "productid"
-    );
-
   if (
-    html.length < 10000 ||
-    !hasProductContent
+    html.length < 500 ||
+    !html
+      .toLocaleLowerCase("en-US")
+      .includes("aliexpress")
   ) {
     const error = new Error(
-      "ALIEXPRESS_BLOCKED_PAGE"
+      "ALIEXPRESS_SEARCH_EMPTY"
     );
 
     error.statusCode = 502;
@@ -1241,7 +1237,7 @@ async function loadAliExpressSearchPage({
   const result = {
     sourceUrl,
     finalUrl:
-      sourceUrl,
+      searchUrl,
     html,
     cached: false
   };
@@ -1457,28 +1453,30 @@ function extractAliExpressProducts(
   const seenProductIds =
     new Set();
 
-  const htmlText =
+  const sourceText =
     String(html || "");
 
   const productLinkPattern =
-    /href=["']([^"']*\/item\/(\d+)\.html[^"']*)["']/gi;
+    /\[([^\]]{4,500})\]\((https?:\/\/[^)\s]*aliexpress[^)\s]*\/item\/(\d+)\.html[^)\s]*)\)/gi;
 
   const linkMatches = [
-    ...htmlText.matchAll(
+    ...sourceText.matchAll(
       productLinkPattern
     )
   ];
 
   for (
-    let index = 0;
-    index < linkMatches.length;
-    index += 1
+    const linkMatch
+    of linkMatches
   ) {
-    const linkMatch =
-      linkMatches[index];
+    const rawTitle =
+      linkMatch[1];
+
+    const rawLink =
+      linkMatch[2];
 
     const productId =
-      linkMatch[2];
+      linkMatch[3];
 
     if (
       !productId ||
@@ -1489,161 +1487,94 @@ function extractAliExpressProducts(
       continue;
     }
 
-    const anchorStart =
-      htmlText.lastIndexOf(
-        "<a",
-        linkMatch.index
-      );
-
-    const anchorEnd =
-      htmlText.indexOf(
-        "</a>",
-        linkMatch.index
+    const title =
+      cleanTrendText(
+        decodeHtmlEntities(
+          rawTitle
+            .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+            .replace(/[*_#`]+/g, " ")
+        ),
+        300
       );
 
     if (
-      anchorStart < 0 ||
-      anchorEnd < 0 ||
-      anchorEnd - anchorStart > 30000
+      !title ||
+      isBlockedAliExpressTitle(
+        title
+      )
     ) {
       continue;
     }
 
-    const productAnchor =
-      htmlText.slice(
-        anchorStart,
-        anchorEnd + 4
+    const matchIndex =
+      Number(linkMatch.index) || 0;
+
+    const contextStart =
+      Math.max(
+        0,
+        matchIndex - 1800
       );
 
-    const titleCandidates = [];
+    const contextEnd =
+      Math.min(
+        sourceText.length,
+        matchIndex + 1800
+      );
 
-    const titlePatterns = [
-      /\baria-label=["']([^"']{8,500})["']/gi,
-      /\btitle=["']([^"']{8,500})["']/gi,
-      /"productTitle"\s*:\s*"([^"]{8,500})"/gi,
-      /"displayTitle"\s*:\s*"([^"]{8,500})"/gi,
-      /"title"\s*:\s*"([^"]{8,500})"/gi
+    const context =
+      sourceText.slice(
+        contextStart,
+        contextEnd
+      );
+
+    const imageMatches = [
+      ...context.matchAll(
+        /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/gi
+      )
     ];
 
+    let imageUrl = null;
+
     for (
-      const titlePattern
-      of titlePatterns
+      const imageMatch
+      of imageMatches
     ) {
-      for (
-        const titleMatch
-        of productAnchor.matchAll(
-          titlePattern
+      const candidateUrl =
+        decodeHtmlEntities(
+          imageMatch[2]
+        );
+
+      const normalizedUrl =
+        candidateUrl.toLocaleLowerCase(
+          "en-US"
+        );
+
+      if (
+        (
+          normalizedUrl.includes(
+            "alicdn"
+          ) ||
+          normalizedUrl.includes(
+            "aliexpress-media"
+          )
+        ) &&
+        !normalizedUrl.includes(
+          "48x48"
+        ) &&
+        !normalizedUrl.includes(
+          "32x32"
+        ) &&
+        !normalizedUrl.includes(
+          "logo"
+        ) &&
+        !normalizedUrl.includes(
+          "icon"
         )
       ) {
-        titleCandidates.push(
-          titleMatch[1]
-        );
+        imageUrl =
+          candidateUrl;
+        break;
       }
-    }
-
-    const imageItems = [
-      ...productAnchor.matchAll(
-        /<img\b[^>]*>/gi
-      )
-    ]
-      .map(imageMatch => {
-        const imageTag =
-          imageMatch[0];
-
-        const altMatch =
-          imageTag.match(
-            /\balt=["']([^"']{4,500})["']/i
-          );
-
-        return {
-          imageTag,
-          alt:
-            cleanTrendText(
-              decodeHtmlEntities(
-                altMatch?.[1] || ""
-              ),
-              300
-            ),
-          imageUrl:
-            getAliExpressImageUrl(
-              imageTag,
-              chinaConfig
-            )
-        };
-      })
-      .filter(item =>
-        item.imageUrl
-      );
-
-    for (
-      const imageItem
-      of imageItems
-    ) {
-      if (imageItem.alt) {
-        titleCandidates.push(
-          imageItem.alt
-        );
-      }
-    }
-
-    const cleanedTitles = [
-      ...new Set(
-        titleCandidates
-          .map(candidate =>
-            cleanTrendText(
-              decodeHtmlEntities(
-                candidate
-              ),
-              300
-            )
-          )
-          .filter(title =>
-            !isBlockedAliExpressTitle(
-              title
-            )
-          )
-          .filter(title =>
-            !/^[\d\s.,%+$€£-]+$/.test(
-              title
-            )
-          )
-      )
-    ];
-
-    const title =
-      cleanedTitles
-        .sort(
-          (first, second) =>
-            second.length -
-            first.length
-        )[0] || "";
-
-    if (!title) {
-      continue;
-    }
-
-    const rankedImages =
-      imageItems
-        .map(imageItem => ({
-          ...imageItem,
-          similarity:
-            getTitleImageSimilarity(
-              title,
-              imageItem.alt
-            )
-        }))
-        .sort(
-          (first, second) =>
-            second.similarity -
-            first.similarity
-        );
-
-    const imageUrl =
-      rankedImages[0]?.imageUrl ||
-      null;
-
-    if (!imageUrl) {
-      continue;
     }
 
     const link =
@@ -1663,7 +1594,7 @@ function extractAliExpressProducts(
     });
 
     if (
-      products.length >= 40
+      products.length >= 30
     ) {
       break;
     }
