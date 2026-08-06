@@ -778,6 +778,18 @@ const CHINA_CATEGORY_CONFIG = {
 };
 
 const CHINA_SIGNAL_CONFIG = {
+  all: {
+    queryWords: [
+      "new trending popular products"
+    ],
+    sortType:
+      "default",
+    label:
+      "Товарний сигнал AliExpress",
+    description:
+      "Товар знайдений у широкій категорійній видачі AliExpress."
+  },
+
   new: {
     queryWords: [
       "new arrivals 2026",
@@ -801,7 +813,7 @@ const CHINA_SIGNAL_CONFIG = {
     label:
       "Трендовий пошуковий сигнал AliExpress",
     description:
-      "Товар повторюється у трендових пошукових добірках AliExpress."
+      "Товар знайдений у трендовій пошуковій добірці AliExpress."
   },
 
   popular: {
@@ -814,7 +826,7 @@ const CHINA_SIGNAL_CONFIG = {
     label:
       "Популярний пошуковий сигнал AliExpress",
     description:
-      "Товар знайдений у добірках бестселерів і товарів із високими продажами AliExpress."
+      "Товар знайдений у добірці популярних і найбільш продаваних товарів AliExpress."
   }
 };
 
@@ -2745,53 +2757,51 @@ export async function searchProductTrends(
     const chinaConfig
     of chinaConfigs
   ) {
-    for (
-      const chinaSignalType
-      of requestedSignalTypes
-    ) {
-      try {
-        const chinaResult =
-          await loadAliExpressSignal({
-            chinaConfig,
-            category,
-            signalType:
-              chinaSignalType,
-            searchDetails,
-            exclusions
-          });
+    const chinaSignalType =
+      signalType;
 
-        sources.push(
-          chinaResult
-        );
-
-        ideas = ideas.concat(
-          buildIdeasFromAliExpress(
-            chinaResult,
-            chinaConfig
-          )
-        );
-      } catch (error) {
-        console.error(
-          `[${chinaConfig.sourceName} ${chinaSignalType}]`,
-          error
-        );
-
-        sources.push({
-          source:
-            chinaConfig.sourceName,
-          sourceType:
+    try {
+      const chinaResult =
+        await loadAliExpressSignal({
+          chinaConfig,
+          category,
+          signalType:
             chinaSignalType,
-          status:
-            "error",
-          message:
-            error.message ===
-            "ALIEXPRESS_BLOCKED_PAGE"
-              ? "AliExpress тимчасово повернув перевірку замість товарної видачі."
-              : `${chinaConfig.sourceName} тимчасово не повернув товарну видачу.`,
-          products:
-            []
+          searchDetails,
+          exclusions
         });
-      }
+
+      sources.push(
+        chinaResult
+      );
+
+      ideas = ideas.concat(
+        buildIdeasFromAliExpress(
+          chinaResult,
+          chinaConfig
+        )
+      );
+    } catch (error) {
+      console.error(
+        `[${chinaConfig.sourceName} ${chinaSignalType}]`,
+        error
+      );
+
+      sources.push({
+        source:
+          chinaConfig.sourceName,
+        sourceType:
+          chinaSignalType,
+        status:
+          "error",
+        message:
+          error.message ===
+          "ALIEXPRESS_BLOCKED_PAGE"
+            ? "AliExpress тимчасово повернув перевірку замість товарної видачі."
+            : `${chinaConfig.sourceName} тимчасово не повернув товарну видачу.`,
+        products:
+          []
+      });
     }
   }
 
