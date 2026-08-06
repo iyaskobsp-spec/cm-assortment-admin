@@ -1695,35 +1695,27 @@ async function loadAliExpressProductImage(
   }
 
   const readerUrl =
-    "https://r.jina.ai/";
+    `https://r.jina.ai/${product.link}`;
 
   try {
     const response = await fetch(
       readerUrl,
       {
-        method: "POST",
+        method: "GET",
         headers: {
           Authorization:
             `Bearer ${process.env.JINA_API_KEY}`,
           Accept:
-            "application/json",
-          "Content-Type":
-            "application/json",
+            "text/plain",
           "X-With-Images-Summary":
             "true",
           "X-Retain-Images":
             "all",
-          "X-Respond-Timing":
-            "network-idle",
           "X-Timeout":
-            "30"
+            "8"
         },
-        body: JSON.stringify({
-          url:
-            product.link
-        }),
         signal:
-          AbortSignal.timeout(40000)
+          AbortSignal.timeout(10000)
       }
     );
 
@@ -1731,177 +1723,205 @@ async function loadAliExpressProductImage(
       return product;
     }
 
-    const responseData =
-      await response.json();
+    const pageText =
+      await response.text();
 
-    const pageData =
-      responseData?.data || {};
-
-    const imageCandidates = [];
-
-    if (
-      pageData.images &&
-      typeof pageData.images === "object"
-    ) {
-      for (
-        const [
-          imageLabel,
-          imageValue
-        ]
-        of Object.entries(
-          pageData.images
-        )
-      ) {
-        const imageUrl =
-          typeof imageValue === "string"
-            ? imageValue
-            : (
-                imageValue?.url ||
-                imageValue?.src ||
-                ""
-              );
-
-        if (imageUrl) {
-          imageCandidates.push({
-            label:
-              imageLabel,
-            url:
-              imageUrl
-          });
-        }
-      }
-    }
-
-    const pageContent =
-      String(
-        pageData.content || ""
-      );
-
-    for (
-      const match
-      of pageContent.matchAll(
-        /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/gi
+    const imageUrls = [
+      ...pageText.matchAll(
+        /https?:\/\/[^"'()\s<>]+(?:alicdn|aliexpress-media)[^"'()\s<>]+/gi
       )
-    ) {
-      imageCandidates.push({
-        label:
-          match[1] || "",
-        url:
-          match[2]
-      });
-    }
-
-    const titleWords =
-      getChinaWords(
-        product.title
-      );
-
-    const preparedImages =
-      imageCandidates
-        .map(candidate => {
-          const imageUrl =
-            decodeHtmlEntities(
-              String(
-                candidate.url || ""
-              )
-            )
-              .replace(/\\u002F/g, "/")
-              .replace(/\\\//g, "/");
-
-          const normalizedUrl =
-            imageUrl.toLocaleLowerCase(
-              "en-US"
-            );
-
-          const normalizedLabel =
-            normalizeChinaText(
-              candidate.label
-            );
-
-          const blockedImage =
-            normalizedUrl.includes(
-              "48x48"
-            ) ||
-            normalizedUrl.includes(
-              "32x32"
-            ) ||
-            normalizedUrl.includes(
-              "16x16"
-            ) ||
-            normalizedUrl.includes(
-              "favicon"
-            ) ||
-            normalizedUrl.includes(
-              "logo"
-            ) ||
-            normalizedUrl.includes(
-              "icon"
-            ) ||
-            normalizedUrl.includes(
-              "avatar"
-            ) ||
-            normalizedUrl.includes(
-              "robot"
-            ) ||
-            normalizedUrl.includes(
-              "sprite"
-            ) ||
-            normalizedUrl.includes(
-              "banner"
-            ) ||
-            normalizedLabel.includes(
-              "aliexpress logo"
-            ) ||
-            normalizedLabel.includes(
-              "robot"
-            );
-
-          const validMediaDomain =
-            normalizedUrl.includes(
-              "alicdn"
-            ) ||
-            normalizedUrl.includes(
-              "aliexpress-media"
-            );
-
-          const matchingWords =
-            titleWords.filter(word =>
-              normalizedLabel.includes(
-                word
-              ) ||
-              normalizedUrl.includes(
-                word
-              )
-            ).length;
-
-          return {
-            imageUrl,
-            blockedImage,
-            validMediaDomain,
-            matchingWords
-          };
-        })
-        .filter(candidate =>
-          candidate.imageUrl &&
-          candidate.validMediaDomain &&
-          !candidate.blockedImage
+    ]
+      .map(match =>
+        decodeHtmlEntities(
+          match[0]
         )
-        .sort(
-          (first, second) =>
-            second.matchingWords -
-            first.matchingWords
+          .replace(/\\u002F/g, "/")
+          .replace(/\\\//g, "/")
+          .replace(/[),.;]+$/g, "")
+      )
+      .filter(imageUrl => {
+        const normalized =
+          imageUrl.toLocaleLowerCase(
+            "en-US"
+          );
+
+        return (
+          !normalized.includes("48x48") &&
+          !normalized.includes("32x32") &&
+          !normalized.includes("16x16") &&
+          !normalized.includes("logo") &&
+          !normalized.includes("icon") &&
+          !normalized.includes("avatar") &&
+          !normalized.includes("robot") &&
+          !normalized.includes("banner") &&
+          !normalized.includes("sprite") &&
+          !normalized.endsWith(".gif") &&
+          !normalized.endsWith(".svg")
         );
+      });
 
     return {
       ...product,
       imageUrl:
-        preparedImages[0]
-          ?.imageUrl ||
-        null
+        imageUrls[0] || null
     };
   } catch {
     return product;
   }
+}
+
+function buildChinaProductFingerprint(
+  title
+) {
+  const ignoredWords =
+    new Set([
+      "new",
+      "arrival",
+      "arrivals",
+      "latest",
+      "creative",
+      "smart",
+      "fashion",
+      "portable",
+      "modern",
+      "cute",
+      "home",
+      "kitchen",
+      "pet",
+      "dog",
+      "cat",
+      "gift",
+      "gifts",
+      "decor",
+      "products",
+      "product",
+      "supplies",
+      "accessories",
+      "accessory"
+    ]);
+
+  return getChinaWords(title)
+    .filter(word =>
+      word.length >= 4 &&
+      !ignoredWords.has(word)
+    )
+    .slice(0, 6)
+    .join(" ");
+}
+
+function selectDiverseChinaProducts(
+  rankedProducts,
+  limit
+) {
+  const selectedProducts = [];
+  const selectedIds =
+    new Set();
+  const seenFingerprints =
+    new Set();
+
+  for (
+    const product
+    of rankedProducts
+  ) {
+    const fingerprint =
+      buildChinaProductFingerprint(
+        product.title
+      );
+
+    const productWords =
+      getChinaWords(
+        product.title
+      ).filter(word =>
+        word.length >= 4
+      );
+
+    const hasNearDuplicate =
+      selectedProducts.some(
+        selectedProduct => {
+          const selectedWords =
+            getChinaWords(
+              selectedProduct.title
+            ).filter(word =>
+              word.length >= 4
+            );
+
+          const overlap =
+            productWords.filter(word =>
+              selectedWords.includes(
+                word
+              )
+            ).length;
+
+          return overlap >= 4;
+        }
+      );
+
+    if (
+      selectedIds.has(
+        product.productId
+      ) ||
+      (
+        fingerprint &&
+        seenFingerprints.has(
+          fingerprint
+        )
+      ) ||
+      hasNearDuplicate
+    ) {
+      continue;
+    }
+
+    selectedProducts.push(
+      product
+    );
+
+    selectedIds.add(
+      product.productId
+    );
+
+    if (fingerprint) {
+      seenFingerprints.add(
+        fingerprint
+      );
+    }
+
+    if (
+      selectedProducts.length >=
+      limit
+    ) {
+      return selectedProducts;
+    }
+  }
+
+  for (
+    const product
+    of rankedProducts
+  ) {
+    if (
+      selectedIds.has(
+        product.productId
+      )
+    ) {
+      continue;
+    }
+
+    selectedProducts.push(
+      product
+    );
+
+    selectedIds.add(
+      product.productId
+    );
+
+    if (
+      selectedProducts.length >=
+      limit
+    ) {
+      break;
+    }
+  }
+
+  return selectedProducts;
 }
 
 function getChinaCategoryScore(
@@ -2050,9 +2070,17 @@ async function loadAliExpressSignal({
         const product
         of extractedProducts
       ) {
+        const searchableText =
+          [
+            product.title,
+            product.description
+          ]
+            .filter(Boolean)
+            .join(" ");
+
         if (
           matchesExclusions(
-            product.title,
+            searchableText,
             exclusions
           )
         ) {
@@ -2061,7 +2089,7 @@ async function loadAliExpressSignal({
 
         const categoryScore =
           getChinaCategoryScore(
-            product.title,
+            searchableText,
             category
           );
 
@@ -2071,7 +2099,7 @@ async function loadAliExpressSignal({
 
         const queryScore =
           getChinaQueryScore(
-            product.title,
+            searchableText,
             searchQuery
           );
 
@@ -2130,6 +2158,14 @@ async function loadAliExpressSignal({
             searchQuery
           );
         }
+
+        if (
+          !currentProduct.imageUrl &&
+          product.imageUrl
+        ) {
+          currentProduct.imageUrl =
+            product.imageUrl;
+        }
       }
     } catch (error) {
       firstError ||= error;
@@ -2155,17 +2191,29 @@ async function loadAliExpressSignal({
       const positionScore =
         Math.max(
           0,
-          20 -
+          30 -
           Number(
-            product.bestPosition || 20
+            product.bestPosition || 30
           )
         );
 
+      const diversityBonus =
+        Math.min(
+          product.matchedQueries.length,
+          3
+        ) * 6;
+
       const relevanceScore =
-        product.categoryScore * 18 +
-        product.queryScore * 8 +
-        product.occurrenceCount * 10 +
-        positionScore;
+        product.categoryScore * 20 +
+        product.queryScore * 10 +
+        product.occurrenceCount * 8 +
+        positionScore +
+        diversityBonus +
+        (
+          product.imageUrl
+            ? 4
+            : 0
+        );
 
       return {
         ...product,
@@ -2178,20 +2226,38 @@ async function loadAliExpressSignal({
         first.relevanceScore ||
         second.categoryScore -
         first.categoryScore ||
+        second.queryScore -
+        first.queryScore ||
         first.bestPosition -
         second.bestPosition
     )
-    .slice(0, 16);
+    .slice(0, 40);
+
+  const selectedProducts =
+    selectDiverseChinaProducts(
+      rankedProducts,
+      15
+    );
+
+  const productsWithImages =
+    await Promise.all(
+      selectedProducts.map(
+        product =>
+          loadAliExpressProductImage(
+            product
+          )
+      )
+    );
 
   const products =
-    rankedProducts
-      .slice(0, 12)
-      .map((product, index) => ({
+    productsWithImages.map(
+      (product, index) => ({
         ...product,
         sourcePosition:
           index + 1
-      }));
-  
+      })
+    );
+
   return {
     source:
       chinaConfig.sourceName,
