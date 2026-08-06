@@ -843,6 +843,22 @@ const CHINA_SOURCE_CONFIG = {
   }
 };
 
+const MADE_IN_CHINA_SOURCE_CONFIG = {
+  code:
+    "made-in-china",
+  sourceName:
+    "Made-in-China",
+  geography:
+    "Китай",
+  domain:
+    "https://www.made-in-china.com",
+  supportedMarkets:
+    new Set([
+      "world",
+      "china"
+    ])
+};
+
 const ALIEXPRESS_CACHE_TTL_MS =
   20 * 60 * 1000;
 
@@ -3015,6 +3031,565 @@ function buildIdeasFromAliExpress(
   );
 }
 
+function buildMadeInChinaQuery(
+  category,
+  signalType,
+  searchDetails
+) {
+  const categoryConfig =
+    CHINA_CATEGORY_CONFIG[category] ||
+    CHINA_CATEGORY_CONFIG.other;
+
+  const signalConfig =
+    CHINA_SIGNAL_CONFIG[signalType] ||
+    CHINA_SIGNAL_CONFIG.all;
+
+  return cleanTrendText(
+    [
+      categoryConfig.queries[0],
+      signalConfig.queryWords[0],
+      searchDetails
+    ]
+      .filter(Boolean)
+      .join(" "),
+    220
+  );
+}
+
+function buildMadeInChinaSearchUrl(
+  searchQuery
+) {
+  const slug =
+    cleanTrendText(
+      searchQuery,
+      220
+    )
+      .replace(/[^a-zA-Z0-9]+/g, " ")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(word =>
+        word.charAt(0).toUpperCase() +
+        word.slice(1)
+      )
+      .join("_");
+
+  return (
+    `${MADE_IN_CHINA_SOURCE_CONFIG.domain}` +
+    `/products-search/hot-china-products/` +
+    `${slug || "Consumer_Products"}.html`
+  );
+}
+
+function getMadeInChinaImageUrl(
+  contextHtml
+) {
+  const imageTags = [
+    ...String(
+      contextHtml || ""
+    ).matchAll(
+      /<img\b[^>]*>/gi
+    )
+  ];
+
+  for (
+    const imageMatch
+    of imageTags
+  ) {
+    const imageTag =
+      imageMatch[0];
+
+    const sourceMatch =
+      imageTag.match(
+        /\bdata-original=["']([^"']+)["']/i
+      ) ||
+      imageTag.match(
+        /\bdata-src=["']([^"']+)["']/i
+      ) ||
+      imageTag.match(
+        /\bsrc=["']([^"']+)["']/i
+      );
+
+    if (!sourceMatch?.[1]) {
+      continue;
+    }
+
+    try {
+      const rawUrl =
+        decodeHtmlEntities(
+          sourceMatch[1]
+        );
+
+      const imageUrl =
+        rawUrl.startsWith("//")
+          ? `https:${rawUrl}`
+          : new URL(
+              rawUrl,
+              MADE_IN_CHINA_SOURCE_CONFIG.domain
+            ).toString();
+
+      const normalizedUrl =
+        imageUrl.toLocaleLowerCase(
+          "en-US"
+        );
+
+      if (
+        normalizedUrl.includes(
+          "logo"
+        ) ||
+        normalizedUrl.includes(
+          "icon"
+        ) ||
+        normalizedUrl.includes(
+          "sprite"
+        ) ||
+        normalizedUrl.includes(
+          "avatar"
+        ) ||
+        normalizedUrl.includes(
+          "blank"
+        ) ||
+        normalizedUrl.endsWith(
+          ".gif"
+        ) ||
+        normalizedUrl.endsWith(
+          ".svg"
+        )
+      ) {
+        continue;
+      }
+
+      return imageUrl;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+function extractMadeInChinaProducts(
+  html,
+  category,
+  searchQuery,
+  exclusions
+) {
+  const sourceHtml =
+    String(html || "");
+
+  const products = [];
+  const seenLinks =
+    new Set();
+
+  const anchorPattern =
+    /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+  const blockedTitles = [
+    "view larger video image",
+    "send inquiry",
+    "start order",
+    "contact now",
+    "add to inquiry basket",
+    "favorites",
+    "product list",
+    "supplier list",
+    "gallery view",
+    "list view"
+  ];
+
+  for (
+    const anchorMatch
+    of sourceHtml.matchAll(
+      anchorPattern
+    )
+  ) {
+    const rawLink =
+      decodeHtmlEntities(
+        anchorMatch[1]
+      );
+
+    const title =
+      cleanTrendText(
+        stripHtml(
+          anchorMatch[2]
+        ),
+        300
+      );
+
+    if (
+      !title ||
+      title.length < 18
+    ) {
+      continue;
+    }
+
+    const normalizedTitle =
+      normalizeChinaText(
+        title
+      );
+
+    if (
+      blockedTitles.some(
+        blockedTitle =>
+          normalizedTitle ===
+            blockedTitle ||
+          normalizedTitle.startsWith(
+            `${blockedTitle} `
+          )
+      )
+    ) {
+      continue;
+    }
+
+    let link;
+
+    try {
+      link =
+        new URL(
+          rawLink,
+          MADE_IN_CHINA_SOURCE_CONFIG.domain
+        ).toString();
+    } catch {
+      continue;
+    }
+
+    const normalizedLink =
+      link.toLocaleLowerCase(
+        "en-US"
+      );
+
+    if (
+      !normalizedLink.includes(
+        "made-in-china.com"
+      ) ||
+      !normalizedLink.includes(
+        ".html"
+      ) ||
+      normalizedLink.includes(
+        "/products-search/"
+      ) ||
+      normalizedLink.includes(
+        "/company-"
+      ) ||
+      normalizedLink.includes(
+        "/showroom/"
+      ) &&
+      !normalizedLink.includes(
+        "product-detail"
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      seenLinks.has(
+        normalizedLink
+      )
+    ) {
+      continue;
+    }
+
+    const anchorIndex =
+      Number(anchorMatch.index) || 0;
+
+    const contextStart =
+      Math.max(
+        0,
+        anchorIndex - 1200
+      );
+
+    const contextEnd =
+      Math.min(
+        sourceHtml.length,
+        anchorIndex + 2800
+      );
+
+    const contextHtml =
+      sourceHtml.slice(
+        contextStart,
+        contextEnd
+      );
+
+    const contextText =
+      cleanTrendText(
+        stripHtml(
+          contextHtml
+        ),
+        1200
+      );
+
+    if (
+      matchesExclusions(
+        `${title} ${contextText}`,
+        exclusions
+      )
+    ) {
+      continue;
+    }
+
+    const categoryScore =
+      getChinaCategoryScore(
+        `${title} ${contextText}`,
+        category
+      );
+
+    if (categoryScore <= 1) {
+      continue;
+    }
+
+    const queryScore =
+      getChinaQueryScore(
+        `${title} ${contextText}`,
+        searchQuery
+      );
+
+    const priceMatch =
+      contextText.match(
+        /US\$\s*[\d.,]+(?:\s*-\s*[\d.,]+)?/i
+      );
+
+    const moqMatch =
+      contextText.match(
+        /\d[\d,\s]*\s+(?:Piece|Pieces|Set|Sets|Unit|Units|Pair|Pairs)\s+\(MOQ\)/i
+      );
+
+    const companyMatch =
+      contextText.match(
+        /([A-Z][A-Za-z0-9&.,'()\-\s]{6,120}(?:Co\.,?\s*Ltd\.?|Company Limited|Corporation))/i
+      );
+
+    const descriptionParts = [];
+
+    if (priceMatch?.[0]) {
+      descriptionParts.push(
+        priceMatch[0]
+      );
+    }
+
+    if (moqMatch?.[0]) {
+      descriptionParts.push(
+        moqMatch[0]
+      );
+    }
+
+    if (companyMatch?.[1]) {
+      descriptionParts.push(
+        cleanTrendText(
+          companyMatch[1],
+          160
+        )
+      );
+    }
+
+    seenLinks.add(
+      normalizedLink
+    );
+
+    products.push({
+      productId:
+        normalizedLink,
+      title,
+      description:
+        descriptionParts.join(" · ") ||
+        "Товар знайдений у каталозі китайських виробників.",
+      link,
+      imageUrl:
+        getMadeInChinaImageUrl(
+          contextHtml
+        ),
+      categoryScore,
+      queryScore,
+      sourcePosition:
+        products.length + 1
+    });
+
+    if (
+      products.length >= 40
+    ) {
+      break;
+    }
+  }
+
+  return products;
+}
+
+async function loadMadeInChinaSignal({
+  category,
+  signalType,
+  searchDetails,
+  exclusions
+}) {
+  const searchQuery =
+    buildMadeInChinaQuery(
+      category,
+      signalType,
+      searchDetails
+    );
+
+  const sourceUrl =
+    buildMadeInChinaSearchUrl(
+      searchQuery
+    );
+
+  const response = await fetch(
+    sourceUrl,
+    {
+      method:
+        "GET",
+      headers: {
+        Accept:
+          "text/html,application/xhtml+xml",
+        "Accept-Language":
+          "en-US,en;q=0.9",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+          "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+      },
+      redirect:
+        "follow",
+      signal:
+        AbortSignal.timeout(
+          20000
+        )
+    }
+  );
+
+  if (!response.ok) {
+    const error = new Error(
+      `MADE_IN_CHINA_REQUEST_FAILED_${response.status}`
+    );
+
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const html =
+    await response.text();
+
+  if (
+    html.length < 5000
+  ) {
+    const error = new Error(
+      "MADE_IN_CHINA_EMPTY_PAGE"
+    );
+
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const extractedProducts =
+    extractMadeInChinaProducts(
+      html,
+      category,
+      searchQuery,
+      exclusions
+    );
+
+  const rankedProducts =
+    extractedProducts
+      .map(product => ({
+        ...product,
+        relevanceScore:
+          product.categoryScore * 20 +
+          product.queryScore * 10 +
+          Math.max(
+            0,
+            30 -
+            product.sourcePosition
+          ) +
+          (
+            product.imageUrl
+              ? 8
+              : 0
+          )
+      }))
+      .sort(
+        (first, second) =>
+          second.relevanceScore -
+          first.relevanceScore ||
+          first.sourcePosition -
+          second.sourcePosition
+      );
+
+  const products =
+    selectDiverseChinaProducts(
+      rankedProducts,
+      15
+    )
+      .map(
+        (product, index) => ({
+          ...product,
+          sourcePosition:
+            index + 1
+        })
+      );
+
+  return {
+    source:
+      MADE_IN_CHINA_SOURCE_CONFIG.sourceName,
+    sourceType:
+      signalType,
+    status:
+      products.length
+        ? "ok"
+        : "no_results",
+    checkedSources: [
+      {
+        query:
+          searchQuery,
+        url:
+          sourceUrl
+      }
+    ],
+    totalExtracted:
+      extractedProducts.length,
+    products
+  };
+}
+
+function buildIdeasFromMadeInChina(
+  sourceResult
+) {
+  const signalConfig =
+    CHINA_SIGNAL_CONFIG[
+      sourceResult.sourceType
+    ] ||
+    CHINA_SIGNAL_CONFIG.all;
+
+  return sourceResult.products.map(
+    product => ({
+      id:
+        `made-in-china-${product.sourcePosition}-${product.productId}`,
+      title:
+        product.title,
+      imageUrl:
+        product.imageUrl || null,
+      description:
+        product.description,
+      signal:
+        signalConfig.label ||
+        "Товарний сигнал Китаю",
+      signalType:
+        sourceResult.sourceType,
+      geography:
+        MADE_IN_CHINA_SOURCE_CONFIG.geography,
+      sources: [
+        MADE_IN_CHINA_SOURCE_CONFIG.sourceName
+      ],
+      links: [
+        {
+          label:
+            "Відкрити на Made-in-China",
+          url:
+            product.link
+        }
+      ],
+      sourcePosition:
+        product.sourcePosition
+    })
+  );
+}
+
 export async function searchProductTrends(
   requestBody
 ) {
@@ -3171,52 +3746,45 @@ export async function searchProductTrends(
     }
   }
 
-  for (
-    const chinaConfig
-    of chinaConfigs
+  if (
+    MADE_IN_CHINA_SOURCE_CONFIG
+      .supportedMarkets
+      .has(market)
   ) {
-    const chinaSignalType =
-      signalType;
-
     try {
-      const chinaResult =
-        await loadAliExpressSignal({
-          chinaConfig,
+      const madeInChinaResult =
+        await loadMadeInChinaSignal({
           category,
-          signalType:
-            chinaSignalType,
+          signalType,
           searchDetails,
           exclusions
         });
 
       sources.push(
-        chinaResult
+        madeInChinaResult
       );
 
       ideas = ideas.concat(
-        buildIdeasFromAliExpress(
-          chinaResult,
-          chinaConfig
+        buildIdeasFromMadeInChina(
+          madeInChinaResult
         )
       );
     } catch (error) {
       console.error(
-        `[${chinaConfig.sourceName} ${chinaSignalType}]`,
+        "[Made-in-China]",
         error
       );
 
       sources.push({
         source:
-          chinaConfig.sourceName,
+          MADE_IN_CHINA_SOURCE_CONFIG
+            .sourceName,
         sourceType:
-          chinaSignalType,
+          signalType,
         status:
           "error",
         message:
-          error.message ===
-          "ALIEXPRESS_BLOCKED_PAGE"
-            ? "AliExpress тимчасово повернув перевірку замість товарної видачі."
-            : `${chinaConfig.sourceName} тимчасово не повернув товарну видачу.`,
+          "Made-in-China тимчасово не повернув товарну видачу.",
         products:
           []
       });
