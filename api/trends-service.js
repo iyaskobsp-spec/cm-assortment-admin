@@ -1153,6 +1153,9 @@ async function loadAliExpressSearchPage({
       signalType
     );
 
+  const readerUrl =
+    `https://r.jina.ai/${sourceUrl}`;
+
   const cacheKey =
     sourceUrl.toLocaleLowerCase(
       "en-US"
@@ -1175,38 +1178,32 @@ async function loadAliExpressSearchPage({
     };
   }
 
-  const response = await fetch(sourceUrl, {
-    method: "GET",
-    headers: {
-      Accept:
-        "text/html,application/xhtml+xml",
-      "Accept-Language":
-        "en-US,en;q=0.9",
-      "Cache-Control":
-        "no-cache",
-      Referer:
-        chinaConfig.domain,
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-        "AppleWebKit/537.36 Chrome/124 Safari/537.36"
-    },
-    redirect:
-      "follow",
-    signal:
-      AbortSignal.timeout(20000)
-  });
+  const response = await fetch(
+    readerUrl,
+    {
+      method: "GET",
+      headers: {
+        Accept:
+          "text/plain",
+        "X-Respond-With":
+          "html",
+        "X-Engine":
+          "browser",
+        "X-Respond-Timing":
+          "mutation-idle",
+        "X-Timeout":
+          "30",
+        "X-Locale":
+          "en-US"
+      },
+      signal:
+        AbortSignal.timeout(40000)
+    }
+  );
 
   if (!response.ok) {
-    if (cachedPage?.result) {
-      return {
-        ...cachedPage.result,
-        cached: true,
-        stale: true
-      };
-    }
-
     const error = new Error(
-      `ALIEXPRESS_REQUEST_FAILED_${response.status}`
+      `ALIEXPRESS_READER_FAILED_${response.status}`
     );
 
     error.statusCode = 502;
@@ -1229,24 +1226,10 @@ async function loadAliExpressSearchPage({
       "productid"
     );
 
-  const isBlockedPage =
+  if (
     html.length < 10000 ||
-    (
-      normalizedHtml.includes(
-        "captcha"
-      ) &&
-      !hasProductContent
-    );
-
-  if (isBlockedPage) {
-    if (cachedPage?.result) {
-      return {
-        ...cachedPage.result,
-        cached: true,
-        stale: true
-      };
-    }
-
+    !hasProductContent
+  ) {
     const error = new Error(
       "ALIEXPRESS_BLOCKED_PAGE"
     );
@@ -1258,7 +1241,7 @@ async function loadAliExpressSearchPage({
   const result = {
     sourceUrl,
     finalUrl:
-      response.url || sourceUrl,
+      sourceUrl,
     html,
     cached: false
   };
