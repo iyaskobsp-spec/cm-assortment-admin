@@ -889,6 +889,435 @@ const MADE_IN_CHINA_SIGNAL_CONFIG = {
   }
 };
 
+const MADE_IN_CHINA_CATEGORY_CONFIG = {
+  "home-kitchen": {
+    queries: [
+      "creative kitchen gadgets",
+      "small kitchen accessories",
+      "household kitchen organizer"
+    ],
+    priority: [
+      "kitchen gadget",
+      "utensil",
+      "organizer",
+      "storage",
+      "container",
+      "dispenser",
+      "holder",
+      "tray",
+      "bottle",
+      "cup",
+      "silicone"
+    ],
+    exclude: [
+      "commercial",
+      "restaurant",
+      "industrial",
+      "machine",
+      "equipment",
+      "stainless steel sink",
+      "cabinet",
+      "countertop"
+    ]
+  },
+
+  "storage-organization": {
+    queries: [
+      "small home storage organizer",
+      "space saving storage box",
+      "desktop drawer organizer"
+    ],
+    priority: [
+      "organizer",
+      "storage box",
+      "drawer",
+      "basket",
+      "container",
+      "holder",
+      "rack",
+      "shelf",
+      "space saving"
+    ],
+    exclude: [
+      "warehouse",
+      "industrial",
+      "server rack",
+      "metal cabinet",
+      "commercial shelving",
+      "garage"
+    ]
+  },
+
+  "decor": {
+    queries: [
+      "small home decor vase candle holder",
+      "tabletop decor tray figurine",
+      "modern decorative vase ornament"
+    ],
+    priority: [
+      "vase",
+      "candle holder",
+      "candlestick",
+      "figurine",
+      "ornament",
+      "decorative tray",
+      "jewelry tray",
+      "incense holder",
+      "flower pot",
+      "table decor",
+      "desktop decor",
+      "sculpture",
+      "bookend"
+    ],
+    exclude: [
+      "led panel",
+      "wall panel",
+      "acoustic panel",
+      "ceiling panel",
+      "lighting panel",
+      "shop lighting",
+      "store lighting",
+      "commercial lighting",
+      "signage",
+      "light box",
+      "display stand",
+      "building material",
+      "construction",
+      "wall cladding",
+      "marble slab",
+      "floor tile",
+      "machine",
+      "equipment"
+    ]
+  },
+
+  "household": {
+    queries: [
+      "creative household daily use products",
+      "small home cleaning gadgets",
+      "useful bathroom household accessories"
+    ],
+    priority: [
+      "cleaning",
+      "brush",
+      "sponge",
+      "cloth",
+      "dispenser",
+      "laundry",
+      "bathroom",
+      "trash bag",
+      "lint remover",
+      "home care"
+    ],
+    exclude: [
+      "industrial",
+      "commercial machine",
+      "factory",
+      "cleaning equipment",
+      "floor scrubber",
+      "pressure washer"
+    ]
+  },
+
+  "beauty-care": {
+    queries: [
+      "viral skincare serum cream beauty products",
+      "trending facial mask eye patch skincare",
+      "nail stickers press on nails beauty"
+    ],
+    priority: [
+      "serum",
+      "cream",
+      "facial cream",
+      "face mask",
+      "sheet mask",
+      "eye patch",
+      "lip mask",
+      "skincare",
+      "skin care",
+      "essence",
+      "moisturizer",
+      "cleanser",
+      "sunscreen",
+      "nail sticker",
+      "nail art sticker",
+      "press on nail",
+      "nail patch",
+      "beauty sponge",
+      "makeup puff",
+      "lip balm"
+    ],
+    exclude: [
+      "scissor",
+      "scissors",
+      "nipper",
+      "clipper",
+      "cutter",
+      "cuticle pusher",
+      "forceps",
+      "tweezer",
+      "tweezers",
+      "razor",
+      "knife",
+      "manicure tool",
+      "pedicure tool",
+      "beauty instrument",
+      "salon equipment",
+      "barber",
+      "hair cutting",
+      "tattoo",
+      "surgical",
+      "medical equipment",
+      "machine"
+    ]
+  },
+
+  "kids": {
+    queries: [
+      "creative baby daily products",
+      "useful toddler accessories",
+      "kids feeding travel products"
+    ],
+    priority: [
+      "baby",
+      "toddler",
+      "feeding",
+      "bib",
+      "bottle",
+      "cup",
+      "plate",
+      "silicone",
+      "stroller",
+      "nursery",
+      "child safety"
+    ],
+    exclude: [
+      "adult",
+      "industrial",
+      "machine",
+      "furniture factory",
+      "playground equipment"
+    ]
+  },
+
+  "toys": {
+    queries: [
+      "creative small educational toys",
+      "trending sensory toys kids",
+      "interactive novelty toys"
+    ],
+    priority: [
+      "toy",
+      "puzzle",
+      "sensory",
+      "educational",
+      "interactive",
+      "building blocks",
+      "doll",
+      "game",
+      "fidget"
+    ],
+    exclude: [
+      "amusement equipment",
+      "playground equipment",
+      "inflatable park",
+      "arcade machine",
+      "weapon",
+      "knife",
+      "industrial"
+    ]
+  },
+
+  "stationery": {
+    queries: [
+      "creative stationery new design",
+      "cute school office stationery",
+      "trending notebook pen stickers"
+    ],
+    priority: [
+      "notebook",
+      "journal",
+      "planner",
+      "pen",
+      "pencil",
+      "marker",
+      "sticker",
+      "memo pad",
+      "eraser",
+      "pencil case",
+      "desktop organizer"
+    ],
+    exclude: [
+      "printing machine",
+      "paper machine",
+      "industrial",
+      "office furniture",
+      "school furniture",
+      "printer",
+      "copier"
+    ]
+  },
+
+  "accessories": {
+    queries: [
+      "trending small fashion accessories",
+      "cute personal accessories",
+      "creative keychain hair accessories"
+    ],
+    priority: [
+      "keychain",
+      "hair clip",
+      "headband",
+      "wallet",
+      "card holder",
+      "cosmetic bag",
+      "jewelry",
+      "bracelet",
+      "phone charm",
+      "bag charm"
+    ],
+    exclude: [
+      "t-shirt",
+      "shirt",
+      "dress",
+      "pants",
+      "jeans",
+      "jacket",
+      "shoe",
+      "slipper",
+      "uniform",
+      "fabric"
+    ]
+  },
+
+  "pets": {
+    queries: [
+      "creative pet accessories",
+      "smart cat dog products",
+      "trending pet toys feeder"
+    ],
+    priority: [
+      "pet toy",
+      "cat toy",
+      "dog toy",
+      "feeder",
+      "water fountain",
+      "collar",
+      "leash",
+      "grooming",
+      "litter",
+      "pet bowl"
+    ],
+    exclude: [
+      "livestock",
+      "farm equipment",
+      "veterinary machine",
+      "industrial",
+      "animal cage factory"
+    ]
+  },
+
+  "seasonal": {
+    queries: [
+      "small seasonal holiday decorations",
+      "creative christmas halloween decor",
+      "party table decoration"
+    ],
+    priority: [
+      "christmas",
+      "halloween",
+      "easter",
+      "party decoration",
+      "garland",
+      "ornament",
+      "table decor",
+      "gift bag",
+      "balloon"
+    ],
+    exclude: [
+      "commercial display",
+      "large outdoor",
+      "inflatable advertising",
+      "stage equipment",
+      "lighting equipment",
+      "machine"
+    ]
+  },
+
+  "gifts": {
+    queries: [
+      "creative small gift ideas",
+      "novelty personalized gifts",
+      "cute gift set souvenir"
+    ],
+    priority: [
+      "gift set",
+      "gift box",
+      "souvenir",
+      "keychain",
+      "mug",
+      "candle",
+      "jewelry box",
+      "photo frame",
+      "novelty",
+      "personalized"
+    ],
+    exclude: [
+      "packaging machine",
+      "gift box machine",
+      "industrial",
+      "commercial equipment",
+      "large display",
+      "gift card"
+    ]
+  },
+
+  "electronics-accessories": {
+    queries: [
+      "trending mobile accessories",
+      "creative small electronic gadgets",
+      "popular phone desk accessories"
+    ],
+    priority: [
+      "phone stand",
+      "phone holder",
+      "charger",
+      "cable",
+      "adapter",
+      "earphone",
+      "power bank",
+      "usb",
+      "mini light",
+      "smart tracker"
+    ],
+    exclude: [
+      "industrial",
+      "motherboard",
+      "server",
+      "car electronics",
+      "automotive",
+      "machine",
+      "production line"
+    ]
+  },
+
+  "other": {
+    queries: [
+      "innovative small consumer products",
+      "creative useful daily products",
+      "trending novelty products"
+    ],
+    priority: [],
+    exclude: [
+      "industrial",
+      "commercial equipment",
+      "machine",
+      "production line",
+      "construction"
+    ]
+  }
+};
+
 const ALIEXPRESS_CACHE_TTL_MS =
   20 * 60 * 1000;
 
@@ -3067,14 +3496,16 @@ function buildIdeasFromAliExpress(
   );
 }
 
-function buildMadeInChinaQuery(
+function buildMadeInChinaQueries(
   category,
   signalType,
   searchDetails
 ) {
   const categoryConfig =
-    CHINA_CATEGORY_CONFIG[category] ||
-    CHINA_CATEGORY_CONFIG.other;
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ] ||
+    MADE_IN_CHINA_CATEGORY_CONFIG.other;
 
   const signalConfig =
     MADE_IN_CHINA_SIGNAL_CONFIG[
@@ -3082,16 +3513,29 @@ function buildMadeInChinaQuery(
     ] ||
     MADE_IN_CHINA_SIGNAL_CONFIG.all;
 
-  return cleanTrendText(
-    [
-      categoryConfig.queries[0],
-      signalConfig.queryWords,
-      searchDetails
-    ]
-      .filter(Boolean)
-      .join(" "),
-    220
-  );
+  const details =
+    cleanTrendText(
+      searchDetails,
+      160
+    );
+
+  return [
+    ...new Set(
+      categoryConfig.queries.map(
+        categoryQuery =>
+          cleanTrendText(
+            [
+              categoryQuery,
+              signalConfig.queryWords,
+              details
+            ]
+              .filter(Boolean)
+              .join(" "),
+            220
+          )
+      )
+    )
+  ].filter(Boolean);
 }
 
 function buildMadeInChinaSearchUrl(
@@ -3363,6 +3807,59 @@ function getMadeInChinaImageUrl(
   );
 }
 
+function getMadeInChinaRetailScore(
+  title,
+  category
+) {
+  const categoryConfig =
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ] ||
+    MADE_IN_CHINA_CATEGORY_CONFIG.other;
+
+  const normalizedTitle =
+    normalizeChinaText(
+      title
+    );
+
+  const excludedMatches =
+    categoryConfig.exclude.filter(
+      phrase =>
+        normalizedTitle.includes(
+          normalizeChinaText(
+            phrase
+          )
+        )
+    );
+
+  if (excludedMatches.length) {
+    return -20;
+  }
+
+  const priorityMatches =
+    categoryConfig.priority.filter(
+      phrase =>
+        normalizedTitle.includes(
+          normalizeChinaText(
+            phrase
+          )
+        )
+    );
+
+  if (
+    categoryConfig.priority.length &&
+    !priorityMatches.length
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    4 +
+      priorityMatches.length * 3,
+    16
+  );
+}
+
 function extractMadeInChinaProducts(
   html,
   category,
@@ -3591,34 +4088,37 @@ function extractMadeInChinaProducts(
         1400
       );
 
-    const searchableText =
-      `${title} ${contextText}`;
-
     if (
       matchesExclusions(
-        searchableText,
+        title,
         exclusions
       )
     ) {
       continue;
     }
 
-    const categoryScore =
-      getChinaCategoryScore(
-        searchableText,
+    const retailScore =
+      getMadeInChinaRetailScore(
+        title,
         category
       );
 
-    if (categoryScore <= 1) {
+    if (retailScore <= 0) {
       continue;
     }
 
-    const queryScore =
-      getChinaQueryScore(
-        searchableText,
-        searchQuery
+    const categoryScore =
+      getChinaCategoryScore(
+        title,
+        category
       );
 
+    const queryScore =
+      getChinaQueryScore(
+        title,
+        searchQuery
+      );
+    
     const priceMatch =
       contextText.match(
         /US\$\s*[\d.,]+(?:\s*-\s*[\d.,]+)?/i
@@ -3685,6 +4185,7 @@ function extractMadeInChinaProducts(
       imageUrl:
         contextImageUrl,
       categoryScore,
+      retailScore,
       queryScore,
       sourcePosition:
         products.length + 1
@@ -3948,97 +4449,227 @@ async function loadMadeInChinaSignal({
   searchDetails,
   exclusions
 }) {
-  const searchQuery =
-    buildMadeInChinaQuery(
+  const searchQueries =
+    buildMadeInChinaQueries(
       category,
       signalType,
       searchDetails
     );
 
-  const sourceUrl =
-    buildMadeInChinaSearchUrl(
-      searchQuery
-    );
+  const productsById =
+    new Map();
 
-  const response = await fetch(
-    sourceUrl,
-    {
-      method:
-        "GET",
-      headers: {
-        Accept:
-          "text/html,application/xhtml+xml",
-        "Accept-Language":
-          "en-US,en;q=0.9",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-          "AppleWebKit/537.36 Chrome/124 Safari/537.36"
-      },
-      redirect:
-        "follow",
-      signal:
-        AbortSignal.timeout(
-          20000
-        )
+  const checkedSources = [];
+  let totalExtracted = 0;
+  let successfulRequests = 0;
+  let firstError = null;
+
+  for (
+    const searchQuery
+    of searchQueries
+  ) {
+    const sourceUrl =
+      buildMadeInChinaSearchUrl(
+        searchQuery
+      );
+
+    try {
+      const response = await fetch(
+        sourceUrl,
+        {
+          method:
+            "GET",
+          headers: {
+            Accept:
+              "text/html,application/xhtml+xml",
+            "Accept-Language":
+              "en-US,en;q=0.9",
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+              "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+          },
+          redirect:
+            "follow",
+          signal:
+            AbortSignal.timeout(
+              15000
+            )
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `MADE_IN_CHINA_REQUEST_FAILED_${response.status}`
+        );
+      }
+
+      const html =
+        await response.text();
+
+      if (html.length < 5000) {
+        throw new Error(
+          "MADE_IN_CHINA_EMPTY_PAGE"
+        );
+      }
+
+      successfulRequests += 1;
+
+      checkedSources.push({
+        query:
+          searchQuery,
+        url:
+          sourceUrl
+      });
+
+      const extractedProducts =
+        extractMadeInChinaProducts(
+          html,
+          category,
+          searchQuery,
+          exclusions
+        );
+
+      totalExtracted +=
+        extractedProducts.length;
+
+      for (
+        const product
+        of extractedProducts
+      ) {
+        const currentProduct =
+          productsById.get(
+            product.productId
+          );
+
+        if (!currentProduct) {
+          productsById.set(
+            product.productId,
+            {
+              ...product,
+              occurrenceCount:
+                1,
+              matchedQueries: [
+                searchQuery
+              ],
+              bestPosition:
+                product.sourcePosition
+            }
+          );
+
+          continue;
+        }
+
+        currentProduct.occurrenceCount += 1;
+
+        currentProduct.retailScore =
+          Math.max(
+            currentProduct.retailScore,
+            product.retailScore
+          );
+
+        currentProduct.categoryScore =
+          Math.max(
+            currentProduct.categoryScore,
+            product.categoryScore
+          );
+
+        currentProduct.queryScore =
+          Math.max(
+            currentProduct.queryScore,
+            product.queryScore
+          );
+
+        currentProduct.bestPosition =
+          Math.min(
+            currentProduct.bestPosition,
+            product.sourcePosition
+          );
+
+        if (
+          !currentProduct.matchedQueries.includes(
+            searchQuery
+          )
+        ) {
+          currentProduct.matchedQueries.push(
+            searchQuery
+          );
+        }
+
+        if (
+          !currentProduct.imageUrl &&
+          product.imageUrl
+        ) {
+          currentProduct.imageUrl =
+            product.imageUrl;
+        }
+      }
+    } catch (error) {
+      firstError ||= error;
+
+      console.error(
+        `[Made-in-China ${searchQuery}]`,
+        error
+      );
     }
-  );
-
-  if (!response.ok) {
-    const error = new Error(
-      `MADE_IN_CHINA_REQUEST_FAILED_${response.status}`
-    );
-
-    error.statusCode = 502;
-    throw error;
   }
-
-  const html =
-    await response.text();
 
   if (
-    html.length < 5000
+    !successfulRequests &&
+    firstError
   ) {
-    const error = new Error(
-      "MADE_IN_CHINA_EMPTY_PAGE"
-    );
-
-    error.statusCode = 502;
-    throw error;
+    firstError.statusCode = 502;
+    throw firstError;
   }
 
-  const extractedProducts =
-    extractMadeInChinaProducts(
-      html,
-      category,
-      searchQuery,
-      exclusions
-    );
-
-  const rankedProducts =
-    extractedProducts
-      .map(product => ({
-        ...product,
-        relevanceScore:
-          product.categoryScore * 20 +
-          product.queryScore * 10 +
-          Math.max(
-            0,
-            30 -
-            product.sourcePosition
-          ) +
-          (
-            product.imageUrl
-              ? 8
-              : 0
+  const rankedProducts = [
+    ...productsById.values()
+  ]
+    .map(product => {
+      const positionScore =
+        Math.max(
+          0,
+          40 -
+          Number(
+            product.bestPosition || 40
           )
-      }))
-      .sort(
-        (first, second) =>
-          second.relevanceScore -
-          first.relevanceScore ||
-          first.sourcePosition -
-          second.sourcePosition
-      );
+        );
+
+      const repeatedQueryBonus =
+        Math.min(
+          product.matchedQueries.length,
+          3
+        ) * 10;
+
+      const relevanceScore =
+        product.retailScore * 25 +
+        product.categoryScore * 8 +
+        product.queryScore * 10 +
+        product.occurrenceCount * 8 +
+        repeatedQueryBonus +
+        positionScore +
+        (
+          product.imageUrl
+            ? 6
+            : 0
+        );
+
+      return {
+        ...product,
+        relevanceScore
+      };
+    })
+    .sort(
+      (first, second) =>
+        second.relevanceScore -
+        first.relevanceScore ||
+        second.retailScore -
+        first.retailScore ||
+        second.queryScore -
+        first.queryScore ||
+        first.bestPosition -
+        second.bestPosition
+    )
+    .slice(0, 45);
 
   const selectedProducts =
     selectDiverseChinaProducts(
@@ -4074,16 +4705,8 @@ async function loadMadeInChinaSignal({
       products.length
         ? "ok"
         : "no_results",
-    checkedSources: [
-      {
-        query:
-          searchQuery,
-        url:
-          sourceUrl
-      }
-    ],
-    totalExtracted:
-      extractedProducts.length,
+    checkedSources,
+    totalExtracted,
     products
   };
 }
