@@ -1192,6 +1192,8 @@ async function loadAliExpressSearchPage({
     {
       method: "GET",
       headers: {
+        Authorization:
+          `Bearer ${process.env.JINA_API_KEY}`,
         Accept:
           "text/plain",
         "X-Respond-With":
