@@ -891,83 +891,285 @@ const MADE_IN_CHINA_SIGNAL_CONFIG = {
 
 const MADE_IN_CHINA_CATEGORY_CONFIG = {
   "home-kitchen": {
-    queries: [
-      "creative kitchen gadgets",
-      "small kitchen accessories",
-      "household kitchen organizer"
-    ],
-    priority: [
-      "kitchen gadget",
-      "utensil",
-      "organizer",
-      "storage",
-      "container",
-      "dispenser",
-      "holder",
-      "tray",
-      "bottle",
-      "cup",
-      "silicone"
+    groups: [
+      {
+        key: "kitchen-gadgets",
+        queries: [
+          "small kitchen gadgets",
+          "creative kitchen tools"
+        ],
+        include: [
+          "kitchen gadget",
+          "kitchen tool",
+          "cooking tool",
+          "peeler",
+          "slicer",
+          "chopper",
+          "grater",
+          "opener",
+          "measuring spoon"
+        ]
+      },
+      {
+        key: "food-storage",
+        queries: [
+          "food storage containers",
+          "kitchen food organizer"
+        ],
+        include: [
+          "food container",
+          "storage container",
+          "lunch box",
+          "spice jar",
+          "seasoning box",
+          "fresh keeping",
+          "food storage"
+        ]
+      },
+      {
+        key: "tableware",
+        queries: [
+          "modern tableware accessories",
+          "creative serving tableware"
+        ],
+        include: [
+          "tableware",
+          "plate",
+          "bowl",
+          "cup",
+          "mug",
+          "cutlery",
+          "serving tray",
+          "coaster"
+        ]
+      },
+      {
+        key: "baking",
+        queries: [
+          "small baking accessories",
+          "creative baking tools"
+        ],
+        include: [
+          "baking",
+          "bakeware",
+          "cake mold",
+          "cookie cutter",
+          "pastry tool",
+          "silicone mold",
+          "rolling pin"
+        ]
+      },
+      {
+        key: "sink-accessories",
+        queries: [
+          "small kitchen sink accessories",
+          "kitchen cleaning accessories"
+        ],
+        include: [
+          "sink organizer",
+          "soap dispenser",
+          "sponge holder",
+          "dish rack",
+          "drain basket",
+          "dish brush"
+        ]
+      }
     ],
     exclude: [
-      "commercial",
-      "restaurant",
+      "commercial kitchen",
+      "restaurant equipment",
       "industrial",
-      "machine",
-      "equipment",
+      "production line",
+      "commercial sink",
       "stainless steel sink",
-      "cabinet",
-      "countertop"
+      "kitchen cabinet",
+      "countertop",
+      "machine",
+      "factory equipment"
     ]
   },
 
   "storage-organization": {
-    queries: [
-      "small home storage organizer",
-      "space saving storage box",
-      "desktop drawer organizer"
-    ],
-    priority: [
-      "organizer",
-      "storage box",
-      "drawer",
-      "basket",
-      "container",
-      "holder",
-      "rack",
-      "shelf",
-      "space saving"
+    groups: [
+      {
+        key: "wardrobe-storage",
+        queries: [
+          "wardrobe storage organizer",
+          "closet organization products"
+        ],
+        include: [
+          "wardrobe organizer",
+          "closet organizer",
+          "clothes storage",
+          "hanger organizer",
+          "underwear organizer",
+          "shoe organizer"
+        ]
+      },
+      {
+        key: "drawer-desktop",
+        queries: [
+          "drawer desktop organizer",
+          "small desk storage"
+        ],
+        include: [
+          "drawer organizer",
+          "desktop organizer",
+          "desk organizer",
+          "storage drawer",
+          "pen holder",
+          "document organizer"
+        ]
+      },
+      {
+        key: "bathroom-storage",
+        queries: [
+          "bathroom storage organizer",
+          "bathroom shelf holder"
+        ],
+        include: [
+          "bathroom organizer",
+          "shower caddy",
+          "toiletry organizer",
+          "toothbrush holder",
+          "bathroom shelf"
+        ]
+      },
+      {
+        key: "kitchen-storage",
+        queries: [
+          "kitchen storage organizer",
+          "pantry organization products"
+        ],
+        include: [
+          "kitchen organizer",
+          "pantry organizer",
+          "spice rack",
+          "fridge organizer",
+          "cabinet organizer"
+        ]
+      },
+      {
+        key: "boxes-baskets",
+        queries: [
+          "home storage boxes baskets",
+          "foldable storage containers"
+        ],
+        include: [
+          "storage box",
+          "storage basket",
+          "foldable box",
+          "organizer bin",
+          "storage container"
+        ]
+      }
     ],
     exclude: [
       "warehouse",
-      "industrial",
+      "pallet",
+      "industrial rack",
       "server rack",
-      "metal cabinet",
+      "garage shelving",
       "commercial shelving",
-      "garage"
+      "metal cabinet",
+      "logistics",
+      "storage cage"
     ]
   },
 
   "decor": {
-    queries: [
-      "small home decor vase candle holder",
-      "tabletop decor tray figurine",
-      "modern decorative vase ornament"
-    ],
-    priority: [
-      "vase",
-      "candle holder",
-      "candlestick",
-      "figurine",
-      "ornament",
-      "decorative tray",
-      "jewelry tray",
-      "incense holder",
-      "flower pot",
-      "table decor",
-      "desktop decor",
-      "sculpture",
-      "bookend"
+    groups: [
+      {
+        key: "vases-planters",
+        queries: [
+          "decorative vase home decor",
+          "small flower pot planter decor"
+        ],
+        include: [
+          "vase",
+          "flower vase",
+          "decorative vase",
+          "flower pot",
+          "planter",
+          "ceramic pot"
+        ]
+      },
+      {
+        key: "candles-holders",
+        queries: [
+          "decorative candle holder",
+          "home candle accessories decor"
+        ],
+        include: [
+          "candle holder",
+          "candlestick",
+          "tealight holder",
+          "candle jar",
+          "incense holder",
+          "aroma burner"
+        ]
+      },
+      {
+        key: "figurines-ornaments",
+        queries: [
+          "small decorative figurines",
+          "tabletop ornament sculpture"
+        ],
+        include: [
+          "figurine",
+          "ornament",
+          "sculpture",
+          "statue",
+          "desktop decor",
+          "table decor",
+          "resin craft"
+        ]
+      },
+      {
+        key: "trays-stands",
+        queries: [
+          "decorative tray home",
+          "small display tray home decor"
+        ],
+        include: [
+          "decorative tray",
+          "jewelry tray",
+          "vanity tray",
+          "display tray",
+          "cake stand",
+          "decorative stand"
+        ]
+      },
+      {
+        key: "frames-wall-decor",
+        queries: [
+          "small wall decor photo frame",
+          "decorative mirror wall art"
+        ],
+        include: [
+          "photo frame",
+          "picture frame",
+          "wall decor",
+          "wall hanging",
+          "decorative mirror",
+          "wall art",
+          "poster"
+        ]
+      },
+      {
+        key: "textile-decor",
+        queries: [
+          "decorative cushion home",
+          "small textile home decor"
+        ],
+        include: [
+          "cushion cover",
+          "decorative pillow",
+          "table runner",
+          "decorative cloth",
+          "tapestry"
+        ]
+      }
     ],
     exclude: [
       "led panel",
@@ -979,73 +1181,251 @@ const MADE_IN_CHINA_CATEGORY_CONFIG = {
       "store lighting",
       "commercial lighting",
       "signage",
+      "advertising display",
       "light box",
-      "display stand",
+      "exhibition stand",
       "building material",
       "construction",
       "wall cladding",
       "marble slab",
       "floor tile",
+      "prefabricated",
       "machine",
       "equipment"
     ]
   },
 
   "household": {
-    queries: [
-      "creative household daily use products",
-      "small home cleaning gadgets",
-      "useful bathroom household accessories"
-    ],
-    priority: [
-      "cleaning",
-      "brush",
-      "sponge",
-      "cloth",
-      "dispenser",
-      "laundry",
-      "bathroom",
-      "trash bag",
-      "lint remover",
-      "home care"
+    groups: [
+      {
+        key: "cleaning-tools",
+        queries: [
+          "small household cleaning tools",
+          "creative home cleaning products"
+        ],
+        include: [
+          "cleaning brush",
+          "cleaning sponge",
+          "scrubber",
+          "dust brush",
+          "window cleaner",
+          "cleaning cloth",
+          "mop accessory"
+        ]
+      },
+      {
+        key: "laundry-care",
+        queries: [
+          "laundry care accessories",
+          "clothing care household products"
+        ],
+        include: [
+          "laundry bag",
+          "laundry basket",
+          "washing bag",
+          "lint remover",
+          "clothes brush",
+          "ironing mat",
+          "drying rack"
+        ]
+      },
+      {
+        key: "bathroom-daily-use",
+        queries: [
+          "bathroom daily use products",
+          "small bathroom accessories"
+        ],
+        include: [
+          "soap dispenser",
+          "toothbrush holder",
+          "toilet brush",
+          "bathroom mat",
+          "shower cap",
+          "soap dish"
+        ]
+      },
+      {
+        key: "waste-disposal",
+        queries: [
+          "household waste disposal products",
+          "small trash accessories"
+        ],
+        include: [
+          "trash bag",
+          "garbage bag",
+          "waste bin",
+          "dustbin",
+          "trash can",
+          "garbage holder"
+        ]
+      },
+      {
+        key: "home-care-gadgets",
+        queries: [
+          "useful household gadgets",
+          "small home care devices"
+        ],
+        include: [
+          "fabric shaver",
+          "lint remover",
+          "mini sealer",
+          "shoe dryer",
+          "odor remover",
+          "home care"
+        ]
+      }
     ],
     exclude: [
-      "industrial",
-      "commercial machine",
-      "factory",
-      "cleaning equipment",
+      "industrial cleaner",
+      "commercial cleaning",
       "floor scrubber",
-      "pressure washer"
+      "pressure washer",
+      "cleaning machine",
+      "production equipment",
+      "factory",
+      "automotive"
     ]
   },
 
   "beauty-care": {
-    queries: [
-      "viral skincare serum cream beauty products",
-      "trending facial mask eye patch skincare",
-      "nail stickers press on nails beauty"
-    ],
-    priority: [
-      "serum",
-      "cream",
-      "facial cream",
-      "face mask",
-      "sheet mask",
-      "eye patch",
-      "lip mask",
-      "skincare",
-      "skin care",
-      "essence",
-      "moisturizer",
-      "cleanser",
-      "sunscreen",
-      "nail sticker",
-      "nail art sticker",
-      "press on nail",
-      "nail patch",
-      "beauty sponge",
-      "makeup puff",
-      "lip balm"
+    groups: [
+      {
+        key: "skincare",
+        queries: [
+          "facial skincare products",
+          "serum cream face care"
+        ],
+        include: [
+          "serum",
+          "facial cream",
+          "face cream",
+          "moisturizer",
+          "cleanser",
+          "toner",
+          "essence",
+          "sunscreen",
+          "skin care",
+          "skincare"
+        ]
+      },
+      {
+        key: "masks-patches",
+        queries: [
+          "facial mask eye patch skincare",
+          "beauty mask skin care"
+        ],
+        include: [
+          "face mask",
+          "facial mask",
+          "sheet mask",
+          "eye patch",
+          "eye mask",
+          "lip mask",
+          "nose patch"
+        ]
+      },
+      {
+        key: "makeup",
+        queries: [
+          "decorative makeup cosmetics",
+          "popular color cosmetics"
+        ],
+        include: [
+          "lipstick",
+          "lip gloss",
+          "lip tint",
+          "mascara",
+          "eyeliner",
+          "eyeshadow",
+          "blush",
+          "foundation",
+          "concealer",
+          "makeup palette"
+        ]
+      },
+      {
+        key: "makeup-accessories",
+        queries: [
+          "makeup accessories beauty",
+          "cosmetic applicator accessories"
+        ],
+        include: [
+          "beauty sponge",
+          "makeup sponge",
+          "makeup puff",
+          "makeup brush",
+          "cosmetic brush",
+          "powder puff",
+          "brush cleaner"
+        ]
+      },
+      {
+        key: "beauty-devices",
+        queries: [
+          "small beauty devices",
+          "facial beauty massager"
+        ],
+        include: [
+          "facial massager",
+          "face massager",
+          "eye massager",
+          "beauty device",
+          "facial cleansing brush",
+          "skin scrubber",
+          "face roller",
+          "gua sha",
+          "microcurrent"
+        ]
+      },
+      {
+        key: "hair-care",
+        queries: [
+          "hair care products beauty",
+          "hair styling accessories"
+        ],
+        include: [
+          "hair mask",
+          "hair serum",
+          "hair oil",
+          "hair treatment",
+          "scalp massager",
+          "hair brush",
+          "heatless curler",
+          "hair roller"
+        ]
+      },
+      {
+        key: "body-care",
+        queries: [
+          "body care cosmetics",
+          "bath body personal care"
+        ],
+        include: [
+          "body lotion",
+          "body cream",
+          "body scrub",
+          "hand cream",
+          "foot cream",
+          "bath salt",
+          "shower gel"
+        ]
+      },
+      {
+        key: "nail-care",
+        queries: [
+          "nail care beauty products",
+          "nail art accessories"
+        ],
+        include: [
+          "nail polish",
+          "gel polish",
+          "nail sticker",
+          "nail art sticker",
+          "press on nail",
+          "nail patch",
+          "nail decoration"
+        ]
+      }
     ],
     exclude: [
       "scissor",
@@ -1057,263 +1437,891 @@ const MADE_IN_CHINA_CATEGORY_CONFIG = {
       "forceps",
       "tweezer",
       "tweezers",
-      "razor",
+      "razor blade",
       "knife",
-      "manicure tool",
-      "pedicure tool",
-      "beauty instrument",
-      "salon equipment",
-      "barber",
-      "hair cutting",
-      "tattoo",
+      "manicure tool set",
+      "pedicure tool set",
       "surgical",
       "medical equipment",
-      "machine"
+      "hospital",
+      "tattoo machine",
+      "salon furniture",
+      "barber chair",
+      "hair cutting",
+      "laser machine",
+      "large beauty equipment"
     ]
   },
 
   "kids": {
-    queries: [
-      "creative baby daily products",
-      "useful toddler accessories",
-      "kids feeding travel products"
-    ],
-    priority: [
-      "baby",
-      "toddler",
-      "feeding",
-      "bib",
-      "bottle",
-      "cup",
-      "plate",
-      "silicone",
-      "stroller",
-      "nursery",
-      "child safety"
+    groups: [
+      {
+        key: "feeding",
+        queries: [
+          "baby feeding products",
+          "toddler tableware feeding"
+        ],
+        include: [
+          "baby bottle",
+          "feeding bottle",
+          "baby bib",
+          "baby bowl",
+          "baby plate",
+          "sippy cup",
+          "feeding spoon"
+        ]
+      },
+      {
+        key: "hygiene",
+        queries: [
+          "baby hygiene products",
+          "baby bath care accessories"
+        ],
+        include: [
+          "baby bath",
+          "baby towel",
+          "baby brush",
+          "diaper changing",
+          "baby care",
+          "baby grooming"
+        ]
+      },
+      {
+        key: "safety",
+        queries: [
+          "child safety products",
+          "baby home safety accessories"
+        ],
+        include: [
+          "child safety",
+          "baby safety",
+          "corner protector",
+          "cabinet lock",
+          "door stopper",
+          "safety gate"
+        ]
+      },
+      {
+        key: "travel",
+        queries: [
+          "baby travel accessories",
+          "stroller travel products"
+        ],
+        include: [
+          "stroller accessory",
+          "stroller organizer",
+          "baby carrier",
+          "travel changing mat",
+          "car seat accessory"
+        ]
+      },
+      {
+        key: "sleep-nursery",
+        queries: [
+          "baby sleep nursery accessories",
+          "nursery daily products"
+        ],
+        include: [
+          "baby pillow",
+          "baby blanket",
+          "crib accessory",
+          "nursery organizer",
+          "baby night light",
+          "sleep soother"
+        ]
+      }
     ],
     exclude: [
-      "adult",
+      "children clothing",
+      "baby clothing",
+      "children shoes",
+      "playground equipment",
+      "school furniture",
+      "baby furniture factory",
       "industrial",
-      "machine",
-      "furniture factory",
-      "playground equipment"
+      "machine"
     ]
   },
 
   "toys": {
-    queries: [
-      "creative small educational toys",
-      "trending sensory toys kids",
-      "interactive novelty toys"
-    ],
-    priority: [
-      "toy",
-      "puzzle",
-      "sensory",
-      "educational",
-      "interactive",
-      "building blocks",
-      "doll",
-      "game",
-      "fidget"
+    groups: [
+      {
+        key: "educational",
+        queries: [
+          "educational toys children",
+          "learning toys kids"
+        ],
+        include: [
+          "educational toy",
+          "learning toy",
+          "montessori toy",
+          "alphabet toy",
+          "math toy",
+          "science toy"
+        ]
+      },
+      {
+        key: "sensory-fidget",
+        queries: [
+          "sensory toys kids",
+          "fidget toys children"
+        ],
+        include: [
+          "sensory toy",
+          "fidget toy",
+          "stress toy",
+          "squishy toy",
+          "pop toy"
+        ]
+      },
+      {
+        key: "building-puzzles",
+        queries: [
+          "building blocks puzzles",
+          "construction toys kids"
+        ],
+        include: [
+          "building blocks",
+          "construction toy",
+          "puzzle",
+          "jigsaw",
+          "magnetic blocks"
+        ]
+      },
+      {
+        key: "creative-sets",
+        queries: [
+          "creative craft toys kids",
+          "art activity toy set"
+        ],
+        include: [
+          "craft kit",
+          "art set",
+          "drawing toy",
+          "diy toy",
+          "modeling clay",
+          "sticker set"
+        ]
+      },
+      {
+        key: "role-play",
+        queries: [
+          "role play toys children",
+          "pretend play toy set"
+        ],
+        include: [
+          "role play toy",
+          "pretend play",
+          "kitchen toy",
+          "doctor set",
+          "makeup toy",
+          "tool toy"
+        ]
+      },
+      {
+        key: "interactive",
+        queries: [
+          "interactive toys kids",
+          "electronic learning toys"
+        ],
+        include: [
+          "interactive toy",
+          "electronic toy",
+          "talking toy",
+          "robot toy",
+          "musical toy"
+        ]
+      }
     ],
     exclude: [
-      "amusement equipment",
       "playground equipment",
+      "amusement equipment",
       "inflatable park",
       "arcade machine",
+      "vending machine",
       "weapon",
       "knife",
+      "airsoft",
       "industrial"
     ]
   },
 
   "stationery": {
-    queries: [
-      "creative stationery new design",
-      "cute school office stationery",
-      "trending notebook pen stickers"
-    ],
-    priority: [
-      "notebook",
-      "journal",
-      "planner",
-      "pen",
-      "pencil",
-      "marker",
-      "sticker",
-      "memo pad",
-      "eraser",
-      "pencil case",
-      "desktop organizer"
+    groups: [
+      {
+        key: "writing",
+        queries: [
+          "creative pens pencils stationery",
+          "writing stationery products"
+        ],
+        include: [
+          "pen",
+          "pencil",
+          "marker",
+          "highlighter",
+          "crayon",
+          "writing set"
+        ]
+      },
+      {
+        key: "notebooks-planners",
+        queries: [
+          "notebook planner stationery",
+          "journal diary office supplies"
+        ],
+        include: [
+          "notebook",
+          "journal",
+          "planner",
+          "diary",
+          "notepad",
+          "memo pad"
+        ]
+      },
+      {
+        key: "stickers-paper",
+        queries: [
+          "stationery stickers paper products",
+          "memo sticker office supplies"
+        ],
+        include: [
+          "sticker",
+          "sticky note",
+          "memo paper",
+          "note paper",
+          "decorative paper",
+          "washi tape"
+        ]
+      },
+      {
+        key: "cases-organizers",
+        queries: [
+          "pencil case desk organizer",
+          "stationery storage accessories"
+        ],
+        include: [
+          "pencil case",
+          "pen case",
+          "desk organizer",
+          "stationery organizer",
+          "document folder",
+          "file folder"
+        ]
+      },
+      {
+        key: "art-supplies",
+        queries: [
+          "small art supplies stationery",
+          "drawing painting stationery set"
+        ],
+        include: [
+          "drawing set",
+          "painting set",
+          "art supplies",
+          "paint brush",
+          "color pencil",
+          "sketchbook"
+        ]
+      }
     ],
     exclude: [
       "printing machine",
       "paper machine",
-      "industrial",
+      "thermal printer",
+      "copier",
+      "scanner",
+      "projector",
       "office furniture",
       "school furniture",
-      "printer",
-      "copier"
+      "industrial"
     ]
   },
 
   "accessories": {
-    queries: [
-      "trending small fashion accessories",
-      "cute personal accessories",
-      "creative keychain hair accessories"
-    ],
-    priority: [
-      "keychain",
-      "hair clip",
-      "headband",
-      "wallet",
-      "card holder",
-      "cosmetic bag",
-      "jewelry",
-      "bracelet",
-      "phone charm",
-      "bag charm"
+    groups: [
+      {
+        key: "hair-accessories",
+        queries: [
+          "fashion hair accessories",
+          "trending hair clips headbands"
+        ],
+        include: [
+          "hair clip",
+          "hair claw",
+          "headband",
+          "scrunchie",
+          "hair band",
+          "hair pin"
+        ]
+      },
+      {
+        key: "jewelry",
+        queries: [
+          "fashion jewelry accessories",
+          "small costume jewelry"
+        ],
+        include: [
+          "earring",
+          "necklace",
+          "bracelet",
+          "ring",
+          "brooch",
+          "fashion jewelry"
+        ]
+      },
+      {
+        key: "wallets-holders",
+        queries: [
+          "small wallets card holders",
+          "personal card accessories"
+        ],
+        include: [
+          "wallet",
+          "card holder",
+          "coin purse",
+          "passport holder",
+          "key holder"
+        ]
+      },
+      {
+        key: "bag-accessories",
+        queries: [
+          "bag charms accessories",
+          "small bag accessories"
+        ],
+        include: [
+          "bag charm",
+          "bag strap",
+          "purse accessory",
+          "keychain",
+          "key ring"
+        ]
+      },
+      {
+        key: "phone-fashion",
+        queries: [
+          "phone charms fashion accessories",
+          "decorative phone accessories"
+        ],
+        include: [
+          "phone charm",
+          "phone strap",
+          "phone lanyard",
+          "phone chain"
+        ]
+      },
+      {
+        key: "eyewear",
+        queries: [
+          "fashion eyewear accessories",
+          "trending sunglasses"
+        ],
+        include: [
+          "sunglasses",
+          "eyeglass chain",
+          "glasses case",
+          "eyewear"
+        ]
+      }
     ],
     exclude: [
       "t-shirt",
       "shirt",
       "dress",
       "pants",
+      "trousers",
       "jeans",
       "jacket",
+      "coat",
       "shoe",
       "slipper",
+      "swimsuit",
       "uniform",
-      "fabric"
+      "fabric roll",
+      "promotional clothing"
     ]
   },
 
   "pets": {
-    queries: [
-      "creative pet accessories",
-      "smart cat dog products",
-      "trending pet toys feeder"
-    ],
-    priority: [
-      "pet toy",
-      "cat toy",
-      "dog toy",
-      "feeder",
-      "water fountain",
-      "collar",
-      "leash",
-      "grooming",
-      "litter",
-      "pet bowl"
+    groups: [
+      {
+        key: "feeding",
+        queries: [
+          "pet feeding products",
+          "cat dog bowls feeders"
+        ],
+        include: [
+          "pet bowl",
+          "dog bowl",
+          "cat bowl",
+          "pet feeder",
+          "automatic feeder",
+          "pet water fountain"
+        ]
+      },
+      {
+        key: "toys",
+        queries: [
+          "pet toys cat dog",
+          "interactive pet toys"
+        ],
+        include: [
+          "pet toy",
+          "cat toy",
+          "dog toy",
+          "chew toy",
+          "interactive pet toy",
+          "cat teaser"
+        ]
+      },
+      {
+        key: "walking",
+        queries: [
+          "pet walking accessories",
+          "dog collar leash harness"
+        ],
+        include: [
+          "pet collar",
+          "dog collar",
+          "pet leash",
+          "dog leash",
+          "pet harness",
+          "pet walking"
+        ]
+      },
+      {
+        key: "grooming",
+        queries: [
+          "pet grooming products",
+          "cat dog grooming accessories"
+        ],
+        include: [
+          "pet grooming",
+          "grooming brush",
+          "pet comb",
+          "pet bath",
+          "paw cleaner",
+          "pet hair remover"
+        ]
+      },
+      {
+        key: "hygiene",
+        queries: [
+          "pet hygiene products",
+          "cat litter accessories"
+        ],
+        include: [
+          "cat litter",
+          "litter mat",
+          "waste bag",
+          "poop bag",
+          "litter scoop",
+          "pet toilet"
+        ]
+      },
+      {
+        key: "beds-travel",
+        queries: [
+          "pet beds travel accessories",
+          "cat dog carrier products"
+        ],
+        include: [
+          "pet bed",
+          "cat bed",
+          "dog bed",
+          "pet carrier",
+          "pet travel bag",
+          "pet blanket"
+        ]
+      }
     ],
     exclude: [
       "livestock",
+      "poultry",
       "farm equipment",
       "veterinary machine",
-      "industrial",
-      "animal cage factory"
+      "animal cage factory",
+      "large kennel",
+      "industrial"
     ]
   },
 
   "seasonal": {
-    queries: [
-      "small seasonal holiday decorations",
-      "creative christmas halloween decor",
-      "party table decoration"
-    ],
-    priority: [
-      "christmas",
-      "halloween",
-      "easter",
-      "party decoration",
-      "garland",
-      "ornament",
-      "table decor",
-      "gift bag",
-      "balloon"
+    groups: [
+      {
+        key: "christmas",
+        queries: [
+          "christmas decorations gifts",
+          "small christmas ornaments"
+        ],
+        include: [
+          "christmas ornament",
+          "christmas decoration",
+          "christmas stocking",
+          "christmas garland",
+          "christmas gift"
+        ]
+      },
+      {
+        key: "halloween",
+        queries: [
+          "halloween decorations party",
+          "small halloween accessories"
+        ],
+        include: [
+          "halloween decoration",
+          "halloween ornament",
+          "halloween party",
+          "halloween gift"
+        ]
+      },
+      {
+        key: "easter",
+        queries: [
+          "easter decorations gifts",
+          "easter party supplies"
+        ],
+        include: [
+          "easter decoration",
+          "easter egg",
+          "easter basket",
+          "easter gift"
+        ]
+      },
+      {
+        key: "party",
+        queries: [
+          "party table decorations",
+          "birthday party supplies"
+        ],
+        include: [
+          "party decoration",
+          "birthday decoration",
+          "party banner",
+          "cake topper",
+          "party tableware",
+          "balloon"
+        ]
+      },
+      {
+        key: "summer",
+        queries: [
+          "small summer seasonal products",
+          "summer leisure accessories"
+        ],
+        include: [
+          "summer accessory",
+          "beach accessory",
+          "picnic accessory",
+          "cooling towel",
+          "portable fan"
+        ]
+      },
+      {
+        key: "back-to-school",
+        queries: [
+          "back to school products",
+          "school season accessories"
+        ],
+        include: [
+          "back to school",
+          "school set",
+          "school accessory",
+          "lunch bag",
+          "pencil case"
+        ]
+      }
     ],
     exclude: [
       "commercial display",
-      "large outdoor",
-      "inflatable advertising",
+      "advertising inflatable",
+      "large inflatable",
       "stage equipment",
-      "lighting equipment",
+      "event equipment",
+      "commercial lighting",
+      "large outdoor structure",
       "machine"
     ]
   },
 
   "gifts": {
-    queries: [
-      "creative small gift ideas",
-      "novelty personalized gifts",
-      "cute gift set souvenir"
-    ],
-    priority: [
-      "gift set",
-      "gift box",
-      "souvenir",
-      "keychain",
-      "mug",
-      "candle",
-      "jewelry box",
-      "photo frame",
-      "novelty",
-      "personalized"
+    groups: [
+      {
+        key: "gift-sets",
+        queries: [
+          "small gift sets",
+          "home gift set"
+        ],
+        include: [
+          "gift set",
+          "gift collection",
+          "present set",
+          "gift hamper",
+          "home gift"
+        ]
+      },
+      {
+        key: "candles-aroma",
+        queries: [
+          "candle gifts home",
+          "aroma gift products"
+        ],
+        include: [
+          "scented candle",
+          "candle gift",
+          "aroma gift",
+          "reed diffuser",
+          "fragrance gift",
+          "wax melt"
+        ]
+      },
+      {
+        key: "frames-keepsakes",
+        queries: [
+          "photo frame keepsake gifts",
+          "memory gifts home"
+        ],
+        include: [
+          "photo frame",
+          "picture frame",
+          "keepsake",
+          "memory box",
+          "jewelry box",
+          "music box"
+        ]
+      },
+      {
+        key: "figurines-souvenirs",
+        queries: [
+          "small figurine souvenir gifts",
+          "decorative collectible gifts"
+        ],
+        include: [
+          "figurine",
+          "souvenir",
+          "collectible",
+          "ornament gift",
+          "resin gift",
+          "decorative gift"
+        ]
+      },
+      {
+        key: "personal-gifts",
+        queries: [
+          "small personalized gifts",
+          "personal keepsake gifts"
+        ],
+        include: [
+          "personalized mug",
+          "personalized frame",
+          "personalized jewelry",
+          "name necklace",
+          "engraved gift",
+          "custom keepsake"
+        ]
+      },
+      {
+        key: "novelty-gifts",
+        queries: [
+          "small novelty gifts",
+          "fun desk gifts"
+        ],
+        include: [
+          "novelty gift",
+          "funny gift",
+          "desk gift",
+          "stress relief toy",
+          "mini gift",
+          "creative gift"
+        ]
+      }
     ],
     exclude: [
+      "promotional product",
+      "promotional gift",
+      "corporate gift",
+      "corporate events",
+      "advertising gift",
+      "branding",
+      "brand logo",
+      "custom logo",
+      "printed logo",
+      "company logo",
+      "promotional pen",
+      "promotional bag",
+      "non woven bag",
+      "shopping bag",
+      "t-shirt",
+      "polo shirt",
+      "uniform",
+      "baseball cap",
+      "swimming cap",
+      "umbrella",
+      "lanyard",
+      "badge",
       "packaging machine",
       "gift box machine",
-      "industrial",
       "commercial equipment",
       "large display",
-      "gift card"
+      "cardboard display",
+      "industrial"
     ]
   },
 
   "electronics-accessories": {
-    queries: [
-      "trending mobile accessories",
-      "creative small electronic gadgets",
-      "popular phone desk accessories"
-    ],
-    priority: [
-      "phone stand",
-      "phone holder",
-      "charger",
-      "cable",
-      "adapter",
-      "earphone",
-      "power bank",
-      "usb",
-      "mini light",
-      "smart tracker"
+    groups: [
+      {
+        key: "charging",
+        queries: [
+          "mobile charging accessories",
+          "small charging products"
+        ],
+        include: [
+          "charger",
+          "wireless charger",
+          "charging cable",
+          "usb cable",
+          "charging station",
+          "power bank"
+        ]
+      },
+      {
+        key: "phone-holders",
+        queries: [
+          "phone stand holder accessories",
+          "desk phone accessories"
+        ],
+        include: [
+          "phone stand",
+          "phone holder",
+          "tablet stand",
+          "foldable stand",
+          "desk holder"
+        ]
+      },
+      {
+        key: "audio",
+        queries: [
+          "small audio accessories",
+          "wireless earphone accessories"
+        ],
+        include: [
+          "earphone",
+          "headphone",
+          "bluetooth speaker",
+          "audio adapter",
+          "earbud case"
+        ]
+      },
+      {
+        key: "smart-trackers",
+        queries: [
+          "smart tracker accessories",
+          "small tracking devices"
+        ],
+        include: [
+          "smart tracker",
+          "bluetooth tracker",
+          "key finder",
+          "gps tracker",
+          "anti lost"
+        ]
+      },
+      {
+        key: "lighting-gadgets",
+        queries: [
+          "small electronic lights",
+          "portable mini light gadgets"
+        ],
+        include: [
+          "mini light",
+          "reading light",
+          "night light",
+          "cabinet light",
+          "portable lamp"
+        ]
+      },
+      {
+        key: "computer-accessories",
+        queries: [
+          "small computer desk accessories",
+          "usb computer accessories"
+        ],
+        include: [
+          "usb hub",
+          "mouse pad",
+          "keyboard accessory",
+          "laptop stand",
+          "cable organizer"
+        ]
+      }
     ],
     exclude: [
-      "industrial",
+      "industrial computer",
       "motherboard",
       "server",
+      "network cabinet",
       "car electronics",
       "automotive",
-      "machine",
-      "production line"
+      "production line",
+      "electronic component",
+      "circuit board",
+      "machine"
     ]
   },
 
   "other": {
-    queries: [
-      "innovative small consumer products",
-      "creative useful daily products",
-      "trending novelty products"
+    groups: [
+      {
+        key: "daily-use",
+        queries: [
+          "innovative daily use products",
+          "creative household consumer products"
+        ],
+        include: [
+          "daily use",
+          "household product",
+          "consumer product",
+          "portable",
+          "compact"
+        ]
+      },
+      {
+        key: "novelty",
+        queries: [
+          "creative novelty products",
+          "small innovative gifts"
+        ],
+        include: [
+          "novelty",
+          "creative product",
+          "innovative product",
+          "new design"
+        ]
+      },
+      {
+        key: "travel",
+        queries: [
+          "small travel accessories",
+          "portable travel products"
+        ],
+        include: [
+          "travel accessory",
+          "portable organizer",
+          "travel bottle",
+          "travel pouch"
+        ]
+      }
     ],
-    priority: [],
     exclude: [
       "industrial",
       "commercial equipment",
       "machine",
       "production line",
-      "construction"
+      "construction",
+      "building material",
+      "vehicle part",
+      "raw material"
     ]
   }
 };
@@ -3519,23 +4527,72 @@ function buildMadeInChinaQueries(
       160
     );
 
-  return [
-    ...new Set(
-      categoryConfig.queries.map(
-        categoryQuery =>
-          cleanTrendText(
-            [
-              categoryQuery,
-              signalConfig.queryWords,
-              details
-            ]
-              .filter(Boolean)
-              .join(" "),
-            220
-          )
+  const queryItems = [];
+
+  for (
+    const group
+    of categoryConfig.groups
+  ) {
+    for (
+      const categoryQuery
+      of group.queries
+    ) {
+      const searchQuery =
+        cleanTrendText(
+          [
+            categoryQuery,
+            signalConfig.queryWords,
+            details
+          ]
+            .filter(Boolean)
+            .join(" "),
+          220
+        );
+
+      if (!searchQuery) {
+        continue;
+      }
+
+      queryItems.push({
+        searchQuery,
+        subgroup:
+          group.key
+      });
+    }
+  }
+
+  const uniqueItems = [];
+  const seenQueries =
+    new Set();
+
+  for (
+    const queryItem
+    of queryItems
+  ) {
+    const queryKey =
+      queryItem.searchQuery
+        .toLocaleLowerCase(
+          "en-US"
+        );
+
+    if (
+      seenQueries.has(
+        queryKey
       )
-    )
-  ].filter(Boolean);
+    ) {
+      continue;
+    }
+
+    seenQueries.add(
+      queryKey
+    );
+
+    uniqueItems.push(
+      queryItem
+    );
+  }
+
+  return uniqueItems;
 }
 
 function buildMadeInChinaSearchUrl(
@@ -3807,9 +4864,10 @@ function getMadeInChinaImageUrl(
   );
 }
 
-function getMadeInChinaRetailScore(
+function getMadeInChinaProductProfile(
   title,
-  category
+  category,
+  preferredSubgroup
 ) {
   const categoryConfig =
     MADE_IN_CHINA_CATEGORY_CONFIG[
@@ -3822,8 +4880,8 @@ function getMadeInChinaRetailScore(
       title
     );
 
-  const excludedMatches =
-    categoryConfig.exclude.filter(
+  const isExcluded =
+    categoryConfig.exclude.some(
       phrase =>
         normalizedTitle.includes(
           normalizeChinaText(
@@ -3832,38 +4890,95 @@ function getMadeInChinaRetailScore(
         )
     );
 
-  if (excludedMatches.length) {
-    return -20;
+  if (isExcluded) {
+    return {
+      retailScore:
+        -20,
+      subgroup:
+        null
+    };
   }
 
-  const priorityMatches =
-    categoryConfig.priority.filter(
-      phrase =>
-        normalizedTitle.includes(
-          normalizeChinaText(
-            phrase
-          )
-        )
-    );
+  let bestGroup =
+    null;
 
-  if (
-    categoryConfig.priority.length &&
-    !priorityMatches.length
+  let bestScore =
+    0;
+
+  for (
+    const group
+    of categoryConfig.groups
   ) {
-    return 0;
+    const matchedPhrases =
+      group.include.filter(
+        phrase =>
+          normalizedTitle.includes(
+            normalizeChinaText(
+              phrase
+            )
+          )
+      );
+
+    if (!matchedPhrases.length) {
+      continue;
+    }
+
+    const exactPhraseBonus =
+      matchedPhrases.some(
+        phrase =>
+          normalizedTitle ===
+            normalizeChinaText(
+              phrase
+            ) ||
+          normalizedTitle.startsWith(
+            `${normalizeChinaText(
+              phrase
+            )} `
+          )
+      )
+        ? 4
+        : 0;
+
+    const preferredBonus =
+      group.key ===
+        preferredSubgroup
+        ? 3
+        : 0;
+
+    const groupScore =
+      5 +
+      matchedPhrases.length * 3 +
+      exactPhraseBonus +
+      preferredBonus;
+
+    if (
+      groupScore >
+      bestScore
+    ) {
+      bestScore =
+        groupScore;
+
+      bestGroup =
+        group.key;
+    }
   }
 
-  return Math.min(
-    4 +
-      priorityMatches.length * 3,
-    16
-  );
+  return {
+    retailScore:
+      Math.min(
+        bestScore,
+        20
+      ),
+    subgroup:
+      bestGroup
+  };
 }
 
 function extractMadeInChinaProducts(
   html,
   category,
   searchQuery,
+  preferredSubgroup,
   exclusions
 ) {
   const sourceHtml =
@@ -4097,15 +5212,25 @@ function extractMadeInChinaProducts(
       continue;
     }
 
-    const retailScore =
-      getMadeInChinaRetailScore(
+    const productProfile =
+      getMadeInChinaProductProfile(
         title,
-        category
+        category,
+        preferredSubgroup
       );
 
-    if (retailScore <= 0) {
+    if (
+      productProfile.retailScore <= 0 ||
+      !productProfile.subgroup
+    ) {
       continue;
     }
+
+    const retailScore =
+      productProfile.retailScore;
+
+    const subgroup =
+      productProfile.subgroup;
 
     const categoryScore =
       getChinaCategoryScore(
@@ -4187,6 +5312,7 @@ function extractMadeInChinaProducts(
       categoryScore,
       retailScore,
       queryScore,
+      subgroup,
       sourcePosition:
         products.length + 1
     });
@@ -4443,6 +5569,138 @@ async function loadMadeInChinaProductImage(
   }
 }
 
+function selectBalancedMadeInChinaProducts(
+  rankedProducts,
+  limit
+) {
+  const selectedProducts = [];
+  const selectedIds =
+    new Set();
+
+  const subgroupCounts =
+    new Map();
+
+  const maxPerSubgroup =
+    3;
+
+  for (
+    const product
+    of rankedProducts
+  ) {
+    const subgroup =
+      product.subgroup ||
+      "other";
+
+    const subgroupCount =
+      subgroupCounts.get(
+        subgroup
+      ) || 0;
+
+    if (
+      selectedIds.has(
+        product.productId
+      ) ||
+      subgroupCount >=
+        maxPerSubgroup
+    ) {
+      continue;
+    }
+
+    const productWords =
+      getChinaWords(
+        product.title
+      ).filter(word =>
+        word.length >= 4
+      );
+
+    const hasNearDuplicate =
+      selectedProducts.some(
+        selectedProduct => {
+          const selectedWords =
+            getChinaWords(
+              selectedProduct.title
+            ).filter(word =>
+              word.length >= 4
+            );
+
+          const overlap =
+            productWords.filter(word =>
+              selectedWords.includes(
+                word
+              )
+            ).length;
+
+          const shorterLength =
+            Math.min(
+              productWords.length,
+              selectedWords.length
+            );
+
+          return (
+            shorterLength >= 3 &&
+            overlap /
+              shorterLength >=
+              0.65
+          );
+        }
+      );
+
+    if (hasNearDuplicate) {
+      continue;
+    }
+
+    selectedProducts.push(
+      product
+    );
+
+    selectedIds.add(
+      product.productId
+    );
+
+    subgroupCounts.set(
+      subgroup,
+      subgroupCount + 1
+    );
+
+    if (
+      selectedProducts.length >=
+      limit
+    ) {
+      return selectedProducts;
+    }
+  }
+
+  for (
+    const product
+    of rankedProducts
+  ) {
+    if (
+      selectedIds.has(
+        product.productId
+      )
+    ) {
+      continue;
+    }
+
+    selectedProducts.push(
+      product
+    );
+
+    selectedIds.add(
+      product.productId
+    );
+
+    if (
+      selectedProducts.length >=
+      limit
+    ) {
+      break;
+    }
+  }
+
+  return selectedProducts;
+}
+
 async function loadMadeInChinaSignal({
   category,
   signalType,
@@ -4465,9 +5723,15 @@ async function loadMadeInChinaSignal({
   let firstError = null;
 
   for (
-    const searchQuery
+    const queryItem
     of searchQueries
   ) {
+    const searchQuery =
+      queryItem.searchQuery;
+
+    const preferredSubgroup =
+      queryItem.subgroup;
+
     const sourceUrl =
       buildMadeInChinaSearchUrl(
         searchQuery
@@ -4526,6 +5790,7 @@ async function loadMadeInChinaSignal({
           html,
           category,
           searchQuery,
+          preferredSubgroup,
           exclusions
         );
 
@@ -4672,7 +5937,7 @@ async function loadMadeInChinaSignal({
     .slice(0, 45);
 
   const selectedProducts =
-    selectDiverseChinaProducts(
+    selectBalancedMadeInChinaProducts(
       rankedProducts,
       15
     );
