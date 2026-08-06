@@ -1614,25 +1614,35 @@ async function loadAliExpressProductImage(
   }
 
   const readerUrl =
-    `https://r.jina.ai/${product.link}`;
+    "https://r.jina.ai/";
 
   try {
     const response = await fetch(
       readerUrl,
       {
-        method: "GET",
+        method: "POST",
         headers: {
           Authorization:
             `Bearer ${process.env.JINA_API_KEY}`,
           Accept:
-            "text/plain",
+            "application/json",
+          "Content-Type":
+            "application/json",
           "X-With-Images-Summary":
+            "true",
+          "X-Retain-Images":
             "all",
+          "X-Respond-Timing":
+            "network-idle",
           "X-Timeout":
-            "20"
+            "30"
         },
+        body: JSON.stringify({
+          url:
+            product.link
+        }),
         signal:
-          AbortSignal.timeout(25000)
+          AbortSignal.timeout(40000)
       }
     );
 
@@ -1640,41 +1650,173 @@ async function loadAliExpressProductImage(
       return product;
     }
 
-    const pageText =
-      await response.text();
+    const responseData =
+      await response.json();
 
-    const imageMatches = [
-      ...pageText.matchAll(
-        /https?:\/\/[^\s)"']+(?:alicdn|aliexpress-media)[^\s)"']+\.(?:jpg|jpeg|png|webp)/gi
-      )
-    ];
+    const pageData =
+      responseData?.data || {};
 
-    const imageUrl =
-      imageMatches
-        .map(match =>
-          match[0]
-            .replace(/\\u002F/g, "/")
-            .replace(/&amp;/g, "&")
+    const imageCandidates = [];
+
+    if (
+      pageData.images &&
+      typeof pageData.images === "object"
+    ) {
+      for (
+        const [
+          imageLabel,
+          imageValue
+        ]
+        of Object.entries(
+          pageData.images
         )
-        .find(candidate => {
-          const normalized =
-            candidate.toLocaleLowerCase(
+      ) {
+        const imageUrl =
+          typeof imageValue === "string"
+            ? imageValue
+            : (
+                imageValue?.url ||
+                imageValue?.src ||
+                ""
+              );
+
+        if (imageUrl) {
+          imageCandidates.push({
+            label:
+              imageLabel,
+            url:
+              imageUrl
+          });
+        }
+      }
+    }
+
+    const pageContent =
+      String(
+        pageData.content || ""
+      );
+
+    for (
+      const match
+      of pageContent.matchAll(
+        /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/gi
+      )
+    ) {
+      imageCandidates.push({
+        label:
+          match[1] || "",
+        url:
+          match[2]
+      });
+    }
+
+    const titleWords =
+      getChinaWords(
+        product.title
+      );
+
+    const preparedImages =
+      imageCandidates
+        .map(candidate => {
+          const imageUrl =
+            decodeHtmlEntities(
+              String(
+                candidate.url || ""
+              )
+            )
+              .replace(/\\u002F/g, "/")
+              .replace(/\\\//g, "/");
+
+          const normalizedUrl =
+            imageUrl.toLocaleLowerCase(
               "en-US"
             );
 
-          return (
-            !normalized.includes("48x48") &&
-            !normalized.includes("32x32") &&
-            !normalized.includes("16x16") &&
-            !normalized.includes("logo") &&
-            !normalized.includes("icon") &&
-            !normalized.includes("avatar")
-          );
-        }) || null;
+          const normalizedLabel =
+            normalizeChinaText(
+              candidate.label
+            );
+
+          const blockedImage =
+            normalizedUrl.includes(
+              "48x48"
+            ) ||
+            normalizedUrl.includes(
+              "32x32"
+            ) ||
+            normalizedUrl.includes(
+              "16x16"
+            ) ||
+            normalizedUrl.includes(
+              "favicon"
+            ) ||
+            normalizedUrl.includes(
+              "logo"
+            ) ||
+            normalizedUrl.includes(
+              "icon"
+            ) ||
+            normalizedUrl.includes(
+              "avatar"
+            ) ||
+            normalizedUrl.includes(
+              "robot"
+            ) ||
+            normalizedUrl.includes(
+              "sprite"
+            ) ||
+            normalizedUrl.includes(
+              "banner"
+            ) ||
+            normalizedLabel.includes(
+              "aliexpress logo"
+            ) ||
+            normalizedLabel.includes(
+              "robot"
+            );
+
+          const validMediaDomain =
+            normalizedUrl.includes(
+              "alicdn"
+            ) ||
+            normalizedUrl.includes(
+              "aliexpress-media"
+            );
+
+          const matchingWords =
+            titleWords.filter(word =>
+              normalizedLabel.includes(
+                word
+              ) ||
+              normalizedUrl.includes(
+                word
+              )
+            ).length;
+
+          return {
+            imageUrl,
+            blockedImage,
+            validMediaDomain,
+            matchingWords
+          };
+        })
+        .filter(candidate =>
+          candidate.imageUrl &&
+          candidate.validMediaDomain &&
+          !candidate.blockedImage
+        )
+        .sort(
+          (first, second) =>
+            second.matchingWords -
+            first.matchingWords
+        );
 
     return {
       ...product,
-      imageUrl
+      imageUrl:
+        preparedImages[0]
+          ?.imageUrl ||
+        null
     };
   } catch {
     return product;
