@@ -8335,7 +8335,9 @@ const china1688Session = {
   tokenEncCookie:
     "",
   expiresAt:
-    0
+    0,
+  bootstrapPromise:
+    null
 };
 
 function md5China1688(
@@ -8370,9 +8372,20 @@ function getChina1688SetCookies(
       "set-cookie"
     );
 
-  return combinedCookie
-    ? [combinedCookie]
-    : [];
+  if (!combinedCookie) {
+    return [];
+  }
+
+  return String(
+    combinedCookie
+  )
+    .split(
+      /,(?=\s*[_A-Za-z0-9-]+=)/
+    )
+    .map(cookie =>
+      cookie.trim()
+    )
+    .filter(Boolean);
 }
 
 function extractChina1688Cookie(
@@ -8386,7 +8399,7 @@ function extractChina1688Cookie(
     const match =
       String(cookie).match(
         new RegExp(
-          `(?:^|[,;]\\s*)${cookieName}=([^;,]+)`,
+          `(?:^|;\\s*)${cookieName}=([^;]+)`,
           "i"
         )
       );
@@ -8399,15 +8412,21 @@ function extractChina1688Cookie(
   return "";
 }
 
-async function bootstrapChina1688Session() {
-  if (
-    china1688Session.token &&
-    Date.now() <
-      china1688Session.expiresAt
-  ) {
-    return;
-  }
+function resetChina1688Session() {
+  china1688Session.token =
+    "";
 
+  china1688Session.tokenCookie =
+    "";
+
+  china1688Session.tokenEncCookie =
+    "";
+
+  china1688Session.expiresAt =
+    0;
+}
+
+async function performChina1688Bootstrap() {
   const bootstrapUrl =
     new URL(
       "/h5/mtop.relationrecommend.wirelessrecommend.recommend/2.0/",
@@ -8426,7 +8445,9 @@ async function bootstrapChina1688Session() {
 
   bootstrapUrl.searchParams.set(
     "t",
-    String(Date.now())
+    String(
+      Date.now()
+    )
   );
 
   bootstrapUrl.searchParams.set(
@@ -8453,9 +8474,13 @@ async function bootstrapChina1688Session() {
     await fetch(
       bootstrapUrl,
       {
+        method:
+          "GET",
         headers: {
           Accept:
             "application/json,text/plain,*/*",
+          "Accept-Language":
+            "zh-CN,zh;q=0.9,en;q=0.6",
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
             "AppleWebKit/537.36 Chrome/124 Safari/537.36",
@@ -8464,9 +8489,11 @@ async function bootstrapChina1688Session() {
           Origin:
             "https://www.1688.com"
         },
+        redirect:
+          "follow",
         signal:
           AbortSignal.timeout(
-            10000
+            12000
           )
       }
     );
@@ -8489,8 +8516,18 @@ async function bootstrapChina1688Session() {
     );
 
   if (!tokenCookie) {
+    const responseText =
+      await response
+        .text()
+        .catch(() => "");
+
     throw new Error(
-      "1688_TOKEN_NOT_RECEIVED"
+      `1688_TOKEN_NOT_RECEIVED ${
+        cleanTrendText(
+          responseText,
+          180
+        )
+      }`
     );
   }
 
@@ -8510,74 +8547,49 @@ async function bootstrapChina1688Session() {
     75 * 60 * 1000;
 }
 
-function buildChina1688Queries(
-  category,
-  searchDetails
+async function bootstrapChina1688Session(
+  force = false
 ) {
-  const categoryConfig =
-    MADE_IN_CHINA_CATEGORY_CONFIG[
-      category
-    ] ||
-    MADE_IN_CHINA_CATEGORY_CONFIG.other;
-
-  const queries = [];
-
-  for (
-    const group
-    of categoryConfig.groups
+  if (
+    !force &&
+    china1688Session.token &&
+    Date.now() <
+      china1688Session.expiresAt
   ) {
-    const chineseQuery =
-      CHINA_1688_GROUP_QUERIES[
-        group.key
-      ];
-
-    if (!chineseQuery) {
-      continue;
-    }
-
-    queries.push({
-      searchQuery:
-        chineseQuery,
-      subgroup:
-        group.key
-    });
+    return;
   }
-
-  /*
-   * Ручне уточнення лишаємо окремим
-   * додатковим запитом.
-   * Основну видачу воно не може зламати.
-   */
-  const details =
-    cleanTrendText(
-      searchDetails,
-      120
-    );
 
   if (
-    details &&
-    queries.length
+    force
   ) {
-    queries.push({
-      searchQuery:
-        `${queries[0].searchQuery} ${details}`,
-      subgroup:
-        queries[0].subgroup
-    });
+    resetChina1688Session();
   }
 
-  return queries.slice(
-    0,
-    8
-  );
+  if (
+    china1688Session.bootstrapPromise
+  ) {
+    await china1688Session
+      .bootstrapPromise;
+
+    return;
+  }
+
+  china1688Session.bootstrapPromise =
+    performChina1688Bootstrap();
+
+  try {
+    await china1688Session
+      .bootstrapPromise;
+  } finally {
+    china1688Session.bootstrapPromise =
+      null;
+  }
 }
 
-async function fetchChina1688Offers(
+async function executeChina1688Request(
   searchQuery,
   signalType
 ) {
-  await bootstrapChina1688Session();
-
   const signalConfig =
     CHINA_1688_SIGNAL_CONFIG[
       signalType
@@ -8623,9 +8635,18 @@ async function fetchChina1688Offers(
       Date.now()
     );
 
+  const token =
+    china1688Session.token;
+
+  const tokenCookie =
+    china1688Session.tokenCookie;
+
+  const tokenEncCookie =
+    china1688Session.tokenEncCookie;
+
   const sign =
     md5China1688(
-      china1688Session.token +
+      token +
       "&" +
       timestamp +
       "&12574478&" +
@@ -8674,9 +8695,9 @@ async function fetchChina1688Offers(
   );
 
   const cookieHeader = [
-    `_m_h5_tk=${china1688Session.tokenCookie}`,
-    china1688Session.tokenEncCookie
-      ? `_m_h5_tk_enc=${china1688Session.tokenEncCookie}`
+    `_m_h5_tk=${tokenCookie}`,
+    tokenEncCookie
+      ? `_m_h5_tk_enc=${tokenEncCookie}`
       : ""
   ]
     .filter(Boolean)
@@ -8686,6 +8707,8 @@ async function fetchChina1688Offers(
     await fetch(
       requestUrl,
       {
+        method:
+          "GET",
         headers: {
           Accept:
             "application/json,text/plain,*/*",
@@ -8701,9 +8724,11 @@ async function fetchChina1688Offers(
           Cookie:
             cookieHeader
         },
+        redirect:
+          "follow",
         signal:
           AbortSignal.timeout(
-            12000
+            15000
           )
       }
     );
@@ -8722,33 +8747,91 @@ async function fetchChina1688Offers(
       payload?.ret?.[0] || ""
     );
 
+  return {
+    payload,
+    returnCode
+  };
+}
+
+async function fetchChina1688Offers(
+  searchQuery,
+  signalType
+) {
+  await bootstrapChina1688Session();
+
+  let result =
+    await executeChina1688Request(
+      searchQuery,
+      signalType
+    );
+
   if (
-    returnCode.startsWith(
+    result.returnCode.startsWith(
+      "FAIL_"
+    ) &&
+    (
+      result.returnCode.includes(
+        "TOKEN"
+      ) ||
+      result.returnCode.includes(
+        "ILLEGAL_ACCESS"
+      ) ||
+      result.returnCode.includes(
+        "EXOIRED"
+      ) ||
+      result.returnCode.includes(
+        "EXPIRED"
+      )
+    )
+  ) {
+    await bootstrapChina1688Session(
+      true
+    );
+
+    result =
+      await executeChina1688Request(
+        searchQuery,
+        signalType
+      );
+  }
+
+  if (
+    result.returnCode.startsWith(
       "FAIL_"
     )
   ) {
-    if (
-      returnCode.includes(
-        "TOKEN"
-      ) ||
-      returnCode.includes(
-        "ILLEGAL_ACCESS"
-      )
-    ) {
-      china1688Session.token =
-        "";
-
-      china1688Session.expiresAt =
-        0;
-    }
-
     throw new Error(
-      `1688_API_${returnCode}`
+      `1688_API_${result.returnCode}`
+    );
+  }
+
+  const offerList =
+    result.payload
+      ?.data
+      ?.data
+      ?.offerList;
+
+  if (
+    !Array.isArray(
+      offerList
+    )
+  ) {
+    throw new Error(
+      `1688_OFFER_LIST_MISSING ${
+        cleanTrendText(
+          JSON.stringify(
+            result.payload?.data ||
+            {}
+          ),
+          240
+        )
+      }`
     );
   }
 
   return {
-    payload,
+    payload:
+      result.payload,
     requestUrl:
       `https://s.1688.com/selloffer/offer_search.htm?keywords=${encodeURIComponent(
         searchQuery
