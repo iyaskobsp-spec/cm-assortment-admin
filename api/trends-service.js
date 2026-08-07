@@ -8493,7 +8493,7 @@ async function performChina1688Bootstrap() {
           "follow",
         signal:
           AbortSignal.timeout(
-            12000
+            5000
           )
       }
     );
@@ -8728,7 +8728,7 @@ async function executeChina1688Request(
           "follow",
         signal:
           AbortSignal.timeout(
-            15000
+            7000
           )
       }
     );
@@ -8806,7 +8806,7 @@ function buildChina1688Queries(
 
   return queries.slice(
     0,
-    8
+    3
   );
 }
 
