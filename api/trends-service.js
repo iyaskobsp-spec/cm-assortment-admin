@@ -5380,10 +5380,29 @@ async function loadMadeInChinaProductImage(
       );
     }
 
+    const finalPageUrl =
+      response.url ||
+      product.link;
+
     const productHtml =
       await response.text();
 
     const imageCandidates = [];
+
+    const contentImageUrl =
+      getMadeInChinaImageUrl(
+        productHtml,
+        product.title
+      );
+
+    if (contentImageUrl) {
+      imageCandidates.push({
+        url:
+          contentImageUrl,
+        priority:
+          100
+      });
+    }
 
     const metaPatterns = [
       /<meta\b[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i,
@@ -5404,9 +5423,12 @@ async function loadMadeInChinaProductImage(
         );
 
       if (match?.[1]) {
-        imageCandidates.push(
-          match[1]
-        );
+        imageCandidates.push({
+          url:
+            match[1],
+          priority:
+            70
+        });
       }
     }
 
@@ -5447,23 +5469,46 @@ async function loadMadeInChinaProductImage(
             typeof imageValue ===
             "string"
           ) {
-            imageCandidates.push(
-              imageValue
-            );
+            imageCandidates.push({
+              url:
+                imageValue,
+              priority:
+                90
+            });
           } else if (
             Array.isArray(
               imageValue
             )
           ) {
-            imageCandidates.push(
-              ...imageValue
-            );
+            for (
+              const imageItem
+              of imageValue
+            ) {
+              imageCandidates.push({
+                url:
+                  typeof imageItem ===
+                    "string"
+                    ? imageItem
+                    : (
+                        imageItem?.url ||
+                        imageItem?.contentUrl ||
+                        ""
+                      ),
+                priority:
+                  90
+              });
+            }
           } else if (
-            imageValue?.url
+            imageValue?.url ||
+            imageValue?.contentUrl
           ) {
-            imageCandidates.push(
-              imageValue.url
-            );
+            imageCandidates.push({
+              url:
+                imageValue.url ||
+                imageValue.contentUrl,
+              priority:
+                90
+            });
           }
         }
       } catch {
@@ -5471,67 +5516,92 @@ async function loadMadeInChinaProductImage(
       }
     }
 
-    const imageUrl =
+    const preparedImages =
       imageCandidates
-        .map(candidate =>
-          decodeHtmlEntities(
-            String(candidate || "")
-          )
-            .replace(/\\u002F/g, "/")
-            .replace(/\\\//g, "/")
-            .trim()
-        )
         .map(candidate => {
-          try {
-            return candidate.startsWith(
-              "//"
+          const rawUrl =
+            decodeHtmlEntities(
+              String(
+                candidate.url || ""
+              )
             )
-              ? `https:${candidate}`
-              : new URL(
-                  candidate,
-                  product.link
-                ).toString();
+              .replace(/\\u002F/g, "/")
+              .replace(/\\\//g, "/")
+              .trim();
+
+          if (!rawUrl) {
+            return null;
+          }
+
+          try {
+            const imageUrl =
+              rawUrl.startsWith("//")
+                ? `https:${rawUrl}`
+                : new URL(
+                    rawUrl,
+                    finalPageUrl
+                  ).toString();
+
+            const normalizedUrl =
+              imageUrl.toLocaleLowerCase(
+                "en-US"
+              );
+
+            const blockedImage =
+              normalizedUrl.includes(
+                "logo"
+              ) ||
+              normalizedUrl.includes(
+                "icon"
+              ) ||
+              normalizedUrl.includes(
+                "sprite"
+              ) ||
+              normalizedUrl.includes(
+                "avatar"
+              ) ||
+              normalizedUrl.includes(
+                "default"
+              ) ||
+              normalizedUrl.includes(
+                "loading"
+              ) ||
+              normalizedUrl.includes(
+                "placeholder"
+              ) ||
+              normalizedUrl.includes(
+                "banner"
+              ) ||
+              normalizedUrl.endsWith(
+                ".svg"
+              ) ||
+              normalizedUrl.endsWith(
+                ".gif"
+              );
+
+            if (blockedImage) {
+              return null;
+            }
+
+            return {
+              imageUrl,
+              priority:
+                candidate.priority
+            };
           } catch {
-            return "";
+            return null;
           }
         })
-        .find(candidate => {
-          if (!candidate) {
-            return false;
-          }
+        .filter(Boolean)
+        .sort(
+          (first, second) =>
+            second.priority -
+            first.priority
+        );
 
-          const normalized =
-            candidate.toLocaleLowerCase(
-              "en-US"
-            );
-
-          return (
-            !normalized.includes(
-              "logo"
-            ) &&
-            !normalized.includes(
-              "icon"
-            ) &&
-            !normalized.includes(
-              "sprite"
-            ) &&
-            !normalized.includes(
-              "avatar"
-            ) &&
-            !normalized.includes(
-              "default"
-            ) &&
-            !normalized.includes(
-              "loading"
-            ) &&
-            !normalized.endsWith(
-              ".svg"
-            ) &&
-            !normalized.endsWith(
-              ".gif"
-            )
-          );
-        }) ||
+    const imageUrl =
+      preparedImages[0]
+        ?.imageUrl ||
       product.imageUrl ||
       null;
 
