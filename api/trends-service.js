@@ -859,6 +859,22 @@ const MADE_IN_CHINA_SOURCE_CONFIG = {
     ])
 };
 
+const ALIBABA_SOURCE_CONFIG = {
+  code:
+    "alibaba",
+  sourceName:
+    "Alibaba",
+  geography:
+    "Китай",
+  domain:
+    "https://www.alibaba.com",
+  supportedMarkets:
+    new Set([
+      "world",
+      "china"
+    ])
+};
+
 const MADE_IN_CHINA_SIGNAL_CONFIG = {
   all: {
     queryWords:
@@ -886,6 +902,36 @@ const MADE_IN_CHINA_SIGNAL_CONFIG = {
       "hot sale best selling",
     label:
       "Популярний сигнал Made-in-China"
+  }
+};
+
+const ALIBABA_SIGNAL_CONFIG = {
+  all: {
+    prefix:
+      "",
+    label:
+      "Товарний сигнал Alibaba"
+  },
+
+  new: {
+    prefix:
+      "new arrival",
+    label:
+      "Новинка Alibaba"
+  },
+
+  trends: {
+    prefix:
+      "trending hot selling",
+    label:
+      "Трендовий сигнал Alibaba"
+  },
+
+  popular: {
+    prefix:
+      "best selling top selling",
+    label:
+      "Популярний сигнал Alibaba"
   }
 };
 
@@ -6266,7 +6312,874 @@ function buildIdeasFromMadeInChina(
         }
       ],
       sourcePosition:
-        product.sourcePosition
+        product.sourcePosition,
+      relevanceScore:
+        product.relevanceScore || 0,
+      subgroup:
+        product.subgroup || null
+    })
+  );
+}
+
+function buildAlibabaSearchQueries(
+  category,
+  signalType,
+  searchDetails
+) {
+  const categoryConfig =
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ] ||
+    MADE_IN_CHINA_CATEGORY_CONFIG.other;
+
+  const signalConfig =
+    ALIBABA_SIGNAL_CONFIG[
+      signalType
+    ] ||
+    ALIBABA_SIGNAL_CONFIG.all;
+
+  const details =
+    cleanTrendText(
+      searchDetails,
+      140
+    );
+
+  const queryItems = [];
+
+  for (
+    const group
+    of categoryConfig.groups
+  ) {
+    const baseQuery =
+      group.queries[0];
+
+    const searchQuery =
+      cleanTrendText(
+        [
+          signalConfig.prefix,
+          baseQuery,
+          details
+        ]
+          .filter(Boolean)
+          .join(" "),
+        200
+      );
+
+    if (!searchQuery) {
+      continue;
+    }
+
+    queryItems.push({
+      searchQuery,
+      subgroup:
+        group.key
+    });
+  }
+
+  return queryItems.slice(
+    0,
+    8
+  );
+}
+
+function buildAlibabaSearchUrl(
+  searchQuery
+) {
+  const slug =
+    cleanTrendText(
+      searchQuery,
+      200
+    )
+      .toLocaleLowerCase(
+        "en-US"
+      )
+      .replace(
+        /[^a-z0-9]+/g,
+        "-"
+      )
+      .replace(
+        /^-+|-+$/g,
+        ""
+      );
+
+  return (
+    `${ALIBABA_SOURCE_CONFIG.domain}` +
+    `/countrysearch/CN/` +
+    `${slug || "consumer-products"}.html`
+  );
+}
+
+function getAlibabaImageUrl(
+  contextHtml
+) {
+  const imageTags = [
+    ...String(
+      contextHtml || ""
+    ).matchAll(
+      /<img\b[^>]*>/gi
+    )
+  ];
+
+  const imageCandidates = [];
+
+  for (
+    const imageMatch
+    of imageTags
+  ) {
+    const imageTag =
+      imageMatch[0];
+
+    const attributes = [
+      "data-src",
+      "data-original",
+      "data-lazy-src",
+      "src"
+    ];
+
+    for (
+      const attribute
+      of attributes
+    ) {
+      const match =
+        imageTag.match(
+          new RegExp(
+            `\\b${attribute}=["']([^"']+)["']`,
+            "i"
+          )
+        );
+
+      if (!match?.[1]) {
+        continue;
+      }
+
+      try {
+        const rawUrl =
+          decodeHtmlEntities(
+            match[1]
+          )
+            .replace(
+              /\\u002F/g,
+              "/"
+            )
+            .replace(
+              /\\\//g,
+              "/"
+            );
+
+        const imageUrl =
+          rawUrl.startsWith("//")
+            ? `https:${rawUrl}`
+            : new URL(
+                rawUrl,
+                ALIBABA_SOURCE_CONFIG.domain
+              ).toString();
+
+        const normalized =
+          imageUrl.toLocaleLowerCase(
+            "en-US"
+          );
+
+        if (
+          normalized.includes(
+            "logo"
+          ) ||
+          normalized.includes(
+            "icon"
+          ) ||
+          normalized.includes(
+            "avatar"
+          ) ||
+          normalized.includes(
+            "sprite"
+          ) ||
+          normalized.includes(
+            "placeholder"
+          ) ||
+          normalized.includes(
+            "loading"
+          ) ||
+          normalized.endsWith(
+            ".svg"
+          ) ||
+          normalized.endsWith(
+            ".gif"
+          )
+        ) {
+          continue;
+        }
+
+        imageCandidates.push(
+          imageUrl
+        );
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return (
+    imageCandidates[0] ||
+    null
+  );
+}
+
+function extractAlibabaProducts(
+  html,
+  category,
+  searchQuery,
+  preferredSubgroup,
+  exclusions
+) {
+  const sourceHtml =
+    String(html || "");
+
+  const products = [];
+  const seenLinks =
+    new Set();
+
+  const anchorPattern =
+    /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+  for (
+    const anchorMatch
+    of sourceHtml.matchAll(
+      anchorPattern
+    )
+  ) {
+    const rawLink =
+      decodeHtmlEntities(
+        anchorMatch[1]
+      );
+
+    let link;
+
+    try {
+      link =
+        new URL(
+          rawLink,
+          ALIBABA_SOURCE_CONFIG.domain
+        ).toString();
+    } catch {
+      continue;
+    }
+
+    const normalizedLink =
+      link.toLocaleLowerCase(
+        "en-US"
+      );
+
+    if (
+      !normalizedLink.includes(
+        "alibaba.com"
+      ) ||
+      !normalizedLink.includes(
+        ".html"
+      ) ||
+      (
+        !normalizedLink.includes(
+          "/product-detail/"
+        ) &&
+        !normalizedLink.includes(
+          "/product/"
+        )
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      seenLinks.has(
+        normalizedLink
+      )
+    ) {
+      continue;
+    }
+
+    const anchorHtml =
+      String(
+        anchorMatch[2] || ""
+      );
+
+    let title =
+      cleanTrendText(
+        stripHtml(
+          anchorHtml
+        ),
+        320
+      );
+
+    const anchorIndex =
+      Number(
+        anchorMatch.index
+      ) || 0;
+
+    const contextStart =
+      Math.max(
+        0,
+        anchorIndex - 1200
+      );
+
+    const contextEnd =
+      Math.min(
+        sourceHtml.length,
+        anchorIndex + 3500
+      );
+
+    const contextHtml =
+      sourceHtml.slice(
+        contextStart,
+        contextEnd
+      );
+
+    const contextText =
+      cleanTrendText(
+        stripHtml(
+          contextHtml
+        ),
+        1800
+      );
+
+    if (
+      !title ||
+      title.length < 18
+    ) {
+      const titleMatch =
+        contextHtml.match(
+          /\btitle=["']([^"']{18,320})["']/i
+        ) ||
+        contextHtml.match(
+          /\balt=["']([^"']{18,320})["']/i
+        );
+
+      title =
+        cleanTrendText(
+          decodeHtmlEntities(
+            titleMatch?.[1] || ""
+          ),
+          320
+        );
+    }
+
+    if (
+      !title ||
+      title.length < 18
+    ) {
+      continue;
+    }
+
+    const normalizedTitle =
+      normalizeChinaText(
+        title
+      );
+
+    if (
+      normalizedTitle.includes(
+        "contact supplier"
+      ) ||
+      normalizedTitle.includes(
+        "chat now"
+      ) ||
+      normalizedTitle.includes(
+        "send inquiry"
+      ) ||
+      normalizedTitle.includes(
+        "view more"
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      matchesExclusions(
+        `${title} ${contextText}`,
+        exclusions
+      )
+    ) {
+      continue;
+    }
+
+    const productProfile =
+      getMadeInChinaProductProfile(
+        title,
+        category,
+        preferredSubgroup
+      );
+
+    if (
+      productProfile.retailScore <= 0 ||
+      !productProfile.subgroup
+    ) {
+      continue;
+    }
+
+    const categoryScore =
+      getChinaCategoryScore(
+        title,
+        category
+      );
+
+    const queryScore =
+      getChinaQueryScore(
+        title,
+        searchQuery
+      );
+
+    const priceMatch =
+      contextText.match(
+        /(?:US\s*)?\$\s*[\d.,]+(?:\s*-\s*[\d.,]+)?/i
+      );
+
+    const moqMatch =
+      contextText.match(
+        /(?:MOQ|Min\.?\s*order)\s*:?\s*[\d,.\s]+\s*[A-Za-z]+/i
+      );
+
+    const soldMatch =
+      contextText.match(
+        /[\d,.]+\s+sold\b/i
+      );
+
+    const ratingMatch =
+      contextText.match(
+        /\b[1-5](?:\.\d)?\s*\/\s*5(?:\.0)?\b/i
+      );
+
+    const descriptionParts = [];
+
+    if (priceMatch?.[0]) {
+      descriptionParts.push(
+        cleanTrendText(
+          priceMatch[0],
+          80
+        )
+      );
+    }
+
+    if (moqMatch?.[0]) {
+      descriptionParts.push(
+        cleanTrendText(
+          moqMatch[0],
+          100
+        )
+      );
+    }
+
+    if (soldMatch?.[0]) {
+      descriptionParts.push(
+        cleanTrendText(
+          soldMatch[0],
+          80
+        )
+      );
+    }
+
+    if (ratingMatch?.[0]) {
+      descriptionParts.push(
+        `Rating ${ratingMatch[0]}`
+      );
+    }
+
+    let soldCount = 0;
+
+    if (soldMatch?.[0]) {
+      soldCount =
+        Number(
+          soldMatch[0]
+            .replace(
+              /sold/gi,
+              ""
+            )
+            .replace(
+              /,/g,
+              ""
+            )
+            .trim()
+        ) || 0;
+    }
+
+    seenLinks.add(
+      normalizedLink
+    );
+
+    products.push({
+      productId:
+        normalizedLink,
+      title,
+      description:
+        descriptionParts.join(
+          " · "
+        ) ||
+        "Товар знайдений у китайській видачі Alibaba.",
+      link,
+      imageUrl:
+        getAlibabaImageUrl(
+          contextHtml
+        ),
+      categoryScore,
+      retailScore:
+        productProfile.retailScore,
+      queryScore,
+      subgroup:
+        productProfile.subgroup,
+      soldCount,
+      sourcePosition:
+        products.length + 1
+    });
+
+    if (
+      products.length >=
+      60
+    ) {
+      break;
+    }
+  }
+
+  return products;
+}
+
+async function loadAlibabaSignal({
+  category,
+  signalType,
+  searchDetails,
+  exclusions
+}) {
+  const searchQueries =
+    buildAlibabaSearchQueries(
+      category,
+      signalType,
+      searchDetails
+    );
+
+  const checkedSources = [];
+
+  const requestResults =
+    await Promise.allSettled(
+      searchQueries.map(
+        async queryItem => {
+          const sourceUrl =
+            buildAlibabaSearchUrl(
+              queryItem.searchQuery
+            );
+
+          const response =
+            await fetch(
+              sourceUrl,
+              {
+                method:
+                  "GET",
+                headers: {
+                  Accept:
+                    "text/html,application/xhtml+xml",
+                  "Accept-Language":
+                    "en-US,en;q=0.9",
+                  "User-Agent":
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                    "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+                },
+                redirect:
+                  "follow",
+                signal:
+                  AbortSignal.timeout(
+                    15000
+                  )
+              }
+            );
+
+          if (!response.ok) {
+            throw new Error(
+              `ALIBABA_REQUEST_FAILED_${response.status}`
+            );
+          }
+
+          const html =
+            await response.text();
+
+          if (
+            html.length < 5000
+          ) {
+            throw new Error(
+              "ALIBABA_EMPTY_PAGE"
+            );
+          }
+
+          return {
+            queryItem,
+            sourceUrl,
+            html
+          };
+        }
+      )
+    );
+
+  const productsById =
+    new Map();
+
+  let successfulRequests = 0;
+  let totalExtracted = 0;
+  let firstError = null;
+
+  for (
+    const requestResult
+    of requestResults
+  ) {
+    if (
+      requestResult.status !==
+      "fulfilled"
+    ) {
+      firstError ||=
+        requestResult.reason;
+
+      continue;
+    }
+
+    successfulRequests += 1;
+
+    const {
+      queryItem,
+      sourceUrl,
+      html
+    } =
+      requestResult.value;
+
+    checkedSources.push({
+      query:
+        queryItem.searchQuery,
+      url:
+        sourceUrl
+    });
+
+    const extractedProducts =
+      extractAlibabaProducts(
+        html,
+        category,
+        queryItem.searchQuery,
+        queryItem.subgroup,
+        exclusions
+      );
+
+    totalExtracted +=
+      extractedProducts.length;
+
+    for (
+      const product
+      of extractedProducts
+    ) {
+      const currentProduct =
+        productsById.get(
+          product.productId
+        );
+
+      if (!currentProduct) {
+        productsById.set(
+          product.productId,
+          {
+            ...product,
+            occurrenceCount:
+              1,
+            matchedQueries: [
+              queryItem.searchQuery
+            ],
+            bestPosition:
+              product.sourcePosition
+          }
+        );
+
+        continue;
+      }
+
+      currentProduct.occurrenceCount +=
+        1;
+
+      currentProduct.retailScore =
+        Math.max(
+          currentProduct.retailScore,
+          product.retailScore
+        );
+
+      currentProduct.queryScore =
+        Math.max(
+          currentProduct.queryScore,
+          product.queryScore
+        );
+
+      currentProduct.categoryScore =
+        Math.max(
+          currentProduct.categoryScore,
+          product.categoryScore
+        );
+
+      currentProduct.soldCount =
+        Math.max(
+          currentProduct.soldCount || 0,
+          product.soldCount || 0
+        );
+
+      currentProduct.bestPosition =
+        Math.min(
+          currentProduct.bestPosition,
+          product.sourcePosition
+        );
+
+      if (
+        !currentProduct.imageUrl &&
+        product.imageUrl
+      ) {
+        currentProduct.imageUrl =
+          product.imageUrl;
+      }
+
+      if (
+        !currentProduct.matchedQueries.includes(
+          queryItem.searchQuery
+        )
+      ) {
+        currentProduct.matchedQueries.push(
+          queryItem.searchQuery
+        );
+      }
+    }
+  }
+
+  if (
+    !successfulRequests &&
+    firstError
+  ) {
+    firstError.statusCode = 502;
+    throw firstError;
+  }
+
+  const rankedProducts = [
+    ...productsById.values()
+  ]
+    .map(product => {
+      const positionScore =
+        Math.max(
+          0,
+          40 -
+          Number(
+            product.bestPosition || 40
+          )
+        );
+
+      const repeatBonus =
+        Math.min(
+          product.matchedQueries.length,
+          3
+        ) * 10;
+
+      const salesBonus =
+        product.soldCount > 0
+          ? Math.min(
+              40,
+              Math.log10(
+                product.soldCount + 1
+              ) * 12
+            )
+          : 0;
+
+      const relevanceScore =
+        product.retailScore * 25 +
+        product.categoryScore * 8 +
+        product.queryScore * 10 +
+        product.occurrenceCount * 8 +
+        repeatBonus +
+        positionScore +
+        salesBonus +
+        (
+          product.imageUrl
+            ? 6
+            : 0
+        );
+
+      return {
+        ...product,
+        relevanceScore
+      };
+    })
+    .sort(
+      (first, second) =>
+        second.relevanceScore -
+        first.relevanceScore ||
+        second.soldCount -
+        first.soldCount ||
+        first.bestPosition -
+        second.bestPosition
+    )
+    .slice(
+      0,
+      50
+    );
+
+  const products =
+    selectBalancedMadeInChinaProducts(
+      rankedProducts,
+      15
+    )
+      .map(
+        (product, index) => ({
+          ...product,
+          sourcePosition:
+            index + 1
+        })
+      );
+
+  return {
+    source:
+      ALIBABA_SOURCE_CONFIG.sourceName,
+    sourceType:
+      signalType,
+    status:
+      products.length
+        ? "ok"
+        : "no_results",
+    checkedSources,
+    totalExtracted,
+    products
+  };
+}
+
+function buildIdeasFromAlibaba(
+  sourceResult
+) {
+  const signalConfig =
+    ALIBABA_SIGNAL_CONFIG[
+      sourceResult.sourceType
+    ] ||
+    ALIBABA_SIGNAL_CONFIG.all;
+
+  return sourceResult.products.map(
+    product => ({
+      id:
+        `alibaba-${product.productId}`,
+      title:
+        product.title,
+      imageUrl:
+        product.imageUrl || null,
+      description:
+        product.description,
+      signal:
+        signalConfig.label,
+      signalType:
+        sourceResult.sourceType,
+      geography:
+        ALIBABA_SOURCE_CONFIG.geography,
+      sources: [
+        ALIBABA_SOURCE_CONFIG.sourceName
+      ],
+      links: [
+        {
+          label:
+            "Відкрити на Alibaba",
+          url:
+            product.link
+        }
+      ],
+      sourcePosition:
+        product.sourcePosition,
+      relevanceScore:
+        product.relevanceScore || 0,
+      subgroup:
+        product.subgroup || null
     })
   );
 }
@@ -6472,6 +7385,51 @@ export async function searchProductTrends(
     }
   }
 
+  if (
+    ALIBABA_SOURCE_CONFIG
+      .supportedMarkets
+      .has(market)
+  ) {
+    try {
+      const alibabaResult =
+        await loadAlibabaSignal({
+          category,
+          signalType,
+          searchDetails,
+          exclusions
+        });
+
+      sources.push(
+        alibabaResult
+      );
+
+      ideas = ideas.concat(
+        buildIdeasFromAlibaba(
+          alibabaResult
+        )
+      );
+    } catch (error) {
+      console.error(
+        "[Alibaba]",
+        error
+      );
+
+      sources.push({
+        source:
+          ALIBABA_SOURCE_CONFIG
+            .sourceName,
+        sourceType:
+          signalType,
+        status:
+          "error",
+        message:
+          "Alibaba тимчасово не повернув товарну видачу.",
+        products:
+          []
+      });
+    }
+  }  
+
   const uniqueIdeas = [];
   const seenIdeaIds = new Set();
 
@@ -6491,10 +7449,23 @@ export async function searchProductTrends(
   ideas = uniqueIdeas
     .sort(
       (first, second) =>
-        Number(first.sourcePosition || 99) -
-        Number(second.sourcePosition || 99)
+        Number(
+          second.relevanceScore || 0
+        ) -
+        Number(
+          first.relevanceScore || 0
+        ) ||
+        Number(
+          first.sourcePosition || 99
+        ) -
+        Number(
+          second.sourcePosition || 99
+        )
     )
-    .slice(0, 36);
+    .slice(
+      0,
+      36
+    );
 
   let summary = "";
 
