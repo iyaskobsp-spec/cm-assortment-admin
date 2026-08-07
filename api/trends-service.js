@@ -4927,6 +4927,42 @@ function extractChinaImageCandidatesFromHtml({
 
   const candidates = [];
 
+  function addCandidate(
+    rawUrl,
+    text,
+    baseScore,
+    width = 0,
+    source = "img"
+  ) {
+    const imageUrl =
+      normalizeChinaImageUrl(
+        rawUrl,
+        baseUrl
+      );
+
+    if (!imageUrl) {
+      return;
+    }
+
+    const rating =
+      getChinaImageCandidateScore({
+        imageUrl,
+        text,
+        productTitle,
+        baseScore,
+        width
+      });
+
+    candidates.push({
+      imageUrl,
+      score:
+        rating.score,
+      coverage:
+        rating.coverage,
+      source
+    });
+  }
+
   for (
     const imageMatch
     of sourceHtml.matchAll(
@@ -4970,15 +5006,19 @@ function extractChinaImageCandidatesFromHtml({
         .filter(Boolean)
         .join(" ");
 
-    const sourceItems = [];
-
     const attributes = [
       "data-original",
+      "data-original-src",
       "data-src",
       "data-lazy-src",
+      "data-lazy",
       "data-image",
+      "data-image-url",
       "data-image-src",
       "data-img",
+      "data-zoom-image",
+      "data-large",
+      "data-large-image",
       "src"
     ];
 
@@ -4994,22 +5034,40 @@ function extractChinaImageCandidatesFromHtml({
           )
         );
 
-      if (match?.[1]) {
-        sourceItems.push({
-          rawUrl:
-            match[1],
-          width:
-            0
-        });
+      if (!match?.[1]) {
+        continue;
       }
+
+      addCandidate(
+        match[1],
+        text,
+        28,
+        0,
+        "img"
+      );
     }
 
-    const srcset =
-      imageTag.match(
-        /\bsrcset=["']([^"']+)["']/i
-      )?.[1];
+    const srcsetAttributes = [
+      "srcset",
+      "data-srcset"
+    ];
 
-    if (srcset) {
+    for (
+      const attribute
+      of srcsetAttributes
+    ) {
+      const srcset =
+        imageTag.match(
+          new RegExp(
+            `\\b${attribute}=["']([^"']+)["']`,
+            "i"
+          )
+        )?.[1];
+
+      if (!srcset) {
+        continue;
+      }
+
       for (
         const item
         of srcset.split(",")
@@ -5026,55 +5084,151 @@ function extractChinaImageCandidatesFromHtml({
             /(\d+)w/i
           );
 
-        sourceItems.push({
-          rawUrl:
-            parts[0],
-          width:
-            Number(
-              widthMatch?.[1]
-            ) || 0
-        });
+        addCandidate(
+          parts[0],
+          text,
+          34,
+          Number(
+            widthMatch?.[1]
+          ) || 0,
+          "srcset"
+        );
       }
     }
 
-    for (
-      const sourceItem
-      of sourceItems
-    ) {
-      const imageUrl =
-        normalizeChinaImageUrl(
-          sourceItem.rawUrl,
-          baseUrl
-        );
+    const style =
+      imageTag.match(
+        /\bstyle=["']([^"']+)["']/i
+      )?.[1] || "";
 
-      if (!imageUrl) {
-        continue;
-      }
+    const styleImage =
+      style.match(
+        /background(?:-image)?\s*:\s*url\(["']?([^"')]+)["']?\)/i
+      )?.[1];
 
-      const rating =
-        getChinaImageCandidateScore({
-          imageUrl,
-          text,
-          productTitle,
-          baseScore:
-            22,
-          width:
-            sourceItem.width
-        });
-
-      candidates.push({
-        imageUrl,
-        score:
-          rating.score,
-        coverage:
-          rating.coverage,
-        source:
-          "img"
-      });
+    if (styleImage) {
+      addCandidate(
+        styleImage,
+        text,
+        30,
+        0,
+        "style"
+      );
     }
   }
 
-  return candidates;
+  /*
+   * Картинка іноді лежить не в IMG,
+   * а в style="background-image".
+   */
+  for (
+    const styleMatch
+    of sourceHtml.matchAll(
+      /background(?:-image)?\s*:\s*url\(["']?([^"')]+)["']?\)/gi
+    )
+  ) {
+    addCandidate(
+      styleMatch?.[1],
+      "",
+      24,
+      0,
+      "background"
+    );
+  }
+
+  /*
+   * Китайські каталоги часто кладуть URL
+   * картинки просто в JSON/data-поля HTML.
+   */
+  const jsonImagePatterns = [
+    /"(?:imageUrl|imageURL|imageSrc|imagePath)"\s*:\s*"([^"]+)"/gi,
+    /"(?:mainImage|mainImageUrl|mainImg|mainImgUrl)"\s*:\s*"([^"]+)"/gi,
+    /"(?:productImage|productImageUrl)"\s*:\s*"([^"]+)"/gi,
+    /"(?:originalImage|originalImageUrl)"\s*:\s*"([^"]+)"/gi,
+    /"(?:thumb|thumbUrl|thumbnail|thumbnailUrl)"\s*:\s*"([^"]+)"/gi
+  ];
+
+  for (
+    const pattern
+    of jsonImagePatterns
+  ) {
+    for (
+      const match
+      of sourceHtml.matchAll(
+        pattern
+      )
+    ) {
+      addCandidate(
+        match?.[1],
+        productTitle,
+        36,
+        0,
+        "json"
+      );
+    }
+  }
+
+  /*
+   * Останній fallback:
+   * прямі jpg/png/webp URL у межах
+   * конкретної картки товару.
+   */
+  const rawImagePattern =
+    /(?:https?:)?(?:\\u002F|\\\/|\/){2}[^"'<> ]+\.(?:jpg|jpeg|png|webp)(?:\?[^"'<> ]*)?/gi;
+
+  for (
+    const match
+    of sourceHtml.matchAll(
+      rawImagePattern
+    )
+  ) {
+    addCandidate(
+      match[0],
+      "",
+      20,
+      0,
+      "raw"
+    );
+  }
+
+  const uniqueCandidates = [];
+  const seen =
+    new Set();
+
+  for (
+    const candidate
+    of candidates.sort(
+      (first, second) =>
+        second.score -
+        first.score
+    )
+  ) {
+    const key =
+      candidate.imageUrl
+        .replace(
+          /_[0-9]+x[0-9]+[^/?]*/gi,
+          ""
+        )
+        .split("?")[0];
+
+    if (
+      seen.has(
+        key
+      )
+    ) {
+      continue;
+    }
+
+    seen.add(
+      key
+    );
+
+    uniqueCandidates.push(
+      candidate
+    );
+  }
+
+  return uniqueCandidates;
 }
 
 function getChinaImageFromHtml(
@@ -5087,18 +5241,40 @@ function getChinaImageFromHtml(
       html,
       productTitle,
       baseUrl
-    })
-      .filter(candidate =>
-        candidate.score >= 42
-      )
-      .sort(
-        (first, second) =>
-          second.score -
-          first.score
-      );
+    });
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  /*
+   * Спочатку беремо семантично сильне фото.
+   */
+  const strongCandidate =
+    candidates.find(
+      candidate =>
+        candidate.score >= 42 ||
+        candidate.coverage >= 0.25
+    );
+
+  if (strongCandidate) {
+    return strongCandidate.imageUrl;
+  }
+
+  /*
+   * Якщо це HTML конкретної товарної картки,
+   * краще взяти нормальне незаблоковане фото,
+   * навіть коли у нього немає alt/title,
+   * ніж повернути null.
+   */
+  const fallbackCandidate =
+    candidates.find(
+      candidate =>
+        candidate.score >= 18
+    );
 
   return (
-    candidates[0]
+    fallbackCandidate
       ?.imageUrl ||
     null
   );
@@ -5921,9 +6097,19 @@ async function resolveChinaProductImage(
             "jsonld-product" ||
           candidate.source ===
             "main-json" ||
-          candidate.score >= 72 ||
-          candidate.coverage >= 0.3
-      );
+          candidate.score >= 58 ||
+          candidate.coverage >= 0.2
+      ) ||
+      uniqueCandidates.find(
+        candidate =>
+          candidate.source ===
+            "img" ||
+          candidate.source ===
+            "srcset" ||
+          candidate.source ===
+            "json"
+      ) ||
+      null;
 
     const imageUrl =
       bestCandidate
