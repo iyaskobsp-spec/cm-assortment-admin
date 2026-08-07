@@ -5653,10 +5653,214 @@ function selectBalancedMadeInChinaProducts(
   const maxPerSubgroup =
     3;
 
-  for (
-    const product
-    of rankedProducts
+  const blockedLargeProductPhrases = [
+    "cold storage room",
+    "cold room",
+    "storage room",
+    "container room",
+    "container house",
+    "modular house",
+    "prefabricated house",
+    "prefab house",
+    "portable house",
+    "mobile house",
+    "warehouse",
+    "warehouse rack",
+    "storage warehouse",
+    "industrial storage",
+    "commercial storage",
+    "walk in freezer",
+    "walk in cooler",
+    "refrigeration room",
+    "refrigerated room",
+    "production line",
+    "processing line",
+    "assembly line",
+    "conveyor",
+    "conveyor belt",
+    "chain conveyor",
+    "injection mould",
+    "injection mold",
+    "plastic mould",
+    "plastic mold",
+    "molding machine",
+    "moulding machine",
+    "industrial machine",
+    "commercial machine",
+    "factory equipment",
+    "industrial equipment",
+    "commercial equipment",
+    "workshop equipment",
+    "restaurant equipment",
+    "hotel equipment",
+    "supermarket equipment",
+    "large capacity",
+    "heavy duty",
+    "customized project",
+    "turnkey project"
+  ];
+
+  const genericTitleWords =
+    new Set([
+      "new",
+      "latest",
+      "design",
+      "product",
+      "products",
+      "custom",
+      "customized",
+      "creative",
+      "modern",
+      "popular",
+      "best",
+      "selling",
+      "sale",
+      "high",
+      "quality",
+      "home",
+      "household",
+      "kitchen",
+      "accessory",
+      "accessories"
+    ]);
+
+  function isBlockedLargeProduct(
+    product
   ) {
+    const normalizedTitle =
+      normalizeChinaText(
+        product.title
+      );
+
+    return blockedLargeProductPhrases.some(
+      phrase =>
+        normalizedTitle.includes(
+          normalizeChinaText(
+            phrase
+          )
+        )
+    );
+  }
+
+  function getComparableWords(
+    title
+  ) {
+    return getChinaWords(
+      title
+    ).filter(word =>
+      word.length >= 4 &&
+      !genericTitleWords.has(
+        word
+      )
+    );
+  }
+
+  function isNearDuplicate(
+    product
+  ) {
+    const productTitle =
+      normalizeChinaText(
+        product.title
+      );
+
+    const productWords =
+      getComparableWords(
+        product.title
+      );
+
+    return selectedProducts.some(
+      selectedProduct => {
+        const selectedTitle =
+          normalizeChinaText(
+            selectedProduct.title
+          );
+
+        if (
+          productTitle ===
+          selectedTitle
+        ) {
+          return true;
+        }
+
+        if (
+          productTitle.length >= 18 &&
+          selectedTitle.length >= 18 &&
+          (
+            productTitle.includes(
+              selectedTitle
+            ) ||
+            selectedTitle.includes(
+              productTitle
+            )
+          )
+        ) {
+          return true;
+        }
+
+        const selectedWords =
+          getComparableWords(
+            selectedProduct.title
+          );
+
+        const overlap =
+          productWords.filter(word =>
+            selectedWords.includes(
+              word
+            )
+          ).length;
+
+        const shorterLength =
+          Math.min(
+            productWords.length,
+            selectedWords.length
+          );
+
+        if (shorterLength < 2) {
+          return false;
+        }
+
+        const overlapRatio =
+          overlap /
+          shorterLength;
+
+        if (
+          product.subgroup ===
+            selectedProduct.subgroup &&
+          overlapRatio >= 0.5
+        ) {
+          return true;
+        }
+
+        return (
+          shorterLength >= 3 &&
+          overlapRatio >= 0.65
+        );
+      }
+    );
+  }
+
+  function canAddProduct(
+    product,
+    checkSubgroupLimit
+  ) {
+    if (
+      selectedIds.has(
+        product.productId
+      ) ||
+      isBlockedLargeProduct(
+        product
+      ) ||
+      isNearDuplicate(
+        product
+      )
+    ) {
+      return false;
+    }
+
+    if (!checkSubgroupLimit) {
+      return true;
+    }
+
     const subgroup =
       product.subgroup ||
       "other";
@@ -5666,58 +5870,18 @@ function selectBalancedMadeInChinaProducts(
         subgroup
       ) || 0;
 
-    if (
-      selectedIds.has(
-        product.productId
-      ) ||
-      subgroupCount >=
-        maxPerSubgroup
-    ) {
-      continue;
-    }
+    return (
+      subgroupCount <
+      maxPerSubgroup
+    );
+  }
 
-    const productWords =
-      getChinaWords(
-        product.title
-      ).filter(word =>
-        word.length >= 4
-      );
-
-    const hasNearDuplicate =
-      selectedProducts.some(
-        selectedProduct => {
-          const selectedWords =
-            getChinaWords(
-              selectedProduct.title
-            ).filter(word =>
-              word.length >= 4
-            );
-
-          const overlap =
-            productWords.filter(word =>
-              selectedWords.includes(
-                word
-              )
-            ).length;
-
-          const shorterLength =
-            Math.min(
-              productWords.length,
-              selectedWords.length
-            );
-
-          return (
-            shorterLength >= 3 &&
-            overlap /
-              shorterLength >=
-              0.65
-          );
-        }
-      );
-
-    if (hasNearDuplicate) {
-      continue;
-    }
+  function addProduct(
+    product
+  ) {
+    const subgroup =
+      product.subgroup ||
+      "other";
 
     selectedProducts.push(
       product
@@ -5729,7 +5893,29 @@ function selectBalancedMadeInChinaProducts(
 
     subgroupCounts.set(
       subgroup,
-      subgroupCount + 1
+      (
+        subgroupCounts.get(
+          subgroup
+        ) || 0
+      ) + 1
+    );
+  }
+
+  for (
+    const product
+    of rankedProducts
+  ) {
+    if (
+      !canAddProduct(
+        product,
+        true
+      )
+    ) {
+      continue;
+    }
+
+    addProduct(
+      product
     );
 
     if (
@@ -5745,19 +5931,16 @@ function selectBalancedMadeInChinaProducts(
     of rankedProducts
   ) {
     if (
-      selectedIds.has(
-        product.productId
+      !canAddProduct(
+        product,
+        false
       )
     ) {
       continue;
     }
 
-    selectedProducts.push(
+    addProduct(
       product
-    );
-
-    selectedIds.add(
-      product.productId
     );
 
     if (
