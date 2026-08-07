@@ -5754,12 +5754,749 @@ function extractMadeInChinaProducts(
   return products;
 }
 
+function getChinaGalleryImageQualityScore(
+  imageUrl
+) {
+  const normalizedUrl =
+    String(imageUrl || "")
+      .toLocaleLowerCase(
+        "en-US"
+      );
+
+  let score = 0;
+
+  const dimensionMatches = [
+    ...normalizedUrl.matchAll(
+      /(\d{3,4})[xX](\d{3,4})/g
+    )
+  ];
+
+  for (
+    const dimensionMatch
+    of dimensionMatches
+  ) {
+    const width =
+      Number(
+        dimensionMatch[1]
+      );
+
+    const height =
+      Number(
+        dimensionMatch[2]
+      );
+
+    const shortestSide =
+      Math.min(
+        width,
+        height
+      );
+
+    if (shortestSide >= 1000) {
+      score = Math.max(
+        score,
+        34
+      );
+    } else if (
+      shortestSide >= 800
+    ) {
+      score = Math.max(
+        score,
+        30
+      );
+    } else if (
+      shortestSide >= 600
+    ) {
+      score = Math.max(
+        score,
+        24
+      );
+    } else if (
+      shortestSide >= 400
+    ) {
+      score = Math.max(
+        score,
+        17
+      );
+    } else if (
+      shortestSide >= 250
+    ) {
+      score = Math.max(
+        score,
+        8
+      );
+    } else {
+      score -= 18;
+    }
+  }
+
+  if (
+    normalizedUrl.includes(
+      "original"
+    ) ||
+    normalizedUrl.includes(
+      "large"
+    ) ||
+    normalizedUrl.includes(
+      "big"
+    )
+  ) {
+    score += 12;
+  }
+
+  if (
+    normalizedUrl.includes(
+      "thumbnail"
+    ) ||
+    normalizedUrl.includes(
+      "thumb"
+    ) ||
+    normalizedUrl.includes(
+      "small"
+    )
+  ) {
+    score -= 20;
+  }
+
+  return score;
+}
+
+function prepareChinaGalleryImageUrl(
+  rawUrl,
+  baseUrl,
+  sourceConfig
+) {
+  const normalizedUrl =
+    normalizeChinaImageUrl(
+      rawUrl,
+      baseUrl
+    );
+
+  if (!normalizedUrl) {
+    return null;
+  }
+
+  try {
+    const url =
+      new URL(
+        normalizedUrl
+      );
+
+    if (
+      sourceConfig.code ===
+      "alibaba"
+    ) {
+      url.pathname =
+        url.pathname
+          .replace(
+            /(\.(?:jpe?g|png|webp))_[^/]+\.(?:jpe?g|png|webp)$/i,
+            "$1"
+          )
+          .replace(
+            /(\.(?:jpe?g|png|webp))_[^/]+$/i,
+            "$1"
+          );
+
+      url.searchParams.delete(
+        "x-oss-process"
+      );
+    }
+
+    [
+      "width",
+      "height",
+      "w",
+      "h",
+      "resize",
+      "quality"
+    ].forEach(parameter =>
+      url.searchParams.delete(
+        parameter
+      )
+    );
+
+    return url.toString();
+  } catch {
+    return normalizedUrl;
+  }
+}
+
+function extractChinaProductGallery({
+  html,
+  productTitle,
+  baseUrl,
+  sourceConfig
+}) {
+  const sourceHtml =
+    String(html || "");
+
+  const candidates = [];
+  const seenUrls =
+    new Set();
+
+  function addCandidate(
+    rawUrl,
+    {
+      galleryIndex = 99,
+      source = "unknown",
+      baseScore = 0,
+      context = ""
+    } = {}
+  ) {
+    const imageUrl =
+      prepareChinaGalleryImageUrl(
+        rawUrl,
+        baseUrl,
+        sourceConfig
+      );
+
+    if (!imageUrl) {
+      return;
+    }
+
+    const normalizedUrl =
+      imageUrl.toLocaleLowerCase(
+        "en-US"
+      );
+
+    const normalizedContext =
+      normalizeChinaText(
+        context
+      );
+
+    const blockedWords = [
+      "logo",
+      "icon",
+      "avatar",
+      "sprite",
+      "certificate",
+      "certification",
+      "audit",
+      "report",
+      "factory",
+      "company",
+      "supplier",
+      "profile",
+      "qrcode",
+      "qr code",
+      "manual",
+      "instruction",
+      "size chart",
+      "packing list"
+    ];
+
+    if (
+      blockedWords.some(
+        word =>
+          normalizedUrl.includes(
+            word
+          ) ||
+          normalizedContext.includes(
+            word
+          )
+      )
+    ) {
+      return;
+    }
+
+    const videoWords = [
+      "video",
+      "video poster",
+      "video cover",
+      "video thumbnail",
+      "videocover",
+      "videoimage",
+      "media video"
+    ];
+
+    if (
+      videoWords.some(
+        word =>
+          normalizedContext.includes(
+            word
+          )
+      )
+    ) {
+      return;
+    }
+
+    if (
+      seenUrls.has(
+        normalizedUrl
+      )
+    ) {
+      return;
+    }
+
+    seenUrls.add(
+      normalizedUrl
+    );
+
+    let positionScore = 0;
+
+    if (galleryIndex === 0) {
+      positionScore = 32;
+    } else if (
+      galleryIndex === 1
+    ) {
+      positionScore = 38;
+    } else if (
+      galleryIndex === 2
+    ) {
+      positionScore = 35;
+    } else if (
+      galleryIndex === 3
+    ) {
+      positionScore = 30;
+    } else if (
+      galleryIndex === 4
+    ) {
+      positionScore = 15;
+    } else if (
+      galleryIndex <= 6
+    ) {
+      positionScore = 5;
+    } else {
+      positionScore = -12;
+    }
+
+    /*
+     * Саме 2–4 позиції отримують невелику
+     * перевагу, але це НЕ жорстке правило.
+     */
+    let score =
+      baseScore +
+      positionScore +
+      getChinaGalleryImageQualityScore(
+        imageUrl
+      );
+
+    const normalizedTitle =
+      normalizeChinaText(
+        productTitle
+      );
+
+    const productWords =
+      getChinaImageTitleWords(
+        productTitle
+      );
+
+    const matchedWords =
+      productWords.filter(word =>
+        normalizedContext.includes(
+          word
+        )
+      ).length;
+
+    if (
+      productWords.length
+    ) {
+      score +=
+        (
+          matchedWords /
+          productWords.length
+        ) *
+        24;
+    }
+
+    if (
+      normalizedTitle &&
+      normalizedContext.includes(
+        normalizedTitle
+      )
+    ) {
+      score += 18;
+    }
+
+    const packagingWords = [
+      "package",
+      "packaging",
+      "packing",
+      "carton",
+      "box size",
+      "delivery",
+      "shipping"
+    ];
+
+    if (
+      packagingWords.some(
+        word =>
+          normalizedContext.includes(
+            word
+          )
+      )
+    ) {
+      score -= 25;
+    }
+
+    candidates.push({
+      imageUrl,
+      score,
+      galleryIndex,
+      source
+    });
+  }
+
+  /*
+   * 1. Alibaba main_image.
+   */
+  const mainImagePatterns = [
+    /"(?:main_image|mainImage|mainImageUrl|mainImg|mainImgUrl)"\s*:\s*"([^"]+)"/gi,
+    /"(?:originalImage|originalImageUrl)"\s*:\s*"([^"]+)"/gi,
+    /"(?:productImage|productImageUrl)"\s*:\s*"([^"]+)"/gi
+  ];
+
+  for (
+    const pattern
+    of mainImagePatterns
+  ) {
+    for (
+      const match
+      of sourceHtml.matchAll(
+        pattern
+      )
+    ) {
+      addCandidate(
+        match?.[1],
+        {
+          galleryIndex:
+            0,
+          source:
+            "main-image",
+          baseScore:
+            65,
+          context:
+            sourceHtml.slice(
+              Math.max(
+                0,
+                Number(match.index) -
+                  180
+              ),
+              Math.min(
+                sourceHtml.length,
+                Number(match.index) +
+                  300
+              )
+            )
+        }
+      );
+    }
+  }
+
+  /*
+   * 2. Масиви товарної галереї.
+   */
+  const galleryArrayPatterns = [
+    /"(?:images|imageList|imageUrls|imagePathList|productImages|galleryImages|mainImages)"\s*:\s*\[([\s\S]*?)\]/gi,
+    /"(?:originalImages|productImageList|galleryList)"\s*:\s*\[([\s\S]*?)\]/gi
+  ];
+
+  for (
+    const arrayPattern
+    of galleryArrayPatterns
+  ) {
+    for (
+      const arrayMatch
+      of sourceHtml.matchAll(
+        arrayPattern
+      )
+    ) {
+      const arrayText =
+        String(
+          arrayMatch?.[1] || ""
+        );
+
+      let galleryIndex = 0;
+
+      for (
+        const urlMatch
+        of arrayText.matchAll(
+          /["']((?:https?:)?(?:\\?\/){2}[^"']+\.(?:jpe?g|png|webp)[^"']*)["']/gi
+        )
+      ) {
+        addCandidate(
+          urlMatch?.[1],
+          {
+            galleryIndex,
+            source:
+              "gallery-array",
+            baseScore:
+              55,
+            context:
+              arrayText.slice(
+                Math.max(
+                  0,
+                  Number(urlMatch.index) -
+                    120
+                ),
+                Math.min(
+                  arrayText.length,
+                  Number(urlMatch.index) +
+                    220
+                )
+              )
+          }
+        );
+
+        galleryIndex += 1;
+
+        /*
+         * Нам потрібна верхня частина
+         * товарної галереї.
+         * Далі частіше йдуть деталі,
+         * упаковка та сертифікати.
+         */
+        if (galleryIndex >= 7) {
+          break;
+        }
+      }
+    }
+  }
+
+  /*
+   * 3. JSON-LD Product.image.
+   */
+  const jsonLdPattern =
+    /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+
+  for (
+    const jsonMatch
+    of sourceHtml.matchAll(
+      jsonLdPattern
+    )
+  ) {
+    try {
+      const parsed =
+        JSON.parse(
+          jsonMatch[1]
+        );
+
+      const jsonItems =
+        Array.isArray(parsed)
+          ? parsed
+          : (
+              Array.isArray(
+                parsed?.["@graph"]
+              )
+                ? parsed["@graph"]
+                : [parsed]
+            );
+
+      for (
+        const jsonItem
+        of jsonItems
+      ) {
+        const type =
+          jsonItem?.["@type"];
+
+        const isProduct =
+          type === "Product" ||
+          (
+            Array.isArray(type) &&
+            type.includes(
+              "Product"
+            )
+          );
+
+        if (!isProduct) {
+          continue;
+        }
+
+        const imageValue =
+          jsonItem?.image;
+
+        const imageItems =
+          typeof imageValue ===
+            "string"
+            ? [imageValue]
+            : Array.isArray(
+                imageValue
+              )
+              ? imageValue
+              : imageValue
+                ? [
+                    imageValue.url ||
+                    imageValue.contentUrl
+                  ]
+                : [];
+
+        imageItems
+          .slice(
+            0,
+            6
+          )
+          .forEach(
+            (
+              imageItem,
+              index
+            ) => {
+              const rawUrl =
+                typeof imageItem ===
+                  "string"
+                  ? imageItem
+                  : (
+                      imageItem?.url ||
+                      imageItem
+                        ?.contentUrl
+                    );
+
+              addCandidate(
+                rawUrl,
+                {
+                  galleryIndex:
+                    index,
+                  source:
+                    "jsonld-product",
+                  baseScore:
+                    58,
+                  context:
+                    productTitle
+                }
+              );
+            }
+          );
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  /*
+   * 4. Галерея, описана IMG-тегами.
+   * Беремо лише картинки, біля яких
+   * є ознаки gallery/product/media.
+   */
+  let galleryImageIndex = 0;
+
+  for (
+    const imageMatch
+    of sourceHtml.matchAll(
+      /<img\b[^>]*>/gi
+    )
+  ) {
+    const imageTag =
+      imageMatch[0];
+
+    const tagContext =
+      sourceHtml.slice(
+        Math.max(
+          0,
+          Number(imageMatch.index) -
+            240
+        ),
+        Math.min(
+          sourceHtml.length,
+          Number(imageMatch.index) +
+            imageTag.length +
+            240
+        )
+      );
+
+    const normalizedContext =
+      normalizeChinaText(
+        tagContext
+      );
+
+    if (
+      !(
+        normalizedContext.includes(
+          "gallery"
+        ) ||
+        normalizedContext.includes(
+          "product image"
+        ) ||
+        normalizedContext.includes(
+          "product-image"
+        ) ||
+        normalizedContext.includes(
+          "main image"
+        ) ||
+        normalizedContext.includes(
+          "main-image"
+        ) ||
+        normalizedContext.includes(
+          "thumb"
+        ) ||
+        normalizedContext.includes(
+          "media"
+        )
+      )
+    ) {
+      continue;
+    }
+
+    const sourceAttributes = [
+      "data-original",
+      "data-src",
+      "data-lazy-src",
+      "data-image",
+      "data-image-src",
+      "data-big",
+      "data-large",
+      "src"
+    ];
+
+    let foundImage = false;
+
+    for (
+      const attribute
+      of sourceAttributes
+    ) {
+      const rawUrl =
+        imageTag.match(
+          new RegExp(
+            `\\b${attribute}=["']([^"']+)["']`,
+            "i"
+          )
+        )?.[1];
+
+      if (!rawUrl) {
+        continue;
+      }
+
+      addCandidate(
+        rawUrl,
+        {
+          galleryIndex:
+            galleryImageIndex,
+          source:
+            "gallery-img",
+          baseScore:
+            36,
+          context:
+            tagContext
+        }
+      );
+
+      foundImage = true;
+    }
+
+    if (foundImage) {
+      galleryImageIndex += 1;
+    }
+
+    if (
+      galleryImageIndex >= 7
+    ) {
+      break;
+    }
+  }
+
+  return candidates
+    .sort(
+      (first, second) =>
+        second.score -
+        first.score ||
+        first.galleryIndex -
+        second.galleryIndex
+    );
+}
+
 async function resolveChinaProductImage(
   product,
   sourceConfig
 ) {
   const cacheKey =
-    `${sourceConfig.code}:${product.productId}`;
+    `gallery-v2:${sourceConfig.code}:${product.productId}`;
 
   const cached =
     chinaProductImageCache.get(
@@ -5800,7 +6537,7 @@ async function resolveChinaProductImage(
           "follow",
         signal:
           AbortSignal.timeout(
-            9000
+            10000
           )
       }
     );
@@ -5818,320 +6555,73 @@ async function resolveChinaProductImage(
     const html =
       await response.text();
 
-    const candidates =
-      extractChinaImageCandidatesFromHtml({
+    const galleryCandidates =
+      extractChinaProductGallery({
         html,
         productTitle:
           product.title,
         baseUrl:
-          finalPageUrl
+          finalPageUrl,
+        sourceConfig
       });
 
     /*
-     * JSON-LD Product.image.
-     * Це найнадійніший структурований
-     * кандидат зі сторінки товару.
+     * Вимагаємо достатньо сильний
+     * товарний кандидат.
      */
-    const jsonLdPattern =
-      /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
-
-    for (
-      const jsonMatch
-      of html.matchAll(
-        jsonLdPattern
-      )
-    ) {
-      try {
-        const parsed =
-          JSON.parse(
-            jsonMatch[1]
-          );
-
-        const jsonItems =
-          Array.isArray(parsed)
-            ? parsed
-            : (
-                Array.isArray(
-                  parsed?.["@graph"]
-                )
-                  ? parsed["@graph"]
-                  : [parsed]
-              );
-
-        for (
-          const jsonItem
-          of jsonItems
-        ) {
-          const type =
-            jsonItem?.["@type"];
-
-          const isProduct =
-            type === "Product" ||
-            (
-              Array.isArray(type) &&
-              type.includes(
-                "Product"
-              )
-            );
-
-          if (!isProduct) {
-            continue;
-          }
-
-          const imageValue =
-            jsonItem?.image;
-
-          const imageItems =
-            typeof imageValue ===
-              "string"
-              ? [imageValue]
-              : Array.isArray(
-                  imageValue
-                )
-                ? imageValue
-                : imageValue
-                  ? [
-                      imageValue.url ||
-                      imageValue.contentUrl
-                    ]
-                  : [];
-
-          for (
-            const imageItem
-            of imageItems
-          ) {
-            const rawUrl =
-              typeof imageItem ===
-                "string"
-                ? imageItem
-                : (
-                    imageItem?.url ||
-                    imageItem?.contentUrl
-                  );
-
-            const imageUrl =
-              normalizeChinaImageUrl(
-                rawUrl,
-                finalPageUrl
-              );
-
-            if (!imageUrl) {
-              continue;
-            }
-
-            candidates.push({
-              imageUrl,
-              score:
-                125,
-              coverage:
-                1,
-              source:
-                "jsonld-product"
-            });
-          }
-        }
-      } catch {
-        continue;
-      }
-    }
-
-    /*
-     * Поля main/product image
-     * у внутрішньому JSON сторінки.
-     */
-    const mainImagePatterns = [
-      /"(?:mainImage|mainImageUrl|mainImg|mainImgUrl)"\s*:\s*"([^"]+)"/gi,
-      /"(?:productImage|productImageUrl)"\s*:\s*"([^"]+)"/gi,
-      /"(?:originalImage|originalImageUrl)"\s*:\s*"([^"]+)"/gi,
-      /"(?:imagePath|imageUrl)"\s*:\s*"([^"]+)"/gi
-    ];
-
-    for (
-      const pattern
-      of mainImagePatterns
-    ) {
-      for (
-        const match
-        of html.matchAll(
-          pattern
-        )
-      ) {
-        const imageUrl =
-          normalizeChinaImageUrl(
-            match?.[1],
-            finalPageUrl
-          );
-
-        if (!imageUrl) {
-          continue;
-        }
-
-        candidates.push({
-          imageUrl,
-          score:
-            105,
-          coverage:
-            0.5,
-          source:
-            "main-json"
-        });
-      }
-    }
-
-    /*
-     * OG image лишаємо fallback,
-     * а не головним кандидатом.
-     */
-    const metaPatterns = [
-      /<meta\b[^>]*property=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["'][^>]*>/gi,
-      /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image(?::secure_url)?["'][^>]*>/gi,
-      /<meta\b[^>]*name=["']twitter:image(?::src)?["'][^>]*content=["']([^"']+)["'][^>]*>/gi
-    ];
-
-    for (
-      const pattern
-      of metaPatterns
-    ) {
-      for (
-        const match
-        of html.matchAll(
-          pattern
-        )
-      ) {
-        const imageUrl =
-          normalizeChinaImageUrl(
-            match?.[1],
-            finalPageUrl
-          );
-
-        if (!imageUrl) {
-          continue;
-        }
-
-        candidates.push({
-          imageUrl,
-          score:
-            68,
-          coverage:
-            0,
-          source:
-            "meta"
-        });
-      }
-    }
-
-    /*
-     * Фото з пошукової картки
-     * лишається fallback.
-     */
-    if (product.imageUrl) {
-      const fallbackUrl =
-        normalizeChinaImageUrl(
-          product.imageUrl,
-          finalPageUrl
-        );
-
-      if (fallbackUrl) {
-        candidates.push({
-          imageUrl:
-            fallbackUrl,
-          score:
-            55,
-          coverage:
-            0,
-          source:
-            "search-card"
-        });
-      }
-    }
-
-    const uniqueCandidates = [];
-    const seenImages =
-      new Set();
-
-    for (
-      const candidate
-      of candidates.sort(
-        (first, second) =>
-          second.score -
-          first.score
-      )
-    ) {
-      const normalized =
-        candidate.imageUrl
-          .replace(
-            /_[0-9]+x[0-9]+[^/?]*/gi,
-            ""
-          )
-          .replace(
-            /[?&](?:w|h|width|height)=\d+/gi,
-            ""
-          )
-          .split("?")[0];
-
-      if (
-        seenImages.has(
-          normalized
-        )
-      ) {
-        continue;
-      }
-
-      seenImages.add(
-        normalized
+    const bestGalleryImage =
+      galleryCandidates.find(
+        candidate =>
+          candidate.score >= 55
       );
 
-      uniqueCandidates.push(
-        candidate
-      );
-    }
-
-    /*
-     * Не показуємо випадковий банер
-     * лише тому, що це єдина картинка.
-     */
-    const bestCandidate =
-      uniqueCandidates.find(
-        candidate =>
-          candidate.source ===
-            "jsonld-product" ||
-          candidate.source ===
-            "main-json" ||
-          candidate.score >= 58 ||
-          candidate.coverage >= 0.2
-      ) ||
-      uniqueCandidates.find(
-        candidate =>
-          candidate.source ===
-            "img" ||
-          candidate.source ===
-            "srcset" ||
-          candidate.source ===
-            "json"
-      ) ||
-      null;
-
-    const imageUrl =
-      bestCandidate
+    let imageUrl =
+      bestGalleryImage
         ?.imageUrl ||
-      product.imageUrl ||
       null;
+
+    /*
+     * Якщо структуровану галерею
+     * не знайшли, залишаємо фото,
+     * яке вже було прив'язане
+     * до конкретної search-card.
+     */
+    if (
+      !imageUrl &&
+      product.imageUrl
+    ) {
+      imageUrl =
+        prepareChinaGalleryImageUrl(
+          product.imageUrl,
+          finalPageUrl,
+          sourceConfig
+        );
+    }
 
     chinaProductImageCache.set(
       cacheKey,
       {
         savedAt:
           Date.now(),
-        imageUrl
+        imageUrl:
+          imageUrl ||
+          null
       }
     );
 
     return {
       ...product,
-      imageUrl
+      imageUrl:
+        imageUrl ||
+        null
     };
   } catch {
-    return product;
+    return {
+      ...product,
+      imageUrl:
+        product.imageUrl ||
+        null
+    };
   }
 }
 
