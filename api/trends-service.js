@@ -6840,10 +6840,6 @@ function extractAlibabaProducts(
 async function loadAlibabaProductImage(
   product
 ) {
-  if (product.imageUrl) {
-    return product;
-  }
-
   try {
     const response = await fetch(
       product.link,
@@ -6863,7 +6859,7 @@ async function loadAlibabaProductImage(
           "follow",
         signal:
           AbortSignal.timeout(
-            8000
+            9000
           )
       }
     );
@@ -6872,40 +6868,69 @@ async function loadAlibabaProductImage(
       return product;
     }
 
+    const finalPageUrl =
+      response.url ||
+      product.link;
+
     const html =
       await response.text();
 
     const imageCandidates = [];
 
+    function addImageCandidate(
+      rawUrl,
+      priority = 50
+    ) {
+      if (!rawUrl) {
+        return;
+      }
+
+      imageCandidates.push({
+        rawUrl,
+        priority
+      });
+    }
+
+    /*
+     * 1. Open Graph / Twitter / image_src
+     */
     const metaPatterns = [
-      /<meta\b[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i,
-      /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i,
-      /<meta\b[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i,
-      /<meta\b[^>]*content=["']([^"']+)["'][^>]*name=["']twitter:image["']/i
+      /<meta\b[^>]*property=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["'][^>]*>/gi,
+      /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image(?::secure_url)?["'][^>]*>/gi,
+      /<meta\b[^>]*name=["']twitter:image(?::src)?["'][^>]*content=["']([^"']+)["'][^>]*>/gi,
+      /<meta\b[^>]*content=["']([^"']+)["'][^>]*name=["']twitter:image(?::src)?["'][^>]*>/gi,
+      /<link\b[^>]*rel=["']image_src["'][^>]*href=["']([^"']+)["'][^>]*>/gi,
+      /<link\b[^>]*href=["']([^"']+)["'][^>]*rel=["']image_src["'][^>]*>/gi
     ];
 
     for (
       const pattern
       of metaPatterns
     ) {
-      const match =
-        html.match(
+      for (
+        const match
+        of html.matchAll(
           pattern
-        );
-
-      if (match?.[1]) {
-        imageCandidates.push(
-          match[1]
+        )
+      ) {
+        addImageCandidate(
+          match?.[1],
+          120
         );
       }
     }
 
+    /*
+     * 2. JSON / state Alibaba.
+     * На різних шаблонах назви полів різні.
+     */
     const jsonImagePatterns = [
-      /"imageUrl"\s*:\s*"([^"]+)"/gi,
-      /"image"\s*:\s*"([^"]+)"/gi,
-      /"mainImage"\s*:\s*"([^"]+)"/gi,
-      /"originalImage"\s*:\s*"([^"]+)"/gi,
-      /"imagePath"\s*:\s*"([^"]+)"/gi
+      /"(?:mainImage|mainImageUrl|mainImg|mainImgUrl)"\s*:\s*"([^"]+)"/gi,
+      /"(?:imageUrl|imageURL|imagePath|imageSrc)"\s*:\s*"([^"]+)"/gi,
+      /"(?:originalImage|originalImageUrl)"\s*:\s*"([^"]+)"/gi,
+      /"(?:productImage|productImageUrl)"\s*:\s*"([^"]+)"/gi,
+      /"(?:poster|posterUrl)"\s*:\s*"([^"]+)"/gi,
+      /"(?:src|url)"\s*:\s*"((?:https?:)?(?:\\?\/){2}[^"]*alicdn[^"]*)"/gi
     ];
 
     for (
@@ -6918,113 +6943,324 @@ async function loadAlibabaProductImage(
           pattern
         )
       ) {
-        if (match?.[1]) {
-          imageCandidates.push(
-            match[1]
+        addImageCandidate(
+          match?.[1],
+          100
+        );
+      }
+    }
+
+    /*
+     * 3. Масиви картинок.
+     */
+    const imageArrayPatterns = [
+      /"(?:imageList|imagePathList|images|productImages|galleryImages)"\s*:\s*\[([\s\S]*?)\]/gi,
+      /"(?:mainImages|imageUrls)"\s*:\s*\[([\s\S]*?)\]/gi
+    ];
+
+    for (
+      const pattern
+      of imageArrayPatterns
+    ) {
+      for (
+        const arrayMatch
+        of html.matchAll(
+          pattern
+        )
+      ) {
+        const arrayText =
+          String(
+            arrayMatch?.[1] || ""
+          );
+
+        const quotedUrls =
+          arrayText.matchAll(
+            /["']([^"']*alicdn[^"']*)["']/gi
+          );
+
+        for (
+          const urlMatch
+          of quotedUrls
+        ) {
+          addImageCandidate(
+            urlMatch?.[1],
+            110
           );
         }
       }
     }
 
-    const alicdnPattern =
-      /(?:https?:)?\\?\/\\?\/[^"'\\\s<>]*alicdn[^"'\\\s<>]*\.(?:jpg|jpeg|png|webp)[^"'\\\s<>]*/gi;
+    /*
+     * 4. Звичайні IMG, lazy-load та srcset.
+     */
+    const imgTags = [
+      ...html.matchAll(
+        /<img\b[^>]*>/gi
+      )
+    ];
 
     for (
-      const match
-      of html.matchAll(
-        alicdnPattern
-      )
+      const imgMatch
+      of imgTags
     ) {
-      imageCandidates.push(
-        match[0]
-      );
-    }
+      const imgTag =
+        imgMatch[0];
 
-    const imageUrl =
-      imageCandidates
-        .map(candidate =>
-          decodeHtmlEntities(
-            String(
-              candidate || ""
-            )
-          )
-            .replace(
-              /\\u002F/gi,
-              "/"
-            )
-            .replace(
-              /\\\//g,
-              "/"
-            )
-            .replace(
-              /\\u0026/gi,
-              "&"
-            )
-            .trim()
-        )
-        .map(candidate => {
-          try {
-            if (
-              candidate.startsWith(
-                "//"
-              )
-            ) {
-              return `https:${candidate}`;
-            }
+      const sourceAttributes = [
+        "data-src",
+        "data-original",
+        "data-lazy-src",
+        "data-image",
+        "data-image-src",
+        "data-img",
+        "src"
+      ];
 
-            return new URL(
-              candidate,
-              product.link
-            ).toString();
-          } catch {
-            return "";
-          }
-        })
-        .find(candidate => {
-          const normalized =
-            candidate.toLocaleLowerCase(
-              "en-US"
-            );
-
-          return (
-            candidate &&
-            (
-              normalized.includes(
-                "alicdn"
-              ) ||
-              normalized.includes(
-                "sc04.alicdn"
-              ) ||
-              normalized.includes(
-                "s.alicdn"
-              )
-            ) &&
-            !normalized.includes(
-              "logo"
-            ) &&
-            !normalized.includes(
-              "icon"
-            ) &&
-            !normalized.includes(
-              "avatar"
-            ) &&
-            !normalized.includes(
-              "sprite"
-            ) &&
-            !normalized.includes(
-              "banner"
-            ) &&
-            !normalized.includes(
-              "loading"
+      for (
+        const attribute
+        of sourceAttributes
+      ) {
+        const attributeMatch =
+          imgTag.match(
+            new RegExp(
+              `\\b${attribute}=["']([^"']+)["']`,
+              "i"
             )
           );
-        }) ||
-      null;
+
+        addImageCandidate(
+          attributeMatch?.[1],
+          80
+        );
+      }
+
+      const srcsetMatch =
+        imgTag.match(
+          /\bsrcset=["']([^"']+)["']/i
+        );
+
+      if (srcsetMatch?.[1]) {
+        const srcsetUrls =
+          srcsetMatch[1]
+            .split(",")
+            .map(item =>
+              item
+                .trim()
+                .split(/\s+/)[0]
+            )
+            .filter(Boolean);
+
+        for (
+          const srcsetUrl
+          of srcsetUrls
+        ) {
+          addImageCandidate(
+            srcsetUrl,
+            90
+          );
+        }
+      }
+    }
+
+    /*
+     * 5. Останній локальний fallback:
+     * будь-який Alibaba CDN URL у HTML.
+     */
+    const rawAlibabaImagePatterns = [
+      /(?:https?:)?(?:\\u002F|\\\/|\/){2}[^"'<> ]*alicdn[^"'<> ]*/gi,
+      /(?:https?:)?\/\/[^"'<> ]*alicdn[^"'<> ]*/gi
+    ];
+
+    for (
+      const pattern
+      of rawAlibabaImagePatterns
+    ) {
+      for (
+        const match
+        of html.matchAll(
+          pattern
+        )
+      ) {
+        addImageCandidate(
+          match[0],
+          40
+        );
+      }
+    }
+
+    function prepareAlibabaImageUrl(
+      rawUrl
+    ) {
+      let candidate =
+        decodeHtmlEntities(
+          String(
+            rawUrl || ""
+          )
+        )
+          .replace(
+            /&quot;/gi,
+            ""
+          )
+          .replace(
+            /\\u002F/gi,
+            "/"
+          )
+          .replace(
+            /\\u0026/gi,
+            "&"
+          )
+          .replace(
+            /\\u003D/gi,
+            "="
+          )
+          .replace(
+            /\\\//g,
+            "/"
+          )
+          .replace(
+            /^["']+|["']+$/g,
+            ""
+          )
+          .trim();
+
+      if (!candidate) {
+        return null;
+      }
+
+      try {
+        candidate =
+          decodeURIComponent(
+            candidate
+          );
+      } catch {
+        // URL не був percent-encoded.
+      }
+
+      try {
+        const imageUrl =
+          candidate.startsWith("//")
+            ? `https:${candidate}`
+            : new URL(
+                candidate,
+                finalPageUrl
+              ).toString();
+
+        const normalized =
+          imageUrl.toLocaleLowerCase(
+            "en-US"
+          );
+
+        if (
+          !normalized.includes(
+            "alicdn"
+          )
+        ) {
+          return null;
+        }
+
+        const blockedParts = [
+          "logo",
+          "icon",
+          "sprite",
+          "avatar",
+          "loading",
+          "placeholder",
+          "banner",
+          "flag",
+          "qr-code",
+          "qrcode",
+          "32x32",
+          "40x40",
+          "48x48",
+          "50x50",
+          "60x60"
+        ];
+
+        if (
+          blockedParts.some(
+            blocked =>
+              normalized.includes(
+                blocked
+              )
+          )
+        ) {
+          return null;
+        }
+
+        if (
+          normalized.endsWith(
+            ".svg"
+          ) ||
+          normalized.endsWith(
+            ".gif"
+          )
+        ) {
+          return null;
+        }
+
+        return imageUrl;
+      } catch {
+        return null;
+      }
+    }
+
+    const preparedImages =
+      imageCandidates
+        .map(candidate => ({
+          imageUrl:
+            prepareAlibabaImageUrl(
+              candidate.rawUrl
+            ),
+          priority:
+            candidate.priority
+        }))
+        .filter(
+          candidate =>
+            candidate.imageUrl
+        );
+
+    const uniqueImages = [];
+    const seenImages =
+      new Set();
+
+    for (
+      const candidate
+      of preparedImages
+        .sort(
+          (first, second) =>
+            second.priority -
+            first.priority
+        )
+    ) {
+      const imageKey =
+        candidate.imageUrl
+          .replace(
+            /_[0-9]+x[0-9]+[^/?]*/gi,
+            ""
+          )
+          .split("?")[0];
+
+      if (
+        seenImages.has(
+          imageKey
+        )
+      ) {
+        continue;
+      }
+
+      seenImages.add(
+        imageKey
+      );
+
+      uniqueImages.push(
+        candidate.imageUrl
+      );
+    }
 
     return {
       ...product,
       imageUrl:
-        imageUrl ||
+        uniqueImages[0] ||
         product.imageUrl ||
         null
     };
