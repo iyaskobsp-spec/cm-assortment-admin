@@ -175,7 +175,6 @@ function renderTrendResults(ideas, summary) {
             alt="${title}"
             loading="lazy"
             referrerpolicy="no-referrer"
-            crossorigin="anonymous"
           >
         `
         : `
