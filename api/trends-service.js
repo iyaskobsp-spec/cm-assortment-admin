@@ -8753,6 +8753,63 @@ async function executeChina1688Request(
   };
 }
 
+function buildChina1688Queries(
+  category,
+  searchDetails
+) {
+  const categoryConfig =
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ] ||
+    MADE_IN_CHINA_CATEGORY_CONFIG.other;
+
+  const queries = [];
+
+  for (
+    const group
+    of categoryConfig.groups
+  ) {
+    const chineseQuery =
+      CHINA_1688_GROUP_QUERIES[
+        group.key
+      ];
+
+    if (!chineseQuery) {
+      continue;
+    }
+
+    queries.push({
+      searchQuery:
+        chineseQuery,
+      subgroup:
+        group.key
+    });
+  }
+
+  const details =
+    cleanTrendText(
+      searchDetails,
+      120
+    );
+
+  if (
+    details &&
+    queries.length
+  ) {
+    queries.push({
+      searchQuery:
+        `${queries[0].searchQuery} ${details}`,
+      subgroup:
+        queries[0].subgroup
+    });
+  }
+
+  return queries.slice(
+    0,
+    8
+  );
+}
+
 async function fetchChina1688Offers(
   searchQuery,
   signalType
