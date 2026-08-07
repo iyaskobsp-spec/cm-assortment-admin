@@ -6975,220 +6975,59 @@ async function loadAlibabaProductImage(
     const html =
       await response.text();
 
-    const imageCandidates = [];
+    const productWords =
+      getChinaWords(
+        product.title
+      ).filter(word =>
+        word.length >= 4 &&
+        ![
+          "new",
+          "arrival",
+          "design",
+          "product",
+          "products",
+          "custom",
+          "customized",
+          "quality",
+          "wholesale",
+          "best",
+          "selling",
+          "popular",
+          "china"
+        ].includes(word)
+      );
 
-    function addImageCandidate(
-      rawUrl,
-      priority = 50
-    ) {
-      if (!rawUrl) {
-        return;
-      }
-
-      imageCandidates.push({
-        rawUrl,
-        priority
-      });
-    }
-
-    /*
-     * 1. Open Graph / Twitter / image_src
-     */
-    const metaPatterns = [
-      /<meta\b[^>]*property=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["'][^>]*>/gi,
-      /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image(?::secure_url)?["'][^>]*>/gi,
-      /<meta\b[^>]*name=["']twitter:image(?::src)?["'][^>]*content=["']([^"']+)["'][^>]*>/gi,
-      /<meta\b[^>]*content=["']([^"']+)["'][^>]*name=["']twitter:image(?::src)?["'][^>]*>/gi,
-      /<link\b[^>]*rel=["']image_src["'][^>]*href=["']([^"']+)["'][^>]*>/gi,
-      /<link\b[^>]*href=["']([^"']+)["'][^>]*rel=["']image_src["'][^>]*>/gi
+    const blockedImageWords = [
+      "logo",
+      "icon",
+      "sprite",
+      "avatar",
+      "banner",
+      "company",
+      "factory",
+      "certificate",
+      "certification",
+      "report",
+      "audit",
+      "inspection",
+      "profile",
+      "contact",
+      "qrcode",
+      "qr-code",
+      "loading",
+      "placeholder",
+      "business-card",
+      "business_card",
+      "company-display",
+      "company_display",
+      "supplier",
+      "license",
+      "document"
     ];
 
-    for (
-      const pattern
-      of metaPatterns
-    ) {
-      for (
-        const match
-        of html.matchAll(
-          pattern
-        )
-      ) {
-        addImageCandidate(
-          match?.[1],
-          120
-        );
-      }
-    }
+    const candidates = [];
 
-    /*
-     * 2. JSON / state Alibaba.
-     * На різних шаблонах назви полів різні.
-     */
-    const jsonImagePatterns = [
-      /"(?:mainImage|mainImageUrl|mainImg|mainImgUrl)"\s*:\s*"([^"]+)"/gi,
-      /"(?:imageUrl|imageURL|imagePath|imageSrc)"\s*:\s*"([^"]+)"/gi,
-      /"(?:originalImage|originalImageUrl)"\s*:\s*"([^"]+)"/gi,
-      /"(?:productImage|productImageUrl)"\s*:\s*"([^"]+)"/gi,
-      /"(?:poster|posterUrl)"\s*:\s*"([^"]+)"/gi,
-      /"(?:src|url)"\s*:\s*"((?:https?:)?(?:\\?\/){2}[^"]*alicdn[^"]*)"/gi
-    ];
-
-    for (
-      const pattern
-      of jsonImagePatterns
-    ) {
-      for (
-        const match
-        of html.matchAll(
-          pattern
-        )
-      ) {
-        addImageCandidate(
-          match?.[1],
-          100
-        );
-      }
-    }
-
-    /*
-     * 3. Масиви картинок.
-     */
-    const imageArrayPatterns = [
-      /"(?:imageList|imagePathList|images|productImages|galleryImages)"\s*:\s*\[([\s\S]*?)\]/gi,
-      /"(?:mainImages|imageUrls)"\s*:\s*\[([\s\S]*?)\]/gi
-    ];
-
-    for (
-      const pattern
-      of imageArrayPatterns
-    ) {
-      for (
-        const arrayMatch
-        of html.matchAll(
-          pattern
-        )
-      ) {
-        const arrayText =
-          String(
-            arrayMatch?.[1] || ""
-          );
-
-        const quotedUrls =
-          arrayText.matchAll(
-            /["']([^"']*alicdn[^"']*)["']/gi
-          );
-
-        for (
-          const urlMatch
-          of quotedUrls
-        ) {
-          addImageCandidate(
-            urlMatch?.[1],
-            110
-          );
-        }
-      }
-    }
-
-    /*
-     * 4. Звичайні IMG, lazy-load та srcset.
-     */
-    const imgTags = [
-      ...html.matchAll(
-        /<img\b[^>]*>/gi
-      )
-    ];
-
-    for (
-      const imgMatch
-      of imgTags
-    ) {
-      const imgTag =
-        imgMatch[0];
-
-      const sourceAttributes = [
-        "data-src",
-        "data-original",
-        "data-lazy-src",
-        "data-image",
-        "data-image-src",
-        "data-img",
-        "src"
-      ];
-
-      for (
-        const attribute
-        of sourceAttributes
-      ) {
-        const attributeMatch =
-          imgTag.match(
-            new RegExp(
-              `\\b${attribute}=["']([^"']+)["']`,
-              "i"
-            )
-          );
-
-        addImageCandidate(
-          attributeMatch?.[1],
-          80
-        );
-      }
-
-      const srcsetMatch =
-        imgTag.match(
-          /\bsrcset=["']([^"']+)["']/i
-        );
-
-      if (srcsetMatch?.[1]) {
-        const srcsetUrls =
-          srcsetMatch[1]
-            .split(",")
-            .map(item =>
-              item
-                .trim()
-                .split(/\s+/)[0]
-            )
-            .filter(Boolean);
-
-        for (
-          const srcsetUrl
-          of srcsetUrls
-        ) {
-          addImageCandidate(
-            srcsetUrl,
-            90
-          );
-        }
-      }
-    }
-
-    /*
-     * 5. Останній локальний fallback:
-     * будь-який Alibaba CDN URL у HTML.
-     */
-    const rawAlibabaImagePatterns = [
-      /(?:https?:)?(?:\\u002F|\\\/|\/){2}[^"'<> ]*alicdn[^"'<> ]*/gi,
-      /(?:https?:)?\/\/[^"'<> ]*alicdn[^"'<> ]*/gi
-    ];
-
-    for (
-      const pattern
-      of rawAlibabaImagePatterns
-    ) {
-      for (
-        const match
-        of html.matchAll(
-          pattern
-        )
-      ) {
-        addImageCandidate(
-          match[0],
-          40
-        );
-      }
-    }
-
-    function prepareAlibabaImageUrl(
+    function prepareUrl(
       rawUrl
     ) {
       let candidate =
@@ -7233,7 +7072,7 @@ async function loadAlibabaProductImage(
             candidate
           );
       } catch {
-        // URL не був percent-encoded.
+        // залишаємо як є
       }
 
       try {
@@ -7245,41 +7084,23 @@ async function loadAlibabaProductImage(
                 finalPageUrl
               ).toString();
 
-        const normalized =
+        const normalizedUrl =
           imageUrl.toLocaleLowerCase(
             "en-US"
           );
 
         if (
-          !normalized.includes(
+          !normalizedUrl.includes(
             "alicdn"
           )
         ) {
           return null;
         }
 
-        const blockedParts = [
-          "logo",
-          "icon",
-          "sprite",
-          "avatar",
-          "loading",
-          "placeholder",
-          "banner",
-          "flag",
-          "qr-code",
-          "qrcode",
-          "32x32",
-          "40x40",
-          "48x48",
-          "50x50",
-          "60x60"
-        ];
-
         if (
-          blockedParts.some(
+          blockedImageWords.some(
             blocked =>
-              normalized.includes(
+              normalizedUrl.includes(
                 blocked
               )
           )
@@ -7288,10 +7109,10 @@ async function loadAlibabaProductImage(
         }
 
         if (
-          normalized.endsWith(
+          normalizedUrl.endsWith(
             ".svg"
           ) ||
-          normalized.endsWith(
+          normalizedUrl.endsWith(
             ".gif"
           )
         ) {
@@ -7304,35 +7125,257 @@ async function loadAlibabaProductImage(
       }
     }
 
-    const preparedImages =
-      imageCandidates
-        .map(candidate => ({
-          imageUrl:
-            prepareAlibabaImageUrl(
-              candidate.rawUrl
-            ),
-          priority:
-            candidate.priority
-        }))
-        .filter(
-          candidate =>
-            candidate.imageUrl
+    function addCandidate({
+      rawUrl,
+      text = "",
+      baseScore = 0
+    }) {
+      const imageUrl =
+        prepareUrl(
+          rawUrl
         );
 
-    const uniqueImages = [];
-    const seenImages =
+      if (!imageUrl) {
+        return;
+      }
+
+      const normalizedText =
+        normalizeChinaText(
+          text
+        );
+
+      if (
+        blockedImageWords.some(
+          blocked =>
+            normalizedText.includes(
+              blocked
+            )
+        )
+      ) {
+        return;
+      }
+
+      const matchedWords =
+        productWords.filter(word =>
+          normalizedText.includes(
+            word
+          )
+        ).length;
+
+      const coverage =
+        productWords.length
+          ? matchedWords /
+            productWords.length
+          : 0;
+
+      let score =
+        baseScore +
+        matchedWords * 12 +
+        coverage * 45;
+
+      if (
+        normalizedText.includes(
+          "product"
+        )
+      ) {
+        score += 8;
+      }
+
+      if (
+        normalizedText.includes(
+          "main"
+        )
+      ) {
+        score += 8;
+      }
+
+      candidates.push({
+        imageUrl,
+        score,
+        coverage
+      });
+    }
+
+    /*
+     * 1. Найцінніше:
+     * картинки з IMG, бо там є alt/title,
+     * і можна перевірити зв'язок із товаром.
+     */
+    for (
+      const imgMatch
+      of html.matchAll(
+        /<img\b[^>]*>/gi
+      )
+    ) {
+      const imgTag =
+        imgMatch[0];
+
+      const alt =
+        decodeHtmlEntities(
+          imgTag.match(
+            /\balt=["']([^"']*)["']/i
+          )?.[1] || ""
+        );
+
+      const imageTitle =
+        decodeHtmlEntities(
+          imgTag.match(
+            /\btitle=["']([^"']*)["']/i
+          )?.[1] || ""
+        );
+
+      const className =
+        imgTag.match(
+          /\bclass=["']([^"']*)["']/i
+        )?.[1] || "";
+
+      const text =
+        [
+          alt,
+          imageTitle,
+          className
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+      const attributes = [
+        "data-src",
+        "data-original",
+        "data-lazy-src",
+        "data-image",
+        "data-image-src",
+        "data-img",
+        "src"
+      ];
+
+      for (
+        const attribute
+        of attributes
+      ) {
+        const rawUrl =
+          imgTag.match(
+            new RegExp(
+              `\\b${attribute}=["']([^"']+)["']`,
+              "i"
+            )
+          )?.[1];
+
+        if (rawUrl) {
+          addCandidate({
+            rawUrl,
+            text,
+            baseScore:
+              35
+          });
+        }
+      }
+
+      const srcset =
+        imgTag.match(
+          /\bsrcset=["']([^"']+)["']/i
+        )?.[1];
+
+      if (srcset) {
+        for (
+          const srcsetUrl
+          of srcset
+            .split(",")
+            .map(item =>
+              item
+                .trim()
+                .split(/\s+/)[0]
+            )
+            .filter(Boolean)
+        ) {
+          addCandidate({
+            rawUrl:
+              srcsetUrl,
+            text,
+            baseScore:
+              40
+          });
+        }
+      }
+    }
+
+    /*
+     * 2. JSON поля головного фото.
+     * Беремо, але нижче за семантично підтверджений IMG.
+     */
+    const jsonPatterns = [
+      /"(?:mainImage|mainImageUrl|mainImg|mainImgUrl)"\s*:\s*"([^"]+)"/gi,
+      /"(?:productImage|productImageUrl)"\s*:\s*"([^"]+)"/gi,
+      /"(?:originalImage|originalImageUrl)"\s*:\s*"([^"]+)"/gi
+    ];
+
+    for (
+      const pattern
+      of jsonPatterns
+    ) {
+      for (
+        const match
+        of html.matchAll(
+          pattern
+        )
+      ) {
+        addCandidate({
+          rawUrl:
+            match?.[1],
+          text:
+            product.title,
+          baseScore:
+            55
+        });
+      }
+    }
+
+    /*
+     * 3. OG image лише як fallback.
+     * Раніше він мав найвищий пріоритет,
+     * через що й лізли company/report картинки.
+     */
+    const metaPatterns = [
+      /<meta\b[^>]*property=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["'][^>]*>/gi,
+      /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image(?::secure_url)?["'][^>]*>/gi
+    ];
+
+    for (
+      const pattern
+      of metaPatterns
+    ) {
+      for (
+        const match
+        of html.matchAll(
+          pattern
+        )
+      ) {
+        addCandidate({
+          rawUrl:
+            match?.[1],
+          text:
+            "",
+          baseScore:
+            18
+        });
+      }
+    }
+
+    const uniqueCandidates =
+      [];
+
+    const seenUrls =
       new Set();
 
     for (
       const candidate
-      of preparedImages
+      of candidates
         .sort(
           (first, second) =>
-            second.priority -
-            first.priority
+            second.score -
+            first.score
         )
     ) {
-      const imageKey =
+      const key =
         candidate.imageUrl
           .replace(
             /_[0-9]+x[0-9]+[^/?]*/gi,
@@ -7341,26 +7384,40 @@ async function loadAlibabaProductImage(
           .split("?")[0];
 
       if (
-        seenImages.has(
-          imageKey
+        seenUrls.has(
+          key
         )
       ) {
         continue;
       }
 
-      seenImages.add(
-        imageKey
+      seenUrls.add(
+        key
       );
 
-      uniqueImages.push(
-        candidate.imageUrl
+      uniqueCandidates.push(
+        candidate
       );
     }
+
+    /*
+     * Якщо кандидат з товарної сторінки
+     * взагалі не підтверджений назвою,
+     * краще лишити вже знайдене фото
+     * з пошукової картки.
+     */
+    const bestCandidate =
+      uniqueCandidates.find(
+        candidate =>
+          candidate.coverage >= 0.18 ||
+          candidate.score >= 60
+      );
 
     return {
       ...product,
       imageUrl:
-        uniqueImages[0] ||
+        bestCandidate
+          ?.imageUrl ||
         product.imageUrl ||
         null
     };
