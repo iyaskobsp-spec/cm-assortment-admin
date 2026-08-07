@@ -4579,66 +4579,36 @@ function buildMadeInChinaQueries(
     const group
     of categoryConfig.groups
   ) {
-    for (
-      const categoryQuery
-      of group.queries
-    ) {
-      const searchQuery =
-        cleanTrendText(
-          [
-            categoryQuery,
-            signalConfig.queryWords,
-            details
-          ]
-            .filter(Boolean)
-            .join(" "),
-          220
-        );
+    const categoryQuery =
+      group.queries[0];
 
-      if (!searchQuery) {
-        continue;
-      }
+    const searchQuery =
+      cleanTrendText(
+        [
+          categoryQuery,
+          signalConfig.queryWords,
+          details
+        ]
+          .filter(Boolean)
+          .join(" "),
+        220
+      );
 
-      queryItems.push({
-        searchQuery,
-        subgroup:
-          group.key
-      });
-    }
-  }
-
-  const uniqueItems = [];
-  const seenQueries =
-    new Set();
-
-  for (
-    const queryItem
-    of queryItems
-  ) {
-    const queryKey =
-      queryItem.searchQuery
-        .toLocaleLowerCase(
-          "en-US"
-        );
-
-    if (
-      seenQueries.has(
-        queryKey
-      )
-    ) {
+    if (!searchQuery) {
       continue;
     }
 
-    seenQueries.add(
-      queryKey
-    );
-
-    uniqueItems.push(
-      queryItem
-    );
+    queryItems.push({
+      searchQuery,
+      subgroup:
+        group.key
+    });
   }
 
-  return uniqueItems;
+  return queryItems.slice(
+    0,
+    8
+  );
 }
 
 function buildMadeInChinaSearchUrl(
@@ -6185,6 +6155,12 @@ async function loadMadeInChinaSignal({
     throw firstError;
   }
 
+  const totalQueryCount =
+    Math.max(
+      searchQueries.length,
+      1
+    );
+
   const rankedProducts = [
     ...productsById.values()
   ]
@@ -6192,48 +6168,66 @@ async function loadMadeInChinaSignal({
       const positionScore =
         Math.max(
           0,
-          40 -
+          30 -
           Number(
-            product.bestPosition || 40
+            product.bestPosition || 30
           )
         );
 
-      const repeatedQueryBonus =
+      const queryCoverage =
         Math.min(
-          product.matchedQueries.length,
-          3
-        ) * 10;
+          product.matchedQueries.length /
+            totalQueryCount,
+          1
+        );
 
       const relevanceScore =
-        product.retailScore * 25 +
-        product.categoryScore * 8 +
-        product.queryScore * 10 +
-        product.occurrenceCount * 8 +
-        repeatedQueryBonus +
-        positionScore +
-        (
-          product.imageUrl
-            ? 6
-            : 0
-        );
+        product.retailScore * 3 +
+        product.categoryScore * 2 +
+        product.queryScore * 3 +
+        queryCoverage * 20 +
+        positionScore;
 
       return {
         ...product,
-        relevanceScore
+        sourceSignalScore:
+          relevanceScore
       };
     })
     .sort(
       (first, second) =>
-        second.relevanceScore -
-        first.relevanceScore ||
-        second.retailScore -
-        first.retailScore ||
-        second.queryScore -
-        first.queryScore ||
+        second.sourceSignalScore -
+        first.sourceSignalScore ||
         first.bestPosition -
         second.bestPosition
     )
-    .slice(0, 45);
+    .slice(
+      0,
+      45
+    );
+
+  const bestSourceScore =
+    Math.max(
+      ...rankedProducts.map(
+        product =>
+          product.sourceSignalScore || 0
+      ),
+      1
+    );
+
+  for (
+    const product
+    of rankedProducts
+  ) {
+    product.relevanceScore =
+      Math.round(
+        (
+          product.sourceSignalScore /
+          bestSourceScore
+        ) *
+        1000
+      ) / 10;
+  }
 
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
@@ -6410,29 +6404,64 @@ function buildAlibabaSearchUrl(
 }
 
 function getAlibabaImageUrl(
-  contextHtml
+  contextHtml,
+  productTitle
 ) {
-  const imageTags = [
-    ...String(
+  const html =
+    String(
       contextHtml || ""
-    ).matchAll(
-      /<img\b[^>]*>/gi
-    )
-  ];
+    );
 
-  const imageCandidates = [];
+  const normalizedTitle =
+    normalizeChinaText(
+      productTitle
+    );
+
+  const titleWords =
+    getChinaWords(
+      productTitle
+    ).filter(word =>
+      word.length >= 4
+    );
+
+  const candidates = [];
 
   for (
     const imageMatch
-    of imageTags
+    of html.matchAll(
+      /<img\b[^>]*>/gi
+    )
   ) {
     const imageTag =
       imageMatch[0];
+
+    const altMatch =
+      imageTag.match(
+        /\balt=["']([^"']*)["']/i
+      );
+
+    const titleMatch =
+      imageTag.match(
+        /\btitle=["']([^"']*)["']/i
+      );
+
+    const imageText =
+      normalizeChinaText(
+        [
+          altMatch?.[1],
+          titleMatch?.[1]
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+
+    const sources = [];
 
     const attributes = [
       "data-src",
       "data-original",
       "data-lazy-src",
+      "data-image-src",
       "src"
     ];
 
@@ -6448,17 +6477,42 @@ function getAlibabaImageUrl(
           )
         );
 
-      if (!match?.[1]) {
-        continue;
+      if (match?.[1]) {
+        sources.push(
+          match[1]
+        );
       }
+    }
 
+    const srcsetMatch =
+      imageTag.match(
+        /\bsrcset=["']([^"']+)["']/i
+      );
+
+    if (srcsetMatch?.[1]) {
+      sources.push(
+        ...srcsetMatch[1]
+          .split(",")
+          .map(item =>
+            item
+              .trim()
+              .split(/\s+/)[0]
+          )
+          .filter(Boolean)
+      );
+    }
+
+    for (
+      const rawSource
+      of sources
+    ) {
       try {
         const rawUrl =
           decodeHtmlEntities(
-            match[1]
+            rawSource
           )
             .replace(
-              /\\u002F/g,
+              /\\u002F/gi,
               "/"
             )
             .replace(
@@ -6474,51 +6528,96 @@ function getAlibabaImageUrl(
                 ALIBABA_SOURCE_CONFIG.domain
               ).toString();
 
-        const normalized =
+        const normalizedUrl =
           imageUrl.toLocaleLowerCase(
             "en-US"
           );
 
+        const blockedParts = [
+          "logo",
+          "icon",
+          "sprite",
+          "avatar",
+          "banner",
+          "company",
+          "factory",
+          "certificate",
+          "certification",
+          "profile",
+          "contact",
+          "qrcode",
+          "qr-code",
+          "placeholder",
+          "loading"
+        ];
+
         if (
-          normalized.includes(
-            "logo"
-          ) ||
-          normalized.includes(
-            "icon"
-          ) ||
-          normalized.includes(
-            "avatar"
-          ) ||
-          normalized.includes(
-            "sprite"
-          ) ||
-          normalized.includes(
-            "placeholder"
-          ) ||
-          normalized.includes(
-            "loading"
-          ) ||
-          normalized.endsWith(
-            ".svg"
-          ) ||
-          normalized.endsWith(
-            ".gif"
+          blockedParts.some(
+            blocked =>
+              normalizedUrl.includes(
+                blocked
+              )
           )
         ) {
           continue;
         }
 
-        imageCandidates.push(
-          imageUrl
-        );
+        const matchingWords =
+          titleWords.filter(word =>
+            imageText.includes(
+              word
+            )
+          ).length;
+
+        const exactTitleBonus =
+          imageText &&
+          normalizedTitle &&
+          (
+            imageText.includes(
+              normalizedTitle
+            ) ||
+            normalizedTitle.includes(
+              imageText
+            )
+          )
+            ? 25
+            : 0;
+
+        const productCdnBonus =
+          normalizedUrl.includes(
+            "alicdn"
+          )
+            ? 5
+            : 0;
+
+        const score =
+          exactTitleBonus +
+          matchingWords * 7 +
+          productCdnBonus;
+
+        if (score < 12) {
+          continue;
+        }
+
+        candidates.push({
+          imageUrl,
+          score
+        });
       } catch {
         continue;
       }
     }
   }
 
+  candidates.sort(
+    (first, second) =>
+      second.score -
+      first.score
+  );
+
   return (
-    imageCandidates[0] ||
+    candidates[0]
+      ?.imageUrl ||
     null
   );
 }
@@ -6813,7 +6912,8 @@ function extractAlibabaProducts(
       link,
       imageUrl:
         getAlibabaImageUrl(
-          contextHtml
+          contextHtml,
+          title
         ),
       categoryScore,
       retailScore:
@@ -6840,10 +6940,6 @@ function extractAlibabaProducts(
 async function loadAlibabaProductImage(
   product
 ) {
-  if (product.imageUrl) {
-    return product;
-  }
-
   try {
     const response = await fetch(
       product.link,
@@ -7484,6 +7580,12 @@ async function loadAlibabaSignal({
     throw firstError;
   }
 
+  const totalQueryCount =
+    Math.max(
+      searchQueries.length,
+      1
+    );
+
   const rankedProducts = [
     ...productsById.values()
   ]
@@ -7491,53 +7593,59 @@ async function loadAlibabaSignal({
       const positionScore =
         Math.max(
           0,
-          40 -
+          30 -
           Number(
-            product.bestPosition || 40
+            product.bestPosition || 30
           )
         );
 
-      const repeatBonus =
+      const queryCoverage =
         Math.min(
-          product.matchedQueries.length,
-          3
-        ) * 10;
+          product.matchedQueries.length /
+            totalQueryCount,
+          1
+        );
 
-      const salesBonus =
-        product.soldCount > 0
-          ? Math.min(
-              40,
-              Math.log10(
-                product.soldCount + 1
-              ) * 12
-            )
-          : 0;
+      let marketSignalScore = 0;
+
+      if (
+        product.soldCount > 0 &&
+        (
+          signalType === "popular" ||
+          signalType === "trends" ||
+          signalType === "all"
+        )
+      ) {
+        marketSignalScore =
+          Math.min(
+            30,
+            Math.log10(
+              product.soldCount + 1
+            ) * 10
+          );
+      }
 
       const relevanceScore =
-        product.retailScore * 25 +
-        product.categoryScore * 8 +
-        product.queryScore * 10 +
-        product.occurrenceCount * 8 +
-        repeatBonus +
+        product.retailScore * 3 +
+        product.categoryScore * 2 +
+        product.queryScore * 3 +
+        queryCoverage * 20 +
         positionScore +
-        salesBonus +
-        (
-          product.imageUrl
-            ? 6
-            : 0
-        );
+        marketSignalScore;
 
       return {
         ...product,
-        relevanceScore
+        marketSignalScore,
+        sourceSignalScore:
+          relevanceScore
       };
     })
     .sort(
       (first, second) =>
-        second.relevanceScore -
-        first.relevanceScore ||
-        second.soldCount -
-        first.soldCount ||
+        second.sourceSignalScore -
+        first.sourceSignalScore ||
+        second.marketSignalScore -
+        first.marketSignalScore ||
         first.bestPosition -
         second.bestPosition
     )
@@ -7545,6 +7653,29 @@ async function loadAlibabaSignal({
       0,
       50
     );
+
+  const bestSourceScore =
+    Math.max(
+      ...rankedProducts.map(
+        product =>
+          product.sourceSignalScore || 0
+      ),
+      1
+    );
+
+  for (
+    const product
+    of rankedProducts
+  ) {
+    product.relevanceScore =
+      Math.round(
+        (
+          product.sourceSignalScore /
+          bestSourceScore
+        ) *
+        1000
+      ) / 10;
+  }
 
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
@@ -7630,6 +7761,145 @@ function buildIdeasFromAlibaba(
         product.subgroup || null
     })
   );
+}
+
+function applyChinaCrossSourceRanking(
+  ideas
+) {
+  const chinaIdeas =
+    ideas.filter(idea =>
+      Array.isArray(
+        idea.sources
+      ) &&
+      (
+        idea.sources.includes(
+          "Made-in-China"
+        ) ||
+        idea.sources.includes(
+          "Alibaba"
+        )
+      )
+    );
+
+  function getComparableWords(
+    title
+  ) {
+    const ignoredWords =
+      new Set([
+        "new",
+        "latest",
+        "design",
+        "product",
+        "products",
+        "custom",
+        "customized",
+        "creative",
+        "modern",
+        "popular",
+        "best",
+        "selling",
+        "sale",
+        "hot",
+        "wholesale",
+        "china",
+        "quality"
+      ]);
+
+    return getChinaWords(
+      title
+    ).filter(word =>
+      word.length >= 4 &&
+      !ignoredWords.has(
+        word
+      )
+    );
+  }
+
+  for (
+    const idea
+    of chinaIdeas
+  ) {
+    const ideaSource =
+      idea.sources?.[0] || "";
+
+    const ideaWords =
+      getComparableWords(
+        idea.title
+      );
+
+    let crossSourceMatches = 0;
+
+    for (
+      const otherIdea
+      of chinaIdeas
+    ) {
+      const otherSource =
+        otherIdea.sources?.[0] || "";
+
+      if (
+        otherIdea === idea ||
+        otherSource === ideaSource ||
+        (
+          idea.subgroup &&
+          otherIdea.subgroup &&
+          idea.subgroup !==
+            otherIdea.subgroup
+        )
+      ) {
+        continue;
+      }
+
+      const otherWords =
+        getComparableWords(
+          otherIdea.title
+        );
+
+      const shorterLength =
+        Math.min(
+          ideaWords.length,
+          otherWords.length
+        );
+
+      if (shorterLength < 2) {
+        continue;
+      }
+
+      const overlap =
+        ideaWords.filter(word =>
+          otherWords.includes(
+            word
+          )
+        ).length;
+
+      if (
+        overlap /
+          shorterLength >=
+        0.5
+      ) {
+        crossSourceMatches += 1;
+      }
+    }
+
+    const crossSourceBonus =
+      Math.min(
+        crossSourceMatches,
+        2
+      ) * 12;
+
+    idea.relevanceScore =
+      Math.min(
+        130,
+        Number(
+          idea.relevanceScore || 0
+        ) +
+        crossSourceBonus
+      );
+
+    idea.crossSourceMatches =
+      crossSourceMatches;
+  }
+
+  return ideas;
 }
 
 export async function searchProductTrends(
@@ -7876,7 +8146,12 @@ export async function searchProductTrends(
           []
       });
     }
-  }  
+  }
+
+  ideas =
+    applyChinaCrossSourceRanking(
+      ideas
+    );  
 
   const uniqueIdeas = [];
   const seenIdeaIds = new Set();
