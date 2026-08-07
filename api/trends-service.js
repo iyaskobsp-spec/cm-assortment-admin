@@ -6837,6 +6837,202 @@ function extractAlibabaProducts(
   return products;
 }
 
+async function loadAlibabaProductImage(
+  product
+) {
+  if (product.imageUrl) {
+    return product;
+  }
+
+  try {
+    const response = await fetch(
+      product.link,
+      {
+        method:
+          "GET",
+        headers: {
+          Accept:
+            "text/html,application/xhtml+xml",
+          "Accept-Language":
+            "en-US,en;q=0.9",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+        },
+        redirect:
+          "follow",
+        signal:
+          AbortSignal.timeout(
+            8000
+          )
+      }
+    );
+
+    if (!response.ok) {
+      return product;
+    }
+
+    const html =
+      await response.text();
+
+    const imageCandidates = [];
+
+    const metaPatterns = [
+      /<meta\b[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i,
+      /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i,
+      /<meta\b[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i,
+      /<meta\b[^>]*content=["']([^"']+)["'][^>]*name=["']twitter:image["']/i
+    ];
+
+    for (
+      const pattern
+      of metaPatterns
+    ) {
+      const match =
+        html.match(
+          pattern
+        );
+
+      if (match?.[1]) {
+        imageCandidates.push(
+          match[1]
+        );
+      }
+    }
+
+    const jsonImagePatterns = [
+      /"imageUrl"\s*:\s*"([^"]+)"/gi,
+      /"image"\s*:\s*"([^"]+)"/gi,
+      /"mainImage"\s*:\s*"([^"]+)"/gi,
+      /"originalImage"\s*:\s*"([^"]+)"/gi,
+      /"imagePath"\s*:\s*"([^"]+)"/gi
+    ];
+
+    for (
+      const pattern
+      of jsonImagePatterns
+    ) {
+      for (
+        const match
+        of html.matchAll(
+          pattern
+        )
+      ) {
+        if (match?.[1]) {
+          imageCandidates.push(
+            match[1]
+          );
+        }
+      }
+    }
+
+    const alicdnPattern =
+      /(?:https?:)?\\?\/\\?\/[^"'\\\s<>]*alicdn[^"'\\\s<>]*\.(?:jpg|jpeg|png|webp)[^"'\\\s<>]*/gi;
+
+    for (
+      const match
+      of html.matchAll(
+        alicdnPattern
+      )
+    ) {
+      imageCandidates.push(
+        match[0]
+      );
+    }
+
+    const imageUrl =
+      imageCandidates
+        .map(candidate =>
+          decodeHtmlEntities(
+            String(
+              candidate || ""
+            )
+          )
+            .replace(
+              /\\u002F/gi,
+              "/"
+            )
+            .replace(
+              /\\\//g,
+              "/"
+            )
+            .replace(
+              /\\u0026/gi,
+              "&"
+            )
+            .trim()
+        )
+        .map(candidate => {
+          try {
+            if (
+              candidate.startsWith(
+                "//"
+              )
+            ) {
+              return `https:${candidate}`;
+            }
+
+            return new URL(
+              candidate,
+              product.link
+            ).toString();
+          } catch {
+            return "";
+          }
+        })
+        .find(candidate => {
+          const normalized =
+            candidate.toLocaleLowerCase(
+              "en-US"
+            );
+
+          return (
+            candidate &&
+            (
+              normalized.includes(
+                "alicdn"
+              ) ||
+              normalized.includes(
+                "sc04.alicdn"
+              ) ||
+              normalized.includes(
+                "s.alicdn"
+              )
+            ) &&
+            !normalized.includes(
+              "logo"
+            ) &&
+            !normalized.includes(
+              "icon"
+            ) &&
+            !normalized.includes(
+              "avatar"
+            ) &&
+            !normalized.includes(
+              "sprite"
+            ) &&
+            !normalized.includes(
+              "banner"
+            ) &&
+            !normalized.includes(
+              "loading"
+            )
+          );
+        }) ||
+      null;
+
+    return {
+      ...product,
+      imageUrl:
+        imageUrl ||
+        product.imageUrl ||
+        null
+    };
+  } catch {
+    return product;
+  }
+}
+
 async function loadAlibabaSignal({
   category,
   signalType,
@@ -7110,18 +7306,30 @@ async function loadAlibabaSignal({
       50
     );
 
-  const products =
+  const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
       15
-    )
-      .map(
-        (product, index) => ({
-          ...product,
-          sourcePosition:
-            index + 1
-        })
-      );
+    );
+
+  const productsWithImages =
+    await Promise.all(
+      selectedProducts.map(
+        product =>
+          loadAlibabaProductImage(
+            product
+          )
+      )
+    );
+
+  const products =
+    productsWithImages.map(
+      (product, index) => ({
+        ...product,
+        sourcePosition:
+          index + 1
+      })
+    );
 
   return {
     source:
