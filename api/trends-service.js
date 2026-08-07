@@ -4636,11 +4636,192 @@ function buildMadeInChinaSearchUrl(
   );
 }
 
-function getMadeInChinaImageUrl(
-  productHtml,
-  productTitle
+const chinaProductImageCache =
+  new Map();
+
+const CHINA_PRODUCT_IMAGE_CACHE_TTL_MS =
+  24 * 60 * 60 * 1000;
+
+const CHINA_IMAGE_BLOCKED_WORDS = [
+  "logo",
+  "icon",
+  "sprite",
+  "avatar",
+  "banner",
+  "company",
+  "factory",
+  "certificate",
+  "certification",
+  "report",
+  "audit",
+  "inspection",
+  "profile",
+  "contact",
+  "qrcode",
+  "qr-code",
+  "placeholder",
+  "loading",
+  "default",
+  "blank",
+  "supplier",
+  "license",
+  "document",
+  "manual",
+  "instruction",
+  "catalog",
+  "brochure",
+  "business-card",
+  "business_card",
+  "company-display",
+  "company_display",
+  "size-chart",
+  "size_chart"
+];
+
+const CHINA_IMAGE_PENALTY_WORDS = [
+  "packaging",
+  "packing",
+  "package",
+  "carton",
+  "certificate",
+  "factory",
+  "workshop",
+  "production",
+  "detail",
+  "dimension",
+  "specification",
+  "instruction",
+  "installation",
+  "comparison"
+];
+
+const CHINA_IMAGE_GENERIC_TITLE_WORDS =
+  new Set([
+    "new",
+    "latest",
+    "design",
+    "product",
+    "products",
+    "custom",
+    "customized",
+    "creative",
+    "modern",
+    "popular",
+    "best",
+    "selling",
+    "sale",
+    "wholesale",
+    "quality",
+    "china",
+    "factory",
+    "manufacturer",
+    "supplier"
+  ]);
+
+function getChinaImageTitleWords(
+  title
 ) {
-  const imageCandidates = [];
+  return getChinaWords(
+    title
+  ).filter(word =>
+    word.length >= 4 &&
+    !CHINA_IMAGE_GENERIC_TITLE_WORDS
+      .has(word)
+  );
+}
+
+function normalizeChinaImageUrl(
+  rawUrl,
+  baseUrl
+) {
+  let value =
+    decodeHtmlEntities(
+      String(rawUrl || "")
+    )
+      .replace(/&quot;/gi, "")
+      .replace(/\\u002F/gi, "/")
+      .replace(/\\u0026/gi, "&")
+      .replace(/\\u003D/gi, "=")
+      .replace(/\\\//g, "/")
+      .replace(/^["']+|["']+$/g, "")
+      .trim();
+
+  if (!value) {
+    return null;
+  }
+
+  try {
+    value =
+      decodeURIComponent(
+        value
+      );
+  } catch {
+    // URL не був закодований.
+  }
+
+  try {
+    const imageUrl =
+      value.startsWith("//")
+        ? `https:${value}`
+        : new URL(
+            value,
+            baseUrl
+          ).toString();
+
+    const normalized =
+      imageUrl.toLocaleLowerCase(
+        "en-US"
+      );
+
+    if (
+      !/^https?:/i.test(
+        imageUrl
+      )
+    ) {
+      return null;
+    }
+
+    if (
+      CHINA_IMAGE_BLOCKED_WORDS.some(
+        word =>
+          normalized.includes(
+            word
+          )
+      )
+    ) {
+      return null;
+    }
+
+    if (
+      normalized.endsWith(".svg") ||
+      normalized.endsWith(".gif")
+    ) {
+      return null;
+    }
+
+    return imageUrl;
+  } catch {
+    return null;
+  }
+}
+
+function getChinaImageCandidateScore({
+  imageUrl,
+  text,
+  productTitle,
+  baseScore = 0,
+  width = 0
+}) {
+  const normalizedUrl =
+    String(imageUrl || "")
+      .toLocaleLowerCase(
+        "en-US"
+      );
+
+  const normalizedText =
+    normalizeChinaText(
+      text
+    );
 
   const normalizedTitle =
     normalizeChinaText(
@@ -4648,235 +4829,289 @@ function getMadeInChinaImageUrl(
     );
 
   const titleWords =
-    getChinaWords(
+    getChinaImageTitleWords(
       productTitle
     );
 
-  const imageTags = [
-    ...String(
-      productHtml || ""
-    ).matchAll(
-      /<img\b[^>]*>/gi
+  const matchingWords =
+    titleWords.filter(word =>
+      normalizedText.includes(
+        word
+      ) ||
+      normalizedUrl.includes(
+        word
+      )
+    ).length;
+
+  const coverage =
+    titleWords.length
+      ? matchingWords /
+        titleWords.length
+      : 0;
+
+  let score =
+    baseScore +
+    matchingWords * 14 +
+    coverage * 45;
+
+  if (
+    normalizedText &&
+    normalizedTitle &&
+    (
+      normalizedText.includes(
+        normalizedTitle
+      ) ||
+      normalizedTitle.includes(
+        normalizedText
+      )
     )
-  ];
+  ) {
+    score += 35;
+  }
+
+  if (
+    /\b(main|primary|product|gallery|photo)\b/i
+      .test(normalizedText)
+  ) {
+    score += 18;
+  }
+
+  if (
+    /product|gallery|main|photo/i
+      .test(normalizedUrl)
+  ) {
+    score += 8;
+  }
+
+  if (
+    Number(width) >= 400
+  ) {
+    score += 8;
+  }
+
+  if (
+    Number(width) >= 700
+  ) {
+    score += 6;
+  }
+
+  const penaltyText =
+    `${normalizedText} ${normalizedUrl}`;
+
+  for (
+    const word
+    of CHINA_IMAGE_PENALTY_WORDS
+  ) {
+    if (
+      penaltyText.includes(
+        word
+      )
+    ) {
+      score -= 28;
+    }
+  }
+
+  return {
+    score,
+    coverage
+  };
+}
+
+function extractChinaImageCandidatesFromHtml({
+  html,
+  productTitle,
+  baseUrl
+}) {
+  const sourceHtml =
+    String(html || "");
+
+  const candidates = [];
 
   for (
     const imageMatch
-    of imageTags
+    of sourceHtml.matchAll(
+      /<img\b[^>]*>/gi
+    )
   ) {
     const imageTag =
       imageMatch[0];
 
-    const altMatch =
+    const alt =
+      decodeHtmlEntities(
+        imageTag.match(
+          /\balt=["']([^"']*)["']/i
+        )?.[1] || ""
+      );
+
+    const imageTitle =
+      decodeHtmlEntities(
+        imageTag.match(
+          /\btitle=["']([^"']*)["']/i
+        )?.[1] || ""
+      );
+
+    const className =
       imageTag.match(
-        /\balt=["']([^"']*)["']/i
-      );
+        /\bclass=["']([^"']*)["']/i
+      )?.[1] || "";
 
-    const altText =
-      cleanTrendText(
-        decodeHtmlEntities(
-          altMatch?.[1] || ""
-        ),
-        300
-      );
-
-    const normalizedAlt =
-      normalizeChinaText(
-        altText
-      );
-
-    const sources = [];
-
-    const srcsetMatch =
+    const id =
       imageTag.match(
-        /\bsrcset=["']([^"']+)["']/i
-      );
+        /\bid=["']([^"']*)["']/i
+      )?.[1] || "";
 
-    if (srcsetMatch?.[1]) {
-      const srcsetSources =
-        srcsetMatch[1]
-          .split(",")
-          .map(item => {
-            const parts =
-              item.trim().split(/\s+/);
+    const text =
+      [
+        alt,
+        imageTitle,
+        className,
+        id
+      ]
+        .filter(Boolean)
+        .join(" ");
 
-            const widthMatch =
-              String(
-                parts[1] || ""
-              ).match(
-                /(\d+)w/i
-              );
+    const sourceItems = [];
 
-            return {
-              url:
-                parts[0],
-              width:
-                Number(
-                  widthMatch?.[1]
-                ) || 0
-            };
-          });
-
-      sources.push(
-        ...srcsetSources
-      );
-    }
-
-    const attributeNames = [
+    const attributes = [
       "data-original",
       "data-src",
       "data-lazy-src",
       "data-image",
+      "data-image-src",
+      "data-img",
       "src"
     ];
 
     for (
-      const attributeName
-      of attributeNames
+      const attribute
+      of attributes
     ) {
-      const attributeMatch =
+      const match =
         imageTag.match(
           new RegExp(
-            `\\b${attributeName}=["']([^"']+)["']`,
+            `\\b${attribute}=["']([^"']+)["']`,
             "i"
           )
         );
 
-      if (attributeMatch?.[1]) {
-        sources.push({
-          url:
-            attributeMatch[1],
+      if (match?.[1]) {
+        sourceItems.push({
+          rawUrl:
+            match[1],
           width:
             0
         });
       }
     }
 
-    for (
-      const source
-      of sources
-    ) {
-      try {
-        const rawUrl =
-          decodeHtmlEntities(
-            source.url
-          )
-            .replace(/\\u002F/g, "/")
-            .replace(/\\\//g, "/");
+    const srcset =
+      imageTag.match(
+        /\bsrcset=["']([^"']+)["']/i
+      )?.[1];
 
-        const imageUrl =
-          rawUrl.startsWith("//")
-            ? `https:${rawUrl}`
-            : new URL(
-                rawUrl,
-                MADE_IN_CHINA_SOURCE_CONFIG.domain
-              ).toString();
+    if (srcset) {
+      for (
+        const item
+        of srcset.split(",")
+      ) {
+        const parts =
+          item
+            .trim()
+            .split(/\s+/);
 
-        const normalizedUrl =
-          imageUrl.toLocaleLowerCase(
-            "en-US"
+        const widthMatch =
+          String(
+            parts[1] || ""
+          ).match(
+            /(\d+)w/i
           );
 
-        const blockedImage =
-          normalizedUrl.includes(
-            "logo"
-          ) ||
-          normalizedUrl.includes(
-            "icon"
-          ) ||
-          normalizedUrl.includes(
-            "sprite"
-          ) ||
-          normalizedUrl.includes(
-            "avatar"
-          ) ||
-          normalizedUrl.includes(
-            "blank"
-          ) ||
-          normalizedUrl.includes(
-            "loading"
-          ) ||
-          normalizedUrl.includes(
-            "default"
-          ) ||
-          normalizedUrl.includes(
-            "company"
-          ) ||
-          normalizedUrl.endsWith(
-            ".gif"
-          ) ||
-          normalizedUrl.endsWith(
-            ".svg"
-          );
-
-        if (blockedImage) {
-          continue;
-        }
-
-        const matchingWords =
-          titleWords.filter(word =>
-            normalizedAlt.includes(
-              word
-            ) ||
-            normalizedUrl.includes(
-              word
-            )
-          ).length;
-
-        const exactTitleBonus =
-          normalizedAlt &&
-          normalizedTitle &&
-          (
-            normalizedAlt.includes(
-              normalizedTitle
-            ) ||
-            normalizedTitle.includes(
-              normalizedAlt
-            )
-          )
-            ? 20
-            : 0;
-
-        const productImageBonus =
-          normalizedUrl.includes(
-            "product"
-          ) ||
-          normalizedUrl.includes(
-            "photo"
-          ) ||
-          normalizedUrl.includes(
-            "image"
-          )
-            ? 5
-            : 0;
-
-        imageCandidates.push({
-          imageUrl,
-          score:
-            exactTitleBonus +
-            matchingWords * 5 +
-            productImageBonus +
-            Math.min(
-              Number(source.width) || 0,
-              1000
-            ) / 100
+        sourceItems.push({
+          rawUrl:
+            parts[0],
+          width:
+            Number(
+              widthMatch?.[1]
+            ) || 0
         });
-      } catch {
+      }
+    }
+
+    for (
+      const sourceItem
+      of sourceItems
+    ) {
+      const imageUrl =
+        normalizeChinaImageUrl(
+          sourceItem.rawUrl,
+          baseUrl
+        );
+
+      if (!imageUrl) {
         continue;
       }
+
+      const rating =
+        getChinaImageCandidateScore({
+          imageUrl,
+          text,
+          productTitle,
+          baseScore:
+            22,
+          width:
+            sourceItem.width
+        });
+
+      candidates.push({
+        imageUrl,
+        score:
+          rating.score,
+        coverage:
+          rating.coverage,
+        source:
+          "img"
+      });
     }
   }
 
-  imageCandidates.sort(
-    (first, second) =>
-      second.score -
-      first.score
-  );
+  return candidates;
+}
+
+function getChinaImageFromHtml(
+  html,
+  productTitle,
+  baseUrl
+) {
+  const candidates =
+    extractChinaImageCandidatesFromHtml({
+      html,
+      productTitle,
+      baseUrl
+    })
+      .filter(candidate =>
+        candidate.score >= 42
+      )
+      .sort(
+        (first, second) =>
+          second.score -
+          first.score
+      );
 
   return (
-    imageCandidates[0]
+    candidates[0]
       ?.imageUrl ||
     null
+  );
+}
+
+function getMadeInChinaImageUrl(
+  productHtml,
+  productTitle
+) {
+  return getChinaImageFromHtml(
+    productHtml,
+    productTitle,
+    MADE_IN_CHINA_SOURCE_CONFIG.domain
   );
 }
 
@@ -5343,24 +5578,28 @@ function extractMadeInChinaProducts(
   return products;
 }
 
-async function loadMadeInChinaProductImage(
-  product
+async function resolveChinaProductImage(
+  product,
+  sourceConfig
 ) {
-  const cachedImage =
-    madeInChinaImageCache.get(
-      product.productId
+  const cacheKey =
+    `${sourceConfig.code}:${product.productId}`;
+
+  const cached =
+    chinaProductImageCache.get(
+      cacheKey
     );
 
   if (
-    cachedImage &&
+    cached &&
     Date.now() -
-      cachedImage.savedAt <
-      MADE_IN_CHINA_IMAGE_CACHE_TTL_MS
+      cached.savedAt <
+      CHINA_PRODUCT_IMAGE_CACHE_TTL_MS
   ) {
     return {
       ...product,
       imageUrl:
-        cachedImage.imageUrl ||
+        cached.imageUrl ||
         product.imageUrl ||
         null
     };
@@ -5385,14 +5624,14 @@ async function loadMadeInChinaProductImage(
           "follow",
         signal:
           AbortSignal.timeout(
-            8000
+            9000
           )
       }
     );
 
     if (!response.ok) {
       throw new Error(
-        `MADE_IN_CHINA_IMAGE_${response.status}`
+        `CHINA_IMAGE_${response.status}`
       );
     }
 
@@ -5400,60 +5639,29 @@ async function loadMadeInChinaProductImage(
       response.url ||
       product.link;
 
-    const productHtml =
+    const html =
       await response.text();
 
-    const imageCandidates = [];
-
-    const contentImageUrl =
-      getMadeInChinaImageUrl(
-        productHtml,
-        product.title
-      );
-
-    if (contentImageUrl) {
-      imageCandidates.push({
-        url:
-          contentImageUrl,
-        priority:
-          100
+    const candidates =
+      extractChinaImageCandidatesFromHtml({
+        html,
+        productTitle:
+          product.title,
+        baseUrl:
+          finalPageUrl
       });
-    }
 
-    const metaPatterns = [
-      /<meta\b[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i,
-      /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["'][^>]*>/i,
-      /<meta\b[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["'][^>]*>/i,
-      /<meta\b[^>]*content=["']([^"']+)["'][^>]*name=["']twitter:image["'][^>]*>/i,
-      /<link\b[^>]*rel=["']image_src["'][^>]*href=["']([^"']+)["'][^>]*>/i,
-      /<link\b[^>]*href=["']([^"']+)["'][^>]*rel=["']image_src["'][^>]*>/i
-    ];
-
-    for (
-      const pattern
-      of metaPatterns
-    ) {
-      const match =
-        productHtml.match(
-          pattern
-        );
-
-      if (match?.[1]) {
-        imageCandidates.push({
-          url:
-            match[1],
-          priority:
-            70
-        });
-      }
-    }
-
+    /*
+     * JSON-LD Product.image.
+     * Це найнадійніший структурований
+     * кандидат зі сторінки товару.
+     */
     const jsonLdPattern =
       /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
 
     for (
       const jsonMatch
-      of productHtml.matchAll(
+      of html.matchAll(
         jsonLdPattern
       )
     ) {
@@ -5478,52 +5686,71 @@ async function loadMadeInChinaProductImage(
           const jsonItem
           of jsonItems
         ) {
+          const type =
+            jsonItem?.["@type"];
+
+          const isProduct =
+            type === "Product" ||
+            (
+              Array.isArray(type) &&
+              type.includes(
+                "Product"
+              )
+            );
+
+          if (!isProduct) {
+            continue;
+          }
+
           const imageValue =
             jsonItem?.image;
 
-          if (
+          const imageItems =
             typeof imageValue ===
-            "string"
+              "string"
+              ? [imageValue]
+              : Array.isArray(
+                  imageValue
+                )
+                ? imageValue
+                : imageValue
+                  ? [
+                      imageValue.url ||
+                      imageValue.contentUrl
+                    ]
+                  : [];
+
+          for (
+            const imageItem
+            of imageItems
           ) {
-            imageCandidates.push({
-              url:
-                imageValue,
-              priority:
-                90
-            });
-          } else if (
-            Array.isArray(
-              imageValue
-            )
-          ) {
-            for (
-              const imageItem
-              of imageValue
-            ) {
-              imageCandidates.push({
-                url:
-                  typeof imageItem ===
-                    "string"
-                    ? imageItem
-                    : (
-                        imageItem?.url ||
-                        imageItem?.contentUrl ||
-                        ""
-                      ),
-                priority:
-                  90
-              });
+            const rawUrl =
+              typeof imageItem ===
+                "string"
+                ? imageItem
+                : (
+                    imageItem?.url ||
+                    imageItem?.contentUrl
+                  );
+
+            const imageUrl =
+              normalizeChinaImageUrl(
+                rawUrl,
+                finalPageUrl
+              );
+
+            if (!imageUrl) {
+              continue;
             }
-          } else if (
-            imageValue?.url ||
-            imageValue?.contentUrl
-          ) {
-            imageCandidates.push({
-              url:
-                imageValue.url ||
-                imageValue.contentUrl,
-              priority:
-                90
+
+            candidates.push({
+              imageUrl,
+              score:
+                125,
+              coverage:
+                1,
+              source:
+                "jsonld-product"
             });
           }
         }
@@ -5532,97 +5759,180 @@ async function loadMadeInChinaProductImage(
       }
     }
 
-    const preparedImages =
-      imageCandidates
-        .map(candidate => {
-          const rawUrl =
-            decodeHtmlEntities(
-              String(
-                candidate.url || ""
-              )
-            )
-              .replace(/\\u002F/g, "/")
-              .replace(/\\\//g, "/")
-              .trim();
+    /*
+     * Поля main/product image
+     * у внутрішньому JSON сторінки.
+     */
+    const mainImagePatterns = [
+      /"(?:mainImage|mainImageUrl|mainImg|mainImgUrl)"\s*:\s*"([^"]+)"/gi,
+      /"(?:productImage|productImageUrl)"\s*:\s*"([^"]+)"/gi,
+      /"(?:originalImage|originalImageUrl)"\s*:\s*"([^"]+)"/gi,
+      /"(?:imagePath|imageUrl)"\s*:\s*"([^"]+)"/gi
+    ];
 
-          if (!rawUrl) {
-            return null;
-          }
+    for (
+      const pattern
+      of mainImagePatterns
+    ) {
+      for (
+        const match
+        of html.matchAll(
+          pattern
+        )
+      ) {
+        const imageUrl =
+          normalizeChinaImageUrl(
+            match?.[1],
+            finalPageUrl
+          );
 
-          try {
-            const imageUrl =
-              rawUrl.startsWith("//")
-                ? `https:${rawUrl}`
-                : new URL(
-                    rawUrl,
-                    finalPageUrl
-                  ).toString();
+        if (!imageUrl) {
+          continue;
+        }
 
-            const normalizedUrl =
-              imageUrl.toLocaleLowerCase(
-                "en-US"
-              );
+        candidates.push({
+          imageUrl,
+          score:
+            105,
+          coverage:
+            0.5,
+          source:
+            "main-json"
+        });
+      }
+    }
 
-            const blockedImage =
-              normalizedUrl.includes(
-                "logo"
-              ) ||
-              normalizedUrl.includes(
-                "icon"
-              ) ||
-              normalizedUrl.includes(
-                "sprite"
-              ) ||
-              normalizedUrl.includes(
-                "avatar"
-              ) ||
-              normalizedUrl.includes(
-                "default"
-              ) ||
-              normalizedUrl.includes(
-                "loading"
-              ) ||
-              normalizedUrl.includes(
-                "placeholder"
-              ) ||
-              normalizedUrl.includes(
-                "banner"
-              ) ||
-              normalizedUrl.endsWith(
-                ".svg"
-              ) ||
-              normalizedUrl.endsWith(
-                ".gif"
-              );
+    /*
+     * OG image лишаємо fallback,
+     * а не головним кандидатом.
+     */
+    const metaPatterns = [
+      /<meta\b[^>]*property=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["'][^>]*>/gi,
+      /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image(?::secure_url)?["'][^>]*>/gi,
+      /<meta\b[^>]*name=["']twitter:image(?::src)?["'][^>]*content=["']([^"']+)["'][^>]*>/gi
+    ];
 
-            if (blockedImage) {
-              return null;
-            }
+    for (
+      const pattern
+      of metaPatterns
+    ) {
+      for (
+        const match
+        of html.matchAll(
+          pattern
+        )
+      ) {
+        const imageUrl =
+          normalizeChinaImageUrl(
+            match?.[1],
+            finalPageUrl
+          );
 
-            return {
-              imageUrl,
-              priority:
-                candidate.priority
-            };
-          } catch {
-            return null;
-          }
-        })
-        .filter(Boolean)
-        .sort(
-          (first, second) =>
-            second.priority -
-            first.priority
+        if (!imageUrl) {
+          continue;
+        }
+
+        candidates.push({
+          imageUrl,
+          score:
+            68,
+          coverage:
+            0,
+          source:
+            "meta"
+        });
+      }
+    }
+
+    /*
+     * Фото з пошукової картки
+     * лишається fallback.
+     */
+    if (product.imageUrl) {
+      const fallbackUrl =
+        normalizeChinaImageUrl(
+          product.imageUrl,
+          finalPageUrl
         );
 
+      if (fallbackUrl) {
+        candidates.push({
+          imageUrl:
+            fallbackUrl,
+          score:
+            55,
+          coverage:
+            0,
+          source:
+            "search-card"
+        });
+      }
+    }
+
+    const uniqueCandidates = [];
+    const seenImages =
+      new Set();
+
+    for (
+      const candidate
+      of candidates.sort(
+        (first, second) =>
+          second.score -
+          first.score
+      )
+    ) {
+      const normalized =
+        candidate.imageUrl
+          .replace(
+            /_[0-9]+x[0-9]+[^/?]*/gi,
+            ""
+          )
+          .replace(
+            /[?&](?:w|h|width|height)=\d+/gi,
+            ""
+          )
+          .split("?")[0];
+
+      if (
+        seenImages.has(
+          normalized
+        )
+      ) {
+        continue;
+      }
+
+      seenImages.add(
+        normalized
+      );
+
+      uniqueCandidates.push(
+        candidate
+      );
+    }
+
+    /*
+     * Не показуємо випадковий банер
+     * лише тому, що це єдина картинка.
+     */
+    const bestCandidate =
+      uniqueCandidates.find(
+        candidate =>
+          candidate.source ===
+            "jsonld-product" ||
+          candidate.source ===
+            "main-json" ||
+          candidate.score >= 72 ||
+          candidate.coverage >= 0.3
+      );
+
     const imageUrl =
-      preparedImages[0]
+      bestCandidate
         ?.imageUrl ||
       product.imageUrl ||
       null;
 
-    madeInChinaImageCache.set(
-      product.productId,
+    chinaProductImageCache.set(
+      cacheKey,
       {
         savedAt:
           Date.now(),
@@ -5635,24 +5945,17 @@ async function loadMadeInChinaProductImage(
       imageUrl
     };
   } catch {
-    const imageUrl =
-      product.imageUrl ||
-      null;
-
-    madeInChinaImageCache.set(
-      product.productId,
-      {
-        savedAt:
-          Date.now(),
-        imageUrl
-      }
-    );
-
-    return {
-      ...product,
-      imageUrl
-    };
+    return product;
   }
+}
+
+async function loadMadeInChinaProductImage(
+  product
+) {
+  return resolveChinaProductImage(
+    product,
+    MADE_IN_CHINA_SOURCE_CONFIG
+  );
 }
 
 function selectBalancedMadeInChinaProducts(
@@ -6407,218 +6710,10 @@ function getAlibabaImageUrl(
   contextHtml,
   productTitle
 ) {
-  const html =
-    String(
-      contextHtml || ""
-    );
-
-  const normalizedTitle =
-    normalizeChinaText(
-      productTitle
-    );
-
-  const titleWords =
-    getChinaWords(
-      productTitle
-    ).filter(word =>
-      word.length >= 4
-    );
-
-  const candidates = [];
-
-  for (
-    const imageMatch
-    of html.matchAll(
-      /<img\b[^>]*>/gi
-    )
-  ) {
-    const imageTag =
-      imageMatch[0];
-
-    const altMatch =
-      imageTag.match(
-        /\balt=["']([^"']*)["']/i
-      );
-
-    const titleMatch =
-      imageTag.match(
-        /\btitle=["']([^"']*)["']/i
-      );
-
-    const imageText =
-      normalizeChinaText(
-        [
-          altMatch?.[1],
-          titleMatch?.[1]
-        ]
-          .filter(Boolean)
-          .join(" ")
-      );
-
-    const sources = [];
-
-    const attributes = [
-      "data-src",
-      "data-original",
-      "data-lazy-src",
-      "data-image-src",
-      "src"
-    ];
-
-    for (
-      const attribute
-      of attributes
-    ) {
-      const match =
-        imageTag.match(
-          new RegExp(
-            `\\b${attribute}=["']([^"']+)["']`,
-            "i"
-          )
-        );
-
-      if (match?.[1]) {
-        sources.push(
-          match[1]
-        );
-      }
-    }
-
-    const srcsetMatch =
-      imageTag.match(
-        /\bsrcset=["']([^"']+)["']/i
-      );
-
-    if (srcsetMatch?.[1]) {
-      sources.push(
-        ...srcsetMatch[1]
-          .split(",")
-          .map(item =>
-            item
-              .trim()
-              .split(/\s+/)[0]
-          )
-          .filter(Boolean)
-      );
-    }
-
-    for (
-      const rawSource
-      of sources
-    ) {
-      try {
-        const rawUrl =
-          decodeHtmlEntities(
-            rawSource
-          )
-            .replace(
-              /\\u002F/gi,
-              "/"
-            )
-            .replace(
-              /\\\//g,
-              "/"
-            );
-
-        const imageUrl =
-          rawUrl.startsWith("//")
-            ? `https:${rawUrl}`
-            : new URL(
-                rawUrl,
-                ALIBABA_SOURCE_CONFIG.domain
-              ).toString();
-
-        const normalizedUrl =
-          imageUrl.toLocaleLowerCase(
-            "en-US"
-          );
-
-        const blockedParts = [
-          "logo",
-          "icon",
-          "sprite",
-          "avatar",
-          "banner",
-          "company",
-          "factory",
-          "certificate",
-          "certification",
-          "profile",
-          "contact",
-          "qrcode",
-          "qr-code",
-          "placeholder",
-          "loading"
-        ];
-
-        if (
-          blockedParts.some(
-            blocked =>
-              normalizedUrl.includes(
-                blocked
-              )
-          )
-        ) {
-          continue;
-        }
-
-        const matchingWords =
-          titleWords.filter(word =>
-            imageText.includes(
-              word
-            )
-          ).length;
-
-        const exactTitleBonus =
-          imageText &&
-          normalizedTitle &&
-          (
-            imageText.includes(
-              normalizedTitle
-            ) ||
-            normalizedTitle.includes(
-              imageText
-            )
-          )
-            ? 25
-            : 0;
-
-        const productCdnBonus =
-          normalizedUrl.includes(
-            "alicdn"
-          )
-            ? 5
-            : 0;
-
-        const score =
-          exactTitleBonus +
-          matchingWords * 7 +
-          productCdnBonus;
-
-        if (score < 12) {
-          continue;
-        }
-
-        candidates.push({
-          imageUrl,
-          score
-        });
-      } catch {
-        continue;
-      }
-    }
-  }
-
-  candidates.sort(
-    (first, second) =>
-      second.score -
-      first.score
-  );
-
-  return (
-    candidates[0]
-      ?.imageUrl ||
-    null
+  return getChinaImageFromHtml(
+    contextHtml,
+    productTitle,
+    ALIBABA_SOURCE_CONFIG.domain
   );
 }
 
@@ -6940,490 +7035,10 @@ function extractAlibabaProducts(
 async function loadAlibabaProductImage(
   product
 ) {
-  try {
-    const response = await fetch(
-      product.link,
-      {
-        method:
-          "GET",
-        headers: {
-          Accept:
-            "text/html,application/xhtml+xml",
-          "Accept-Language":
-            "en-US,en;q=0.9",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-            "AppleWebKit/537.36 Chrome/124 Safari/537.36"
-        },
-        redirect:
-          "follow",
-        signal:
-          AbortSignal.timeout(
-            9000
-          )
-      }
-    );
-
-    if (!response.ok) {
-      return product;
-    }
-
-    const finalPageUrl =
-      response.url ||
-      product.link;
-
-    const html =
-      await response.text();
-
-    const productWords =
-      getChinaWords(
-        product.title
-      ).filter(word =>
-        word.length >= 4 &&
-        ![
-          "new",
-          "arrival",
-          "design",
-          "product",
-          "products",
-          "custom",
-          "customized",
-          "quality",
-          "wholesale",
-          "best",
-          "selling",
-          "popular",
-          "china"
-        ].includes(word)
-      );
-
-    const blockedImageWords = [
-      "logo",
-      "icon",
-      "sprite",
-      "avatar",
-      "banner",
-      "company",
-      "factory",
-      "certificate",
-      "certification",
-      "report",
-      "audit",
-      "inspection",
-      "profile",
-      "contact",
-      "qrcode",
-      "qr-code",
-      "loading",
-      "placeholder",
-      "business-card",
-      "business_card",
-      "company-display",
-      "company_display",
-      "supplier",
-      "license",
-      "document"
-    ];
-
-    const candidates = [];
-
-    function prepareUrl(
-      rawUrl
-    ) {
-      let candidate =
-        decodeHtmlEntities(
-          String(
-            rawUrl || ""
-          )
-        )
-          .replace(
-            /&quot;/gi,
-            ""
-          )
-          .replace(
-            /\\u002F/gi,
-            "/"
-          )
-          .replace(
-            /\\u0026/gi,
-            "&"
-          )
-          .replace(
-            /\\u003D/gi,
-            "="
-          )
-          .replace(
-            /\\\//g,
-            "/"
-          )
-          .replace(
-            /^["']+|["']+$/g,
-            ""
-          )
-          .trim();
-
-      if (!candidate) {
-        return null;
-      }
-
-      try {
-        candidate =
-          decodeURIComponent(
-            candidate
-          );
-      } catch {
-        // залишаємо як є
-      }
-
-      try {
-        const imageUrl =
-          candidate.startsWith("//")
-            ? `https:${candidate}`
-            : new URL(
-                candidate,
-                finalPageUrl
-              ).toString();
-
-        const normalizedUrl =
-          imageUrl.toLocaleLowerCase(
-            "en-US"
-          );
-
-        if (
-          !normalizedUrl.includes(
-            "alicdn"
-          )
-        ) {
-          return null;
-        }
-
-        if (
-          blockedImageWords.some(
-            blocked =>
-              normalizedUrl.includes(
-                blocked
-              )
-          )
-        ) {
-          return null;
-        }
-
-        if (
-          normalizedUrl.endsWith(
-            ".svg"
-          ) ||
-          normalizedUrl.endsWith(
-            ".gif"
-          )
-        ) {
-          return null;
-        }
-
-        return imageUrl;
-      } catch {
-        return null;
-      }
-    }
-
-    function addCandidate({
-      rawUrl,
-      text = "",
-      baseScore = 0
-    }) {
-      const imageUrl =
-        prepareUrl(
-          rawUrl
-        );
-
-      if (!imageUrl) {
-        return;
-      }
-
-      const normalizedText =
-        normalizeChinaText(
-          text
-        );
-
-      if (
-        blockedImageWords.some(
-          blocked =>
-            normalizedText.includes(
-              blocked
-            )
-        )
-      ) {
-        return;
-      }
-
-      const matchedWords =
-        productWords.filter(word =>
-          normalizedText.includes(
-            word
-          )
-        ).length;
-
-      const coverage =
-        productWords.length
-          ? matchedWords /
-            productWords.length
-          : 0;
-
-      let score =
-        baseScore +
-        matchedWords * 12 +
-        coverage * 45;
-
-      if (
-        normalizedText.includes(
-          "product"
-        )
-      ) {
-        score += 8;
-      }
-
-      if (
-        normalizedText.includes(
-          "main"
-        )
-      ) {
-        score += 8;
-      }
-
-      candidates.push({
-        imageUrl,
-        score,
-        coverage
-      });
-    }
-
-    /*
-     * 1. Найцінніше:
-     * картинки з IMG, бо там є alt/title,
-     * і можна перевірити зв'язок із товаром.
-     */
-    for (
-      const imgMatch
-      of html.matchAll(
-        /<img\b[^>]*>/gi
-      )
-    ) {
-      const imgTag =
-        imgMatch[0];
-
-      const alt =
-        decodeHtmlEntities(
-          imgTag.match(
-            /\balt=["']([^"']*)["']/i
-          )?.[1] || ""
-        );
-
-      const imageTitle =
-        decodeHtmlEntities(
-          imgTag.match(
-            /\btitle=["']([^"']*)["']/i
-          )?.[1] || ""
-        );
-
-      const className =
-        imgTag.match(
-          /\bclass=["']([^"']*)["']/i
-        )?.[1] || "";
-
-      const text =
-        [
-          alt,
-          imageTitle,
-          className
-        ]
-          .filter(Boolean)
-          .join(" ");
-
-      const attributes = [
-        "data-src",
-        "data-original",
-        "data-lazy-src",
-        "data-image",
-        "data-image-src",
-        "data-img",
-        "src"
-      ];
-
-      for (
-        const attribute
-        of attributes
-      ) {
-        const rawUrl =
-          imgTag.match(
-            new RegExp(
-              `\\b${attribute}=["']([^"']+)["']`,
-              "i"
-            )
-          )?.[1];
-
-        if (rawUrl) {
-          addCandidate({
-            rawUrl,
-            text,
-            baseScore:
-              35
-          });
-        }
-      }
-
-      const srcset =
-        imgTag.match(
-          /\bsrcset=["']([^"']+)["']/i
-        )?.[1];
-
-      if (srcset) {
-        for (
-          const srcsetUrl
-          of srcset
-            .split(",")
-            .map(item =>
-              item
-                .trim()
-                .split(/\s+/)[0]
-            )
-            .filter(Boolean)
-        ) {
-          addCandidate({
-            rawUrl:
-              srcsetUrl,
-            text,
-            baseScore:
-              40
-          });
-        }
-      }
-    }
-
-    /*
-     * 2. JSON поля головного фото.
-     * Беремо, але нижче за семантично підтверджений IMG.
-     */
-    const jsonPatterns = [
-      /"(?:mainImage|mainImageUrl|mainImg|mainImgUrl)"\s*:\s*"([^"]+)"/gi,
-      /"(?:productImage|productImageUrl)"\s*:\s*"([^"]+)"/gi,
-      /"(?:originalImage|originalImageUrl)"\s*:\s*"([^"]+)"/gi
-    ];
-
-    for (
-      const pattern
-      of jsonPatterns
-    ) {
-      for (
-        const match
-        of html.matchAll(
-          pattern
-        )
-      ) {
-        addCandidate({
-          rawUrl:
-            match?.[1],
-          text:
-            product.title,
-          baseScore:
-            55
-        });
-      }
-    }
-
-    /*
-     * 3. OG image лише як fallback.
-     * Раніше він мав найвищий пріоритет,
-     * через що й лізли company/report картинки.
-     */
-    const metaPatterns = [
-      /<meta\b[^>]*property=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["'][^>]*>/gi,
-      /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:image(?::secure_url)?["'][^>]*>/gi
-    ];
-
-    for (
-      const pattern
-      of metaPatterns
-    ) {
-      for (
-        const match
-        of html.matchAll(
-          pattern
-        )
-      ) {
-        addCandidate({
-          rawUrl:
-            match?.[1],
-          text:
-            "",
-          baseScore:
-            18
-        });
-      }
-    }
-
-    const uniqueCandidates =
-      [];
-
-    const seenUrls =
-      new Set();
-
-    for (
-      const candidate
-      of candidates
-        .sort(
-          (first, second) =>
-            second.score -
-            first.score
-        )
-    ) {
-      const key =
-        candidate.imageUrl
-          .replace(
-            /_[0-9]+x[0-9]+[^/?]*/gi,
-            ""
-          )
-          .split("?")[0];
-
-      if (
-        seenUrls.has(
-          key
-        )
-      ) {
-        continue;
-      }
-
-      seenUrls.add(
-        key
-      );
-
-      uniqueCandidates.push(
-        candidate
-      );
-    }
-
-    /*
-     * Якщо кандидат з товарної сторінки
-     * взагалі не підтверджений назвою,
-     * краще лишити вже знайдене фото
-     * з пошукової картки.
-     */
-    const bestCandidate =
-      uniqueCandidates.find(
-        candidate =>
-          candidate.coverage >= 0.18 ||
-          candidate.score >= 60
-      );
-
-    return {
-      ...product,
-      imageUrl:
-        bestCandidate
-          ?.imageUrl ||
-        product.imageUrl ||
-        null
-    };
-  } catch {
-    return product;
-  }
+  return resolveChinaProductImage(
+    product,
+    ALIBABA_SOURCE_CONFIG
+  );
 }
 
 async function loadAlibabaSignal({
