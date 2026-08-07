@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 const ALLOWED_CATEGORIES = new Set([
   "home-kitchen",
   "storage-organization",
@@ -875,6 +877,54 @@ const ALIBABA_SOURCE_CONFIG = {
     ])
 };
 
+const CHINA_1688_SOURCE_CONFIG = {
+  code:
+    "1688",
+  sourceName:
+    "1688",
+  geography:
+    "Китай",
+  domain:
+    "https://www.1688.com",
+  apiDomain:
+    "https://h5api.m.1688.com",
+  supportedMarkets:
+    new Set([
+      "world",
+      "china"
+    ])
+};
+
+const CHINA_1688_SIGNAL_CONFIG = {
+  all: {
+    sortType:
+      "",
+    label:
+      "Товарний сигнал 1688"
+  },
+
+  new: {
+    sortType:
+      "newOffer",
+    label:
+      "Новинка 1688"
+  },
+
+  trends: {
+    sortType:
+      "booked",
+    label:
+      "Трендовий сигнал 1688"
+  },
+
+  popular: {
+    sortType:
+      "booked",
+    label:
+      "Популярний товар 1688"
+  }
+};
+
 const MADE_IN_CHINA_SIGNAL_CONFIG = {
   all: {
     queryWords:
@@ -933,6 +983,172 @@ const ALIBABA_SIGNAL_CONFIG = {
     label:
       "Популярний сигнал Alibaba"
   }
+};
+
+const CHINA_1688_GROUP_QUERIES = {
+  "kitchen-gadgets":
+    "厨房小工具",
+  "food-storage":
+    "食品收纳盒",
+  "tableware":
+    "创意餐具",
+  "baking":
+    "烘焙工具",
+  "sink-accessories":
+    "厨房水槽用品",
+
+  "wardrobe-storage":
+    "衣柜收纳",
+  "drawer-desktop":
+    "桌面抽屉收纳",
+  "bathroom-storage":
+    "浴室收纳",
+  "kitchen-storage":
+    "厨房收纳",
+  "boxes-baskets":
+    "家用收纳盒",
+
+  "vases-planters":
+    "创意花瓶摆件",
+  "candles-holders":
+    "烛台香薰摆件",
+  "figurines-ornaments":
+    "家居装饰摆件",
+  "trays-stands":
+    "装饰托盘",
+  "frames-wall-decor":
+    "相框墙面装饰",
+  "textile-decor":
+    "家居软装饰品",
+
+  "cleaning-tools":
+    "家用清洁工具",
+  "laundry-care":
+    "洗衣护理用品",
+  "bathroom-daily-use":
+    "浴室日用品",
+  "waste-disposal":
+    "家用垃圾用品",
+  "home-care-gadgets":
+    "家居实用小工具",
+
+  "skincare":
+    "护肤品",
+  "masks-patches":
+    "面膜眼膜",
+  "makeup":
+    "彩妆化妆品",
+  "makeup-accessories":
+    "化妆工具",
+  "beauty-devices":
+    "美容仪按摩器",
+  "hair-care":
+    "护发用品",
+  "body-care":
+    "身体护理",
+  "nail-care":
+    "美甲用品",
+
+  "feeding":
+    "婴童喂养用品",
+  "hygiene":
+    "婴童护理用品",
+  "safety":
+    "儿童安全用品",
+  "travel":
+    "婴童出行用品",
+  "sleep-nursery":
+    "婴童睡眠用品",
+
+  "educational":
+    "益智玩具",
+  "sensory-fidget":
+    "解压感官玩具",
+  "building-puzzles":
+    "积木拼图玩具",
+  "creative-sets":
+    "儿童DIY玩具",
+  "role-play":
+    "儿童角色扮演玩具",
+  "interactive":
+    "互动智能玩具",
+
+  "writing":
+    "创意文具笔",
+  "notebooks-planners":
+    "笔记本手账",
+  "stickers-paper":
+    "文具贴纸便签",
+  "cases-organizers":
+    "笔袋文具收纳",
+  "art-supplies":
+    "美术绘画用品",
+
+  "hair-accessories":
+    "时尚发饰",
+  "jewelry":
+    "时尚饰品",
+  "wallets-holders":
+    "钱包卡包",
+  "bag-accessories":
+    "包包挂件",
+  "phone-fashion":
+    "手机挂件",
+  "eyewear":
+    "时尚眼镜",
+
+  "toys":
+    "宠物玩具",
+  "walking":
+    "宠物牵引用品",
+  "grooming":
+    "宠物美容用品",
+  "beds-travel":
+    "宠物窝外出用品",
+
+  "christmas":
+    "圣诞装饰用品",
+  "halloween":
+    "万圣节装饰",
+  "easter":
+    "复活节装饰",
+  "party":
+    "派对生日装饰",
+  "summer":
+    "夏季创意用品",
+  "back-to-school":
+    "开学季用品",
+
+  "gift-sets":
+    "创意礼品套装",
+  "candles-aroma":
+    "香薰蜡烛礼品",
+  "frames-keepsakes":
+    "相框纪念礼品",
+  "figurines-souvenirs":
+    "创意摆件礼品",
+  "personal-gifts":
+    "个性创意礼品",
+  "novelty-gifts":
+    "新奇创意礼品",
+
+  "charging":
+    "手机充电配件",
+  "phone-holders":
+    "手机支架",
+  "audio":
+    "耳机音频配件",
+  "smart-trackers":
+    "智能防丢器",
+  "lighting-gadgets":
+    "创意小夜灯",
+  "computer-accessories":
+    "电脑桌面配件",
+
+  "daily-use":
+    "创意日用品",
+  "novelty":
+    "新奇创意产品"
 };
 
 const MADE_IN_CHINA_CATEGORY_CONFIG = {
@@ -8111,6 +8327,1030 @@ function buildIdeasFromAlibaba(
   );
 }
 
+const china1688Session = {
+  token:
+    "",
+  tokenCookie:
+    "",
+  tokenEncCookie:
+    "",
+  expiresAt:
+    0
+};
+
+function md5China1688(
+  value
+) {
+  return createHash(
+    "md5"
+  )
+    .update(
+      String(value),
+      "utf8"
+    )
+    .digest(
+      "hex"
+    );
+}
+
+function getChina1688SetCookies(
+  response
+) {
+  if (
+    typeof response.headers
+      .getSetCookie ===
+    "function"
+  ) {
+    return response.headers
+      .getSetCookie();
+  }
+
+  const combinedCookie =
+    response.headers.get(
+      "set-cookie"
+    );
+
+  return combinedCookie
+    ? [combinedCookie]
+    : [];
+}
+
+function extractChina1688Cookie(
+  cookies,
+  cookieName
+) {
+  for (
+    const cookie
+    of cookies
+  ) {
+    const match =
+      String(cookie).match(
+        new RegExp(
+          `(?:^|[,;]\\s*)${cookieName}=([^;,]+)`,
+          "i"
+        )
+      );
+
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return "";
+}
+
+async function bootstrapChina1688Session() {
+  if (
+    china1688Session.token &&
+    Date.now() <
+      china1688Session.expiresAt
+  ) {
+    return;
+  }
+
+  const bootstrapUrl =
+    new URL(
+      "/h5/mtop.relationrecommend.wirelessrecommend.recommend/2.0/",
+      CHINA_1688_SOURCE_CONFIG.apiDomain
+    );
+
+  bootstrapUrl.searchParams.set(
+    "jsv",
+    "2.5.1"
+  );
+
+  bootstrapUrl.searchParams.set(
+    "appKey",
+    "12574478"
+  );
+
+  bootstrapUrl.searchParams.set(
+    "t",
+    String(Date.now())
+  );
+
+  bootstrapUrl.searchParams.set(
+    "sign",
+    "x"
+  );
+
+  bootstrapUrl.searchParams.set(
+    "api",
+    "mtop.relationrecommend.WirelessRecommend.recommend"
+  );
+
+  bootstrapUrl.searchParams.set(
+    "v",
+    "2.0"
+  );
+
+  bootstrapUrl.searchParams.set(
+    "data",
+    "{}"
+  );
+
+  const response =
+    await fetch(
+      bootstrapUrl,
+      {
+        headers: {
+          Accept:
+            "application/json,text/plain,*/*",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 Chrome/124 Safari/537.36",
+          Referer:
+            "https://www.1688.com/",
+          Origin:
+            "https://www.1688.com"
+        },
+        signal:
+          AbortSignal.timeout(
+            10000
+          )
+      }
+    );
+
+  const cookies =
+    getChina1688SetCookies(
+      response
+    );
+
+  const tokenCookie =
+    extractChina1688Cookie(
+      cookies,
+      "_m_h5_tk"
+    );
+
+  const tokenEncCookie =
+    extractChina1688Cookie(
+      cookies,
+      "_m_h5_tk_enc"
+    );
+
+  if (!tokenCookie) {
+    throw new Error(
+      "1688_TOKEN_NOT_RECEIVED"
+    );
+  }
+
+  china1688Session.tokenCookie =
+    tokenCookie;
+
+  china1688Session.tokenEncCookie =
+    tokenEncCookie;
+
+  china1688Session.token =
+    tokenCookie.split(
+      "_"
+    )[0];
+
+  china1688Session.expiresAt =
+    Date.now() +
+    75 * 60 * 1000;
+}
+
+function buildChina1688Queries(
+  category,
+  searchDetails
+) {
+  const categoryConfig =
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ] ||
+    MADE_IN_CHINA_CATEGORY_CONFIG.other;
+
+  const queries = [];
+
+  for (
+    const group
+    of categoryConfig.groups
+  ) {
+    const chineseQuery =
+      CHINA_1688_GROUP_QUERIES[
+        group.key
+      ];
+
+    if (!chineseQuery) {
+      continue;
+    }
+
+    queries.push({
+      searchQuery:
+        chineseQuery,
+      subgroup:
+        group.key
+    });
+  }
+
+  /*
+   * Ручне уточнення лишаємо окремим
+   * додатковим запитом.
+   * Основну видачу воно не може зламати.
+   */
+  const details =
+    cleanTrendText(
+      searchDetails,
+      120
+    );
+
+  if (
+    details &&
+    queries.length
+  ) {
+    queries.push({
+      searchQuery:
+        `${queries[0].searchQuery} ${details}`,
+      subgroup:
+        queries[0].subgroup
+    });
+  }
+
+  return queries.slice(
+    0,
+    8
+  );
+}
+
+async function fetchChina1688Offers(
+  searchQuery,
+  signalType
+) {
+  await bootstrapChina1688Session();
+
+  const signalConfig =
+    CHINA_1688_SIGNAL_CONFIG[
+      signalType
+    ] ||
+    CHINA_1688_SIGNAL_CONFIG.all;
+
+  const params = {
+    keywords:
+      searchQuery,
+    beginPage:
+      1,
+    pageSize:
+      40,
+    method:
+      "getOfferList",
+    verticalProductFlag:
+      "pcmarket",
+    searchScene:
+      "pcOfferSearch",
+    charset:
+      "GBK"
+  };
+
+  if (
+    signalConfig.sortType
+  ) {
+    params.sortType =
+      signalConfig.sortType;
+  }
+
+  const data =
+    JSON.stringify({
+      appId:
+        "32517",
+      params:
+        JSON.stringify(
+          params
+        )
+    });
+
+  const timestamp =
+    String(
+      Date.now()
+    );
+
+  const sign =
+    md5China1688(
+      china1688Session.token +
+      "&" +
+      timestamp +
+      "&12574478&" +
+      data
+    );
+
+  const requestUrl =
+    new URL(
+      "/h5/mtop.relationrecommend.wirelessrecommend.recommend/2.0/",
+      CHINA_1688_SOURCE_CONFIG.apiDomain
+    );
+
+  requestUrl.searchParams.set(
+    "jsv",
+    "2.5.1"
+  );
+
+  requestUrl.searchParams.set(
+    "appKey",
+    "12574478"
+  );
+
+  requestUrl.searchParams.set(
+    "t",
+    timestamp
+  );
+
+  requestUrl.searchParams.set(
+    "sign",
+    sign
+  );
+
+  requestUrl.searchParams.set(
+    "api",
+    "mtop.relationrecommend.WirelessRecommend.recommend"
+  );
+
+  requestUrl.searchParams.set(
+    "v",
+    "2.0"
+  );
+
+  requestUrl.searchParams.set(
+    "data",
+    data
+  );
+
+  const cookieHeader = [
+    `_m_h5_tk=${china1688Session.tokenCookie}`,
+    china1688Session.tokenEncCookie
+      ? `_m_h5_tk_enc=${china1688Session.tokenEncCookie}`
+      : ""
+  ]
+    .filter(Boolean)
+    .join("; ");
+
+  const response =
+    await fetch(
+      requestUrl,
+      {
+        headers: {
+          Accept:
+            "application/json,text/plain,*/*",
+          "Accept-Language":
+            "zh-CN,zh;q=0.9,en;q=0.6",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 Chrome/124 Safari/537.36",
+          Referer:
+            "https://www.1688.com/",
+          Origin:
+            "https://www.1688.com",
+          Cookie:
+            cookieHeader
+        },
+        signal:
+          AbortSignal.timeout(
+            12000
+          )
+      }
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `1688_HTTP_${response.status}`
+    );
+  }
+
+  const payload =
+    await response.json();
+
+  const returnCode =
+    String(
+      payload?.ret?.[0] || ""
+    );
+
+  if (
+    returnCode.startsWith(
+      "FAIL_"
+    )
+  ) {
+    if (
+      returnCode.includes(
+        "TOKEN"
+      ) ||
+      returnCode.includes(
+        "ILLEGAL_ACCESS"
+      )
+    ) {
+      china1688Session.token =
+        "";
+
+      china1688Session.expiresAt =
+        0;
+    }
+
+    throw new Error(
+      `1688_API_${returnCode}`
+    );
+  }
+
+  return {
+    payload,
+    requestUrl:
+      `https://s.1688.com/selloffer/offer_search.htm?keywords=${encodeURIComponent(
+        searchQuery
+      )}`
+  };
+}
+
+function getChina1688ImageUrl(
+  offer
+) {
+  const preferredKeys = [
+    "imageUrl",
+    "image",
+    "imgUrl",
+    "picUrl",
+    "mainImage",
+    "mainImageUrl",
+    "offerImg",
+    "offerImage"
+  ];
+
+  for (
+    const key
+    of preferredKeys
+  ) {
+    const value =
+      offer?.[key];
+
+    if (
+      typeof value ===
+        "string" &&
+      value.includes(
+        "http"
+      )
+    ) {
+      return prepareChinaGalleryImageUrl(
+        value,
+        CHINA_1688_SOURCE_CONFIG.domain,
+        CHINA_1688_SOURCE_CONFIG
+      );
+    }
+  }
+
+  const jsonText =
+    JSON.stringify(
+      offer || {}
+    );
+
+  const imageMatch =
+    jsonText.match(
+      /https?:\\?\/\\?\/[^"\\]+(?:alicdn|aliimg)[^"\\]+\.(?:jpg|jpeg|png|webp)[^"\\]*/i
+    );
+
+  if (!imageMatch?.[0]) {
+    return null;
+  }
+
+  return prepareChinaGalleryImageUrl(
+    imageMatch[0]
+      .replace(
+        /\\\//g,
+        "/"
+      ),
+    CHINA_1688_SOURCE_CONFIG.domain,
+    CHINA_1688_SOURCE_CONFIG
+  );
+}
+
+function extractChina1688Price(
+  offer
+) {
+  const directPrice =
+    Number(
+      offer?.priceInfo?.price ??
+      offer?.price
+    );
+
+  if (
+    Number.isFinite(
+      directPrice
+    ) &&
+    directPrice > 0
+  ) {
+    return directPrice;
+  }
+
+  const priceRange =
+    offer?.priceInfo?.priceRange;
+
+  if (
+    Array.isArray(
+      priceRange
+    )
+  ) {
+    const prices =
+      priceRange
+        .map(item =>
+          Number(
+            item?.price ??
+            item
+          )
+        )
+        .filter(price =>
+          Number.isFinite(
+            price
+          ) &&
+          price > 0
+        );
+
+    if (prices.length) {
+      return Math.min(
+        ...prices
+      );
+    }
+  }
+
+  return null;
+}
+
+function extractChina1688Products(
+  payload,
+  preferredSubgroup,
+  searchQuery,
+  exclusions
+) {
+  const offerList =
+    payload?.data?.data?.offerList;
+
+  if (
+    !Array.isArray(
+      offerList
+    )
+  ) {
+    return [];
+  }
+
+  const products = [];
+
+  for (
+    const offer
+    of offerList
+  ) {
+    const offerId =
+      String(
+        offer?.id ||
+        offer?.offerId ||
+        ""
+      ).trim();
+
+    const title =
+      cleanTrendText(
+        stripHtml(
+          offer?.subject ||
+          offer?.title ||
+          ""
+        ),
+        320
+      );
+
+    if (
+      !offerId ||
+      !title
+    ) {
+      continue;
+    }
+
+    if (
+      matchesExclusions(
+        title,
+        exclusions
+      )
+    ) {
+      continue;
+    }
+
+    const blockedChineseWords = [
+      "工业设备",
+      "生产线",
+      "大型设备",
+      "工程机械",
+      "集装箱房",
+      "活动板房",
+      "冷库",
+      "仓储设备",
+      "工厂设备",
+      "商用设备"
+    ];
+
+    if (
+      blockedChineseWords.some(
+        word =>
+          title.includes(
+            word
+          )
+      )
+    ) {
+      continue;
+    }
+
+    const price =
+      extractChina1688Price(
+        offer
+      );
+
+    const transactionCount =
+      Number(
+        offer?.tradeInfo
+          ?.tradeNumber ??
+        offer?.monthSold ??
+        0
+      ) || 0;
+
+    const moq =
+      offer?.tradeInfo?.moq ??
+      offer?.tradeInfo
+        ?.minOrderQuantity ??
+      null;
+
+    const unit =
+      cleanTrendText(
+        offer?.tradeInfo?.unit,
+        30
+      );
+
+    const supplier =
+      cleanTrendText(
+        offer?.company?.name,
+        120
+      );
+
+    const descriptionParts =
+      [];
+
+    if (price) {
+      descriptionParts.push(
+        `¥${price}`
+      );
+    }
+
+    if (moq) {
+      descriptionParts.push(
+        `MOQ ${moq}${unit || ""}`
+      );
+    }
+
+    if (
+      transactionCount > 0
+    ) {
+      descriptionParts.push(
+        `成交 ${transactionCount}`
+      );
+    }
+
+    if (supplier) {
+      descriptionParts.push(
+        supplier
+      );
+    }
+
+    const queryScore =
+      10;
+
+    const categoryScore =
+      10;
+
+    const retailScore =
+      15;
+
+    products.push({
+      productId:
+        offerId,
+      title,
+      description:
+        descriptionParts.join(
+          " · "
+        ) ||
+        "Товар знайдений у внутрішній китайській видачі 1688.",
+      link:
+        `https://detail.1688.com/offer/${offerId}.html`,
+      imageUrl:
+        getChina1688ImageUrl(
+          offer
+        ),
+      subgroup:
+        preferredSubgroup,
+      categoryScore,
+      retailScore,
+      queryScore,
+      soldCount:
+        transactionCount,
+      sourcePosition:
+        products.length + 1,
+      matchedQuery:
+        searchQuery
+    });
+
+    if (
+      products.length >=
+      40
+    ) {
+      break;
+    }
+  }
+
+  return products;
+}
+
+async function loadChina1688Signal({
+  category,
+  signalType,
+  searchDetails,
+  exclusions
+}) {
+  const searchQueries =
+    buildChina1688Queries(
+      category,
+      searchDetails
+    );
+
+  const requestResults =
+    await Promise.allSettled(
+      searchQueries.map(
+        async queryItem => {
+          const result =
+            await fetchChina1688Offers(
+              queryItem.searchQuery,
+              signalType
+            );
+
+          return {
+            ...result,
+            queryItem
+          };
+        }
+      )
+    );
+
+  const productsById =
+    new Map();
+
+  const checkedSources =
+    [];
+
+  let successfulRequests = 0;
+  let totalExtracted = 0;
+  let firstError = null;
+
+  for (
+    const requestResult
+    of requestResults
+  ) {
+    if (
+      requestResult.status !==
+      "fulfilled"
+    ) {
+      firstError ||=
+        requestResult.reason;
+
+      continue;
+    }
+
+    successfulRequests += 1;
+
+    const {
+      payload,
+      requestUrl,
+      queryItem
+    } =
+      requestResult.value;
+
+    checkedSources.push({
+      query:
+        queryItem.searchQuery,
+      url:
+        requestUrl
+    });
+
+    const products =
+      extractChina1688Products(
+        payload,
+        queryItem.subgroup,
+        queryItem.searchQuery,
+        exclusions
+      );
+
+    totalExtracted +=
+      products.length;
+
+    for (
+      const product
+      of products
+    ) {
+      const current =
+        productsById.get(
+          product.productId
+        );
+
+      if (!current) {
+        productsById.set(
+          product.productId,
+          {
+            ...product,
+            occurrenceCount:
+              1,
+            matchedQueries: [
+              queryItem.searchQuery
+            ],
+            bestPosition:
+              product.sourcePosition
+          }
+        );
+
+        continue;
+      }
+
+      current.occurrenceCount +=
+        1;
+
+      current.soldCount =
+        Math.max(
+          current.soldCount || 0,
+          product.soldCount || 0
+        );
+
+      current.bestPosition =
+        Math.min(
+          current.bestPosition,
+          product.sourcePosition
+        );
+
+      if (
+        !current.matchedQueries.includes(
+          queryItem.searchQuery
+        )
+      ) {
+        current.matchedQueries.push(
+          queryItem.searchQuery
+        );
+      }
+    }
+  }
+
+  if (
+    !successfulRequests &&
+    firstError
+  ) {
+    throw firstError;
+  }
+
+  const rankedProducts = [
+    ...productsById.values()
+  ]
+    .map(product => {
+      const positionScore =
+        Math.max(
+          0,
+          30 -
+          Number(
+            product.bestPosition || 30
+          )
+        );
+
+      const marketSignalScore =
+        product.soldCount > 0
+          ? Math.min(
+              35,
+              Math.log10(
+                product.soldCount + 1
+              ) * 12
+            )
+          : 0;
+
+      const sourceSignalScore =
+        product.retailScore * 3 +
+        product.categoryScore * 2 +
+        product.queryScore * 3 +
+        positionScore +
+        marketSignalScore;
+
+      return {
+        ...product,
+        marketSignalScore,
+        sourceSignalScore
+      };
+    })
+    .sort(
+      (first, second) =>
+        second.sourceSignalScore -
+        first.sourceSignalScore ||
+        second.soldCount -
+        first.soldCount ||
+        first.bestPosition -
+        second.bestPosition
+    )
+    .slice(
+      0,
+      50
+    );
+
+  const bestSourceScore =
+    Math.max(
+      ...rankedProducts.map(
+        product =>
+          product.sourceSignalScore ||
+          0
+      ),
+      1
+    );
+
+  for (
+    const product
+    of rankedProducts
+  ) {
+    product.relevanceScore =
+      Math.round(
+        (
+          product.sourceSignalScore /
+          bestSourceScore
+        ) *
+        1000
+      ) / 10;
+  }
+
+  const products =
+    selectBalancedMadeInChinaProducts(
+      rankedProducts,
+      15
+    )
+      .map(
+        (product, index) => ({
+          ...product,
+          sourcePosition:
+            index + 1
+        })
+      );
+
+  return {
+    source:
+      CHINA_1688_SOURCE_CONFIG.sourceName,
+    sourceType:
+      signalType,
+    status:
+      products.length
+        ? "ok"
+        : "no_results",
+    checkedSources,
+    totalExtracted,
+    products
+  };
+}
+
+function buildIdeasFromChina1688(
+  sourceResult
+) {
+  const signalConfig =
+    CHINA_1688_SIGNAL_CONFIG[
+      sourceResult.sourceType
+    ] ||
+    CHINA_1688_SIGNAL_CONFIG.all;
+
+  return sourceResult.products.map(
+    product => ({
+      id:
+        `1688-${product.productId}`,
+      title:
+        product.title,
+      imageUrl:
+        product.imageUrl ||
+        null,
+      description:
+        product.description,
+      signal:
+        signalConfig.label,
+      signalType:
+        sourceResult.sourceType,
+      geography:
+        CHINA_1688_SOURCE_CONFIG
+          .geography,
+      sources: [
+        CHINA_1688_SOURCE_CONFIG
+          .sourceName
+      ],
+      links: [
+        {
+          label:
+            "Відкрити на 1688",
+          url:
+            product.link
+        }
+      ],
+      sourcePosition:
+        product.sourcePosition,
+      relevanceScore:
+        product.relevanceScore ||
+        0,
+      subgroup:
+        product.subgroup ||
+        null
+    })
+  );
+}
+
 function applyChinaCrossSourceRanking(
   ideas
 ) {
@@ -8125,6 +9365,9 @@ function applyChinaCrossSourceRanking(
         ) ||
         idea.sources.includes(
           "Alibaba"
+        ) ||
+        idea.sources.includes(
+          "1688"
         )
       )
     );
@@ -8495,6 +9738,51 @@ export async function searchProductTrends(
       });
     }
   }
+
+  if (
+    CHINA_1688_SOURCE_CONFIG
+      .supportedMarkets
+      .has(market)
+  ) {
+    try {
+      const china1688Result =
+        await loadChina1688Signal({
+          category,
+          signalType,
+          searchDetails,
+          exclusions
+        });
+
+      sources.push(
+        china1688Result
+      );
+
+      ideas = ideas.concat(
+        buildIdeasFromChina1688(
+          china1688Result
+        )
+      );
+    } catch (error) {
+      console.error(
+        "[1688]",
+        error
+      );
+
+      sources.push({
+        source:
+          CHINA_1688_SOURCE_CONFIG
+            .sourceName,
+        sourceType:
+          signalType,
+        status:
+          "error",
+        message:
+          "1688 тимчасово не повернув товарну видачу.",
+        products:
+          []
+      });
+    }
+  }  
 
   ideas =
     applyChinaCrossSourceRanking(
