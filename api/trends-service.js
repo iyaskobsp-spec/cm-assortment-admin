@@ -6840,6 +6840,10 @@ function extractAlibabaProducts(
 async function loadAlibabaProductImage(
   product
 ) {
+  if (product.imageUrl) {
+    return product;
+  }
+
   try {
     const response = await fetch(
       product.link,
