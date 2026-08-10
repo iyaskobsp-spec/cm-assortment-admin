@@ -10165,7 +10165,7 @@ async function loadYiwugoProductImage(
           },
           signal:
             AbortSignal.timeout(
-              10000
+              6500
             )
         }
       );
@@ -10197,33 +10197,44 @@ async function loadYiwugoProductImage(
 async function loadYiwugoProductImages(
   products
 ) {
-  const result = [];
-
-  for (
-    let index = 0;
-    index < products.length;
-    index += 5
-  ) {
-    const batch =
-      products.slice(
-        index,
-        index + 5
-      );
-
-    const loadedBatch =
-      await Promise.all(
-        batch.map(
-          product =>
-            loadYiwugoProductImage(
-              product
-            )
-        )
-      );
-
-    result.push(
-      ...loadedBatch
+  const result =
+    new Array(
+      products.length
     );
+
+  let nextIndex = 0;
+
+  const workersCount =
+    Math.min(
+      8,
+      products.length
+    );
+
+  async function worker() {
+    while (
+      nextIndex <
+      products.length
+    ) {
+      const currentIndex =
+        nextIndex++;
+
+      result[currentIndex] =
+        await loadYiwugoProductImage(
+          products[currentIndex]
+        );
+    }
   }
+
+  await Promise.all(
+    Array.from(
+      {
+        length:
+          workersCount
+      },
+      () =>
+        worker()
+    )
+  );
 
   return result;
 }
