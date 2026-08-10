@@ -9884,45 +9884,20 @@ export async function searchProductTrends(
       .supportedMarkets
       .has(market)
   ) {
-    try {
-      const china1688Result =
-        await loadChina1688Signal({
-          category,
-          signalType,
-          searchDetails,
-          exclusions
-        });
-
-      sources.push(
-        china1688Result
-      );
-
-      ideas = ideas.concat(
-        buildIdeasFromChina1688(
-          china1688Result
-        )
-      );
-    } catch (error) {
-      console.error(
-        "[1688]",
-        error
-      );
-
-      sources.push({
-        source:
-          CHINA_1688_SOURCE_CONFIG
-            .sourceName,
-        sourceType:
-          signalType,
-        status:
-          "error",
-        message:
-          "1688 тимчасово не повернув товарну видачу.",
-        products:
-          []
-      });
-    }
-  }  
+    sources.push({
+      source:
+        CHINA_1688_SOURCE_CONFIG
+          .sourceName,
+      sourceType:
+        signalType,
+      status:
+        "disabled",
+      message:
+        "1688 тимчасово відкладено до підключення стабільного каналу доступу.",
+      products:
+        []
+    });
+  }
 
   ideas =
     applyChinaCrossSourceRanking(
