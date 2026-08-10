@@ -893,6 +893,24 @@ const YIWUGO_SOURCE_CONFIG = {
     ])
 };
 
+const YIWUGO_FETCH_GATEWAYS = [
+  {
+    code:
+      "direct",
+    buildUrl:
+      sourceUrl =>
+        sourceUrl
+  },
+
+  {
+    code:
+      "jina",
+    buildUrl:
+      sourceUrl =>
+        `https://r.jina.ai/${sourceUrl}`
+  }
+];
+
 const YIWUGO_SIGNAL_CONFIG = {
   all: {
     queryWords:
@@ -10192,6 +10210,107 @@ function extractYiwugoProducts(
   return products;
 }
 
+async function fetchYiwugoPage(
+  sourceUrl
+) {
+  let firstError = null;
+
+  for (
+    const gateway
+    of YIWUGO_FETCH_GATEWAYS
+  ) {
+    try {
+      const requestUrl =
+        gateway.buildUrl(
+          sourceUrl
+        );
+
+      const headers =
+        gateway.code === "jina"
+          ? {
+              Accept:
+                "text/plain,text/markdown,*/*",
+              "User-Agent":
+                "Mozilla/5.0"
+            }
+          : {
+              Accept:
+                "text/html,application/xhtml+xml",
+              "Accept-Language":
+                "en-US,en;q=0.9",
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                "AppleWebKit/537.36 Chrome/124 Safari/537.36",
+              Referer:
+                "https://en.yiwugo.com/"
+            };
+
+      const response =
+        await fetch(
+          requestUrl,
+          {
+            method:
+              "GET",
+            headers,
+            redirect:
+              "follow",
+            signal:
+              AbortSignal.timeout(
+                gateway.code === "direct"
+                  ? 4500
+                  : 12000
+              )
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          `YIWUGO_${gateway.code.toUpperCase()}_${response.status}`
+        );
+      }
+
+      const html =
+        await response.text();
+
+      if (
+        html.length < 1200
+      ) {
+        throw new Error(
+          `YIWUGO_${gateway.code.toUpperCase()}_EMPTY`
+        );
+      }
+
+      console.log(
+        "[Yiwugo] gateway ready:",
+        gateway.code
+      );
+
+      return {
+        html,
+        gateway:
+          gateway.code
+      };
+    } catch (error) {
+      firstError ||=
+        error;
+
+      console.warn(
+        "[Yiwugo] gateway failed:",
+        gateway.code,
+        error?.message ||
+        error
+      );
+    }
+  }
+
+  throw (
+    firstError ||
+    new Error(
+      "YIWUGO_NO_AVAILABLE_GATEWAY"
+    )
+  );
+}
+
 async function loadYiwugoSignal({
   category,
   signalType,
@@ -10205,66 +10324,47 @@ async function loadYiwugoSignal({
       searchDetails
     );
 
-  const requestResults =
-    await Promise.allSettled(
-      searchQueries.map(
-        async queryItem => {
-          const sourceUrl =
-            buildYiwugoSearchUrl(
-              queryItem.searchQuery
-            );
+  const requestResults = [];
 
-          const response =
-            await fetch(
-              sourceUrl,
-              {
-                method:
-                  "GET",
-                headers: {
-                  Accept:
-                    "text/html,application/xhtml+xml",
-                  "Accept-Language":
-                    "en-US,en;q=0.9",
-                  "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-                    "AppleWebKit/537.36 Chrome/124 Safari/537.36",
-                  Referer:
-                    "https://en.yiwugo.com/"
-                },
-                redirect:
-                  "follow",
-                signal:
-                  AbortSignal.timeout(
-                    9000
-                  )
-              }
-            );
+  for (
+    const queryItem
+    of searchQueries.slice(
+      0,
+      4
+    )
+  ) {
+    try {
+      const sourceUrl =
+        buildYiwugoSearchUrl(
+          queryItem.searchQuery
+        );
 
-          if (!response.ok) {
-            throw new Error(
-              `YIWUGO_REQUEST_FAILED_${response.status}`
-            );
-          }
+      const pageResult =
+        await fetchYiwugoPage(
+          sourceUrl
+        );
 
-          const html =
-            await response.text();
-
-          if (
-            html.length < 3000
-          ) {
-            throw new Error(
-              "YIWUGO_EMPTY_PAGE"
-            );
-          }
-
-          return {
-            queryItem,
-            sourceUrl,
-            html
-          };
+      requestResults.push({
+        status:
+          "fulfilled",
+        value: {
+          queryItem,
+          sourceUrl,
+          html:
+            pageResult.html,
+          gateway:
+            pageResult.gateway
         }
-      )
-    );
+      });
+    } catch (error) {
+      requestResults.push({
+        status:
+          "rejected",
+        reason:
+          error
+      });
+    }
+  }
 
   const productsById =
     new Map();
