@@ -8373,12 +8373,19 @@ function buildIdeasFromAlibaba(
   );
 }
 
+const CHINA_1688_API_GATEWAYS = [
+  "https://h5api.m.taobao.com",
+  "https://h5api.m.1688.com"
+];
+
 const china1688Session = {
   token:
     "",
   tokenCookie:
     "",
   tokenEncCookie:
+    "",
+  apiDomain:
     "",
   expiresAt:
     0,
@@ -8468,129 +8475,178 @@ function resetChina1688Session() {
   china1688Session.tokenEncCookie =
     "";
 
+  china1688Session.apiDomain =
+    "";
+
   china1688Session.expiresAt =
     0;
 }
 
 async function performChina1688Bootstrap() {
-  const bootstrapUrl =
-    new URL(
-      "/h5/mtop.relationrecommend.wirelessrecommend.recommend/2.0/",
-      CHINA_1688_SOURCE_CONFIG.apiDomain
-    );
+  let firstError = null;
 
-  bootstrapUrl.searchParams.set(
-    "jsv",
-    "2.5.1"
-  );
+  for (
+    const apiDomain
+    of CHINA_1688_API_GATEWAYS
+  ) {
+    try {
+      const bootstrapUrl =
+        new URL(
+          "/h5/mtop.relationrecommend.wirelessrecommend.recommend/2.0/",
+          apiDomain
+        );
 
-  bootstrapUrl.searchParams.set(
-    "appKey",
-    "12574478"
-  );
+      bootstrapUrl.searchParams.set(
+        "jsv",
+        "2.5.1"
+      );
 
-  bootstrapUrl.searchParams.set(
-    "t",
-    String(
-      Date.now()
-    )
-  );
+      bootstrapUrl.searchParams.set(
+        "appKey",
+        "12574478"
+      );
 
-  bootstrapUrl.searchParams.set(
-    "sign",
-    "x"
-  );
-
-  bootstrapUrl.searchParams.set(
-    "api",
-    "mtop.relationrecommend.WirelessRecommend.recommend"
-  );
-
-  bootstrapUrl.searchParams.set(
-    "v",
-    "2.0"
-  );
-
-  bootstrapUrl.searchParams.set(
-    "data",
-    "{}"
-  );
-
-  const response =
-    await fetch(
-      bootstrapUrl,
-      {
-        method:
-          "GET",
-        headers: {
-          Accept:
-            "application/json,text/plain,*/*",
-          "Accept-Language":
-            "zh-CN,zh;q=0.9,en;q=0.6",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-            "AppleWebKit/537.36 Chrome/124 Safari/537.36",
-          Referer:
-            "https://www.1688.com/",
-          Origin:
-            "https://www.1688.com"
-        },
-        redirect:
-          "follow",
-        signal:
-          AbortSignal.timeout(
-            5000
-          )
-      }
-    );
-
-  const cookies =
-    getChina1688SetCookies(
-      response
-    );
-
-  const tokenCookie =
-    extractChina1688Cookie(
-      cookies,
-      "_m_h5_tk"
-    );
-
-  const tokenEncCookie =
-    extractChina1688Cookie(
-      cookies,
-      "_m_h5_tk_enc"
-    );
-
-  if (!tokenCookie) {
-    const responseText =
-      await response
-        .text()
-        .catch(() => "");
-
-    throw new Error(
-      `1688_TOKEN_NOT_RECEIVED ${
-        cleanTrendText(
-          responseText,
-          180
+      bootstrapUrl.searchParams.set(
+        "t",
+        String(
+          Date.now()
         )
-      }`
-    );
+      );
+
+      bootstrapUrl.searchParams.set(
+        "sign",
+        "x"
+      );
+
+      bootstrapUrl.searchParams.set(
+        "api",
+        "mtop.relationrecommend.WirelessRecommend.recommend"
+      );
+
+      bootstrapUrl.searchParams.set(
+        "v",
+        "2.0"
+      );
+
+      bootstrapUrl.searchParams.set(
+        "type",
+        "json"
+      );
+
+      bootstrapUrl.searchParams.set(
+        "dataType",
+        "json"
+      );
+
+      bootstrapUrl.searchParams.set(
+        "data",
+        "{}"
+      );
+
+      const response =
+        await fetch(
+          bootstrapUrl,
+          {
+            method:
+              "GET",
+            headers: {
+              Accept:
+                "application/json,text/plain,*/*",
+              "Accept-Language":
+                "zh-CN,zh;q=0.9,en;q=0.6",
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                "AppleWebKit/537.36 Chrome/124 Safari/537.36",
+              Referer:
+                "https://www.1688.com/",
+              Origin:
+                "https://www.1688.com"
+            },
+            redirect:
+              "follow",
+            signal:
+              AbortSignal.timeout(
+                5500
+              )
+          }
+        );
+
+      const cookies =
+        getChina1688SetCookies(
+          response
+        );
+
+      const tokenCookie =
+        extractChina1688Cookie(
+          cookies,
+          "_m_h5_tk"
+        );
+
+      const tokenEncCookie =
+        extractChina1688Cookie(
+          cookies,
+          "_m_h5_tk_enc"
+        );
+
+      if (!tokenCookie) {
+        const responseText =
+          await response
+            .text()
+            .catch(() => "");
+
+        throw new Error(
+          `1688_TOKEN_NOT_RECEIVED ${apiDomain} ${
+            cleanTrendText(
+              responseText,
+              160
+            )
+          }`
+        );
+      }
+
+      china1688Session.tokenCookie =
+        tokenCookie;
+
+      china1688Session.tokenEncCookie =
+        tokenEncCookie;
+
+      china1688Session.token =
+        tokenCookie.split(
+          "_"
+        )[0];
+
+      china1688Session.apiDomain =
+        apiDomain;
+
+      china1688Session.expiresAt =
+        Date.now() +
+        75 * 60 * 1000;
+
+      console.log(
+        "[1688] gateway ready:",
+        apiDomain
+      );
+
+      return;
+    } catch (error) {
+      firstError ||=
+        error;
+
+      console.warn(
+        "[1688] gateway failed:",
+        apiDomain,
+        error?.message ||
+        error
+      );
+    }
   }
 
-  china1688Session.tokenCookie =
-    tokenCookie;
-
-  china1688Session.tokenEncCookie =
-    tokenEncCookie;
-
-  china1688Session.token =
-    tokenCookie.split(
-      "_"
-    )[0];
-
-  china1688Session.expiresAt =
-    Date.now() +
-    75 * 60 * 1000;
+  throw (
+    firstError ||
+    new Error(
+      "1688_NO_AVAILABLE_GATEWAY"
+    )
+  );
 }
 
 async function bootstrapChina1688Session(
@@ -8699,10 +8755,14 @@ async function executeChina1688Request(
       data
     );
 
+  const apiDomain =
+    china1688Session.apiDomain ||
+    CHINA_1688_API_GATEWAYS[0];
+
   const requestUrl =
     new URL(
       "/h5/mtop.relationrecommend.wirelessrecommend.recommend/2.0/",
-      CHINA_1688_SOURCE_CONFIG.apiDomain
+      apiDomain
     );
 
   requestUrl.searchParams.set(
@@ -8733,6 +8793,16 @@ async function executeChina1688Request(
   requestUrl.searchParams.set(
     "v",
     "2.0"
+  );
+
+  requestUrl.searchParams.set(
+    "type",
+    "json"
+  );
+
+  requestUrl.searchParams.set(
+    "dataType",
+    "json"
   );
 
   requestUrl.searchParams.set(
@@ -10778,19 +10848,44 @@ export async function searchProductTrends(
       .supportedMarkets
       .has(market)
   ) {
-    sources.push({
-      source:
-        CHINA_1688_SOURCE_CONFIG
-          .sourceName,
-      sourceType:
-        signalType,
-      status:
-        "disabled",
-      message:
-        "1688 тимчасово відкладено до підключення стабільного каналу доступу.",
-      products:
-        []
-    });
+    try {
+      const china1688Result =
+        await loadChina1688Signal({
+          category,
+          signalType,
+          searchDetails,
+          exclusions
+        });
+
+      sources.push(
+        china1688Result
+      );
+
+      ideas = ideas.concat(
+        buildIdeasFromChina1688(
+          china1688Result
+        )
+      );
+    } catch (error) {
+      console.error(
+        "[1688]",
+        error
+      );
+
+      sources.push({
+        source:
+          CHINA_1688_SOURCE_CONFIG
+            .sourceName,
+        sourceType:
+          signalType,
+        status:
+          "error",
+        message:
+          "1688 тимчасово не повернув товарну видачу.",
+        products:
+          []
+      });
+    }
   }
 
   if (
