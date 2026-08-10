@@ -10651,8 +10651,7 @@ function buildChinagoodsSearchUrl(
 ) {
   const url =
     new URL(
-      "/search/products",
-      CHINAGOODS_SOURCE_CONFIG.domain
+      "https://lm.chinagoods.com/search"
     );
 
   url.searchParams.set(
@@ -10697,8 +10696,8 @@ async function fetchChinagoodsPage(
             signal:
               AbortSignal.timeout(
                 gateway.code === "direct"
-                  ? 3000
-                  : 7500
+                  ? 4500
+                  : 5000
               )
           }
         );
