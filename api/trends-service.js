@@ -893,6 +893,62 @@ const YIWUGO_SOURCE_CONFIG = {
     ])
 };
 
+const CHINAGOODS_SOURCE_CONFIG = {
+  code:
+    "chinagoods",
+  sourceName:
+    "Chinagoods",
+  geography:
+    "Китай",
+  domain:
+    "https://en.chinagoods.com",
+  supportedMarkets:
+    new Set([
+      "world",
+      "china"
+    ])
+};
+
+const CHINAGOODS_SIGNAL_CONFIG = {
+  all: {
+    label:
+      "Товарний сигнал Chinagoods"
+  },
+
+  new: {
+    label:
+      "Новинка Chinagoods"
+  },
+
+  trends: {
+    label:
+      "Трендовий сигнал Chinagoods"
+  },
+
+  popular: {
+    label:
+      "Популярний товар Chinagoods"
+  }
+};
+
+const CHINAGOODS_FETCH_GATEWAYS = [
+  {
+    code:
+      "direct",
+    buildUrl:
+      sourceUrl =>
+        sourceUrl
+  },
+
+  {
+    code:
+      "jina",
+    buildUrl:
+      sourceUrl =>
+        `https://r.jina.ai/${sourceUrl}`
+  }
+];
+
 const YIWUGO_FETCH_GATEWAYS = [
   {
     code:
@@ -10575,6 +10631,917 @@ async function fetchYiwugoPage(
   );
 }
 
+function buildChinagoodsSearchQueries(
+  category,
+  signalType,
+  searchDetails
+) {
+  return buildYiwugoSearchQueries(
+    category,
+    signalType,
+    searchDetails
+  ).slice(
+    0,
+    4
+  );
+}
+
+function buildChinagoodsSearchUrl(
+  searchQuery
+) {
+  const url =
+    new URL(
+      "/search/products",
+      CHINAGOODS_SOURCE_CONFIG.domain
+    );
+
+  url.searchParams.set(
+    "keyword",
+    searchQuery
+  );
+
+  return url.toString();
+}
+
+async function fetchChinagoodsPage(
+  sourceUrl
+) {
+  let firstError = null;
+
+  for (
+    const gateway
+    of CHINAGOODS_FETCH_GATEWAYS
+  ) {
+    try {
+      const requestUrl =
+        gateway.buildUrl(
+          sourceUrl
+        );
+
+      const response =
+        await fetch(
+          requestUrl,
+          {
+            headers: {
+              Accept:
+                gateway.code === "jina"
+                  ? "text/plain,text/markdown,*/*"
+                  : "text/html,application/xhtml+xml",
+              "Accept-Language":
+                "en-US,en;q=0.9",
+              "User-Agent":
+                "Mozilla/5.0"
+            },
+            redirect:
+              "follow",
+            signal:
+              AbortSignal.timeout(
+                gateway.code === "direct"
+                  ? 3000
+                  : 7500
+              )
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          `CHINAGOODS_${gateway.code.toUpperCase()}_${response.status}`
+        );
+      }
+
+      const text =
+        await response.text();
+
+      if (
+        text.length < 800
+      ) {
+        throw new Error(
+          `CHINAGOODS_${gateway.code.toUpperCase()}_EMPTY`
+        );
+      }
+
+      console.log(
+        "[Chinagoods] gateway ready:",
+        gateway.code
+      );
+
+      return {
+        text,
+        gateway:
+          gateway.code
+      };
+    } catch (error) {
+      firstError ||=
+        error;
+
+      console.warn(
+        "[Chinagoods] gateway failed:",
+        gateway.code,
+        error?.message ||
+        error
+      );
+    }
+  }
+
+  throw (
+    firstError ||
+    new Error(
+      "CHINAGOODS_NO_GATEWAY"
+    )
+  );
+}
+
+function getChinagoodsImageUrl(
+  contextText
+) {
+  const text =
+    String(
+      contextText || ""
+    );
+
+  const candidates = [];
+
+  const markdownPattern =
+    /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/gi;
+
+  for (
+    const match
+    of text.matchAll(
+      markdownPattern
+    )
+  ) {
+    candidates.push(
+      match[1]
+    );
+  }
+
+  const htmlPatterns = [
+    /<img\b[^>]*\bdata-src=["']([^"']+)["']/gi,
+    /<img\b[^>]*\bdata-original=["']([^"']+)["']/gi,
+    /<img\b[^>]*\bsrc=["']([^"']+)["']/gi
+  ];
+
+  for (
+    const pattern
+    of htmlPatterns
+  ) {
+    for (
+      const match
+      of text.matchAll(
+        pattern
+      )
+    ) {
+      candidates.push(
+        match[1]
+      );
+    }
+  }
+
+  for (
+    let imageUrl
+    of candidates
+  ) {
+    imageUrl =
+      decodeHtmlEntities(
+        imageUrl
+      )
+        .replace(
+          /\\\//g,
+          "/"
+        )
+        .trim();
+
+    if (!imageUrl) {
+      continue;
+    }
+
+    if (
+      imageUrl.startsWith(
+        "//"
+      )
+    ) {
+      imageUrl =
+        `https:${imageUrl}`;
+    }
+
+    try {
+      imageUrl =
+        new URL(
+          imageUrl,
+          CHINAGOODS_SOURCE_CONFIG.domain
+        ).toString();
+    } catch {
+      continue;
+    }
+
+    const normalized =
+      imageUrl.toLocaleLowerCase(
+        "en-US"
+      );
+
+    if (
+      (
+        normalized.includes(
+          "cdnimg.chinagoods.com"
+        ) ||
+        normalized.includes(
+          "assets.chinagoods.com"
+        )
+      ) &&
+      !normalized.includes(
+        "logo"
+      ) &&
+      !normalized.includes(
+        "icon"
+      ) &&
+      !normalized.includes(
+        "avatar"
+      ) &&
+      !normalized.includes(
+        "default"
+      ) &&
+      !normalized.includes(
+        "qr"
+      )
+    ) {
+      return imageUrl;
+    }
+  }
+
+  return null;
+}
+
+function extractChinagoodsProducts(
+  sourceText,
+  category,
+  searchQuery,
+  preferredSubgroup,
+  exclusions
+) {
+  const text =
+    String(
+      sourceText || ""
+    );
+
+  const products = [];
+  const seenIds =
+    new Set();
+
+  const productPattern =
+    /(?:href=["']|]\()([^"'()\s]*\/product\/[^"'()\s]*?_([0-9]{10,})[^"'()\s]*)(?:["']|\))/gi;
+
+  for (
+    const match
+    of text.matchAll(
+      productPattern
+    )
+  ) {
+    const rawLink =
+      String(
+        match?.[1] || ""
+      );
+
+    const productId =
+      String(
+        match?.[2] || ""
+      );
+
+    if (
+      !productId ||
+      seenIds.has(
+        productId
+      )
+    ) {
+      continue;
+    }
+
+    const matchIndex =
+      Number(
+        match.index || 0
+      );
+
+    const context =
+      text.slice(
+        Math.max(
+          0,
+          matchIndex - 900
+        ),
+        Math.min(
+          text.length,
+          matchIndex + 1700
+        )
+      );
+
+    const markdownTitleMatch =
+      context.match(
+        /\[([^\]\n]{8,400})\]\([^)]*\/product\/[^)]*\)/i
+      );
+
+    const htmlTitleMatch =
+      context.match(
+        /<a\b[^>]*href=["'][^"']*\/product\/[^"']*["'][^>]*>([\s\S]{1,800}?)<\/a>/i
+      );
+
+    const title =
+      cleanTrendText(
+        decodeHtmlEntities(
+          markdownTitleMatch?.[1] ||
+          stripHtml(
+            htmlTitleMatch?.[1] ||
+            ""
+          )
+        ),
+        320
+      );
+
+    if (
+      !title ||
+      title.length < 8 ||
+      matchesExclusions(
+        title,
+        exclusions
+      )
+    ) {
+      continue;
+    }
+
+    const productProfile =
+      getMadeInChinaProductProfile(
+        title,
+        category,
+        preferredSubgroup
+      );
+
+    if (
+      productProfile.retailScore <= 0 ||
+      !productProfile.subgroup
+    ) {
+      continue;
+    }
+
+    const categoryScore =
+      getChinaCategoryScore(
+        title,
+        category
+      );
+
+    const queryScore =
+      getChinaQueryScore(
+        title,
+        searchQuery
+      );
+
+    const wantMatch =
+      context.match(
+        /(\d[\d,]*)\s+want\s+it/i
+      );
+
+    const wantCount =
+      wantMatch?.[1]
+        ? Number(
+            wantMatch[1]
+              .replace(
+                /,/g,
+                ""
+              )
+          )
+        : 0;
+
+    const priceMatch =
+      context.match(
+        /\$\s*(\d+(?:\.\d+)?)/i
+      );
+
+    let productLink;
+
+    try {
+      productLink =
+        new URL(
+          decodeHtmlEntities(
+            rawLink
+          ),
+          CHINAGOODS_SOURCE_CONFIG.domain
+        ).toString();
+    } catch {
+      continue;
+    }
+
+    seenIds.add(
+      productId
+    );
+
+    products.push({
+      productId,
+      title,
+
+      description:
+        priceMatch?.[1]
+          ? `$${priceMatch[1]}${
+              wantCount
+                ? ` · ${wantCount} want it`
+                : ""
+            }`
+          : (
+              wantCount
+                ? `${wantCount} want it`
+                : "Товар знайдений у Chinagoods."
+            ),
+
+      link:
+        productLink,
+
+      imageUrl:
+        getChinagoodsImageUrl(
+          context
+        ),
+
+      subgroup:
+        productProfile.subgroup,
+
+      retailScore:
+        productProfile.retailScore,
+
+      categoryScore,
+
+      queryScore,
+
+      soldCount:
+        wantCount,
+
+      sourcePosition:
+        products.length + 1,
+
+      matchedQuery:
+        searchQuery
+    });
+
+    if (
+      products.length >= 45
+    ) {
+      break;
+    }
+  }
+
+  return products;
+}
+
+async function loadChinagoodsProductImage(
+  product
+) {
+  if (
+    product.imageUrl ||
+    !product.link
+  ) {
+    return product;
+  }
+
+  try {
+    const response =
+      await fetch(
+        `https://r.jina.ai/${product.link}`,
+        {
+          headers: {
+            Accept:
+              "text/plain,text/markdown,*/*",
+            "User-Agent":
+              "Mozilla/5.0"
+          },
+          signal:
+            AbortSignal.timeout(
+              6000
+            )
+        }
+      );
+
+    if (!response.ok) {
+      return product;
+    }
+
+    const text =
+      await response.text();
+
+    const imageUrl =
+      getChinagoodsImageUrl(
+        text
+      );
+
+    return {
+      ...product,
+      imageUrl:
+        imageUrl ||
+        null
+    };
+  } catch {
+    return product;
+  }
+}
+
+async function loadChinagoodsProductImages(
+  products
+) {
+  const result =
+    new Array(
+      products.length
+    );
+
+  let nextIndex = 0;
+
+  const workersCount =
+    Math.min(
+      8,
+      products.length
+    );
+
+  async function worker() {
+    while (
+      nextIndex <
+      products.length
+    ) {
+      const currentIndex =
+        nextIndex++;
+
+      result[currentIndex] =
+        await loadChinagoodsProductImage(
+          products[currentIndex]
+        );
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      {
+        length:
+          workersCount
+      },
+      () =>
+        worker()
+    )
+  );
+
+  return result;
+}
+
+async function loadChinagoodsSignal({
+  category,
+  signalType,
+  searchDetails,
+  exclusions
+}) {
+  const searchQueries =
+    buildChinagoodsSearchQueries(
+      category,
+      signalType,
+      searchDetails
+    );
+
+  const requestResults =
+    await Promise.allSettled(
+      searchQueries.map(
+        async queryItem => {
+          const sourceUrl =
+            buildChinagoodsSearchUrl(
+              queryItem.searchQuery
+            );
+
+          const pageResult =
+            await fetchChinagoodsPage(
+              sourceUrl
+            );
+
+          return {
+            queryItem,
+            sourceUrl,
+            text:
+              pageResult.text
+          };
+        }
+      )
+    );
+
+  const productsById =
+    new Map();
+
+  const checkedSources = [];
+
+  let successfulRequests = 0;
+  let totalExtracted = 0;
+  let firstError = null;
+
+  for (
+    const requestResult
+    of requestResults
+  ) {
+    if (
+      requestResult.status !==
+      "fulfilled"
+    ) {
+      firstError ||=
+        requestResult.reason;
+
+      continue;
+    }
+
+    successfulRequests += 1;
+
+    const {
+      queryItem,
+      sourceUrl,
+      text
+    } =
+      requestResult.value;
+
+    checkedSources.push({
+      query:
+        queryItem.searchQuery,
+      url:
+        sourceUrl
+    });
+
+    const extractedProducts =
+      extractChinagoodsProducts(
+        text,
+        category,
+        queryItem.searchQuery,
+        queryItem.subgroup,
+        exclusions
+      );
+
+    totalExtracted +=
+      extractedProducts.length;
+
+    for (
+      const product
+      of extractedProducts
+    ) {
+      const current =
+        productsById.get(
+          product.productId
+        );
+
+      if (!current) {
+        productsById.set(
+          product.productId,
+          {
+            ...product,
+            occurrenceCount:
+              1,
+            bestPosition:
+              product.sourcePosition,
+            matchedQueries: [
+              queryItem.searchQuery
+            ]
+          }
+        );
+
+        continue;
+      }
+
+      current.occurrenceCount +=
+        1;
+
+      current.soldCount =
+        Math.max(
+          current.soldCount || 0,
+          product.soldCount || 0
+        );
+
+      current.bestPosition =
+        Math.min(
+          current.bestPosition,
+          product.sourcePosition
+        );
+
+      if (
+        !current.imageUrl &&
+        product.imageUrl
+      ) {
+        current.imageUrl =
+          product.imageUrl;
+      }
+
+      if (
+        !current.matchedQueries.includes(
+          queryItem.searchQuery
+        )
+      ) {
+        current.matchedQueries.push(
+          queryItem.searchQuery
+        );
+      }
+    }
+  }
+
+  if (
+    !successfulRequests &&
+    firstError
+  ) {
+    throw firstError;
+  }
+
+  const totalQueryCount =
+    Math.max(
+      searchQueries.length,
+      1
+    );
+
+  const rankedProducts = [
+    ...productsById.values()
+  ]
+    .map(product => {
+      const positionScore =
+        Math.max(
+          0,
+          30 -
+          Number(
+            product.bestPosition || 30
+          )
+        );
+
+      const queryCoverage =
+        Math.min(
+          product.matchedQueries.length /
+            totalQueryCount,
+          1
+        );
+
+      const wantScore =
+        product.soldCount > 0
+          ? Math.min(
+              40,
+              Math.log10(
+                product.soldCount + 1
+              ) * 14
+            )
+          : 0;
+
+      const freshnessScore =
+        /\b(new|latest|2026|creative|trendy)\b/i
+          .test(
+            product.title
+          )
+          ? 18
+          : 0;
+
+      let signalBonus = 0;
+
+      if (
+        signalType === "new"
+      ) {
+        signalBonus =
+          freshnessScore;
+      } else if (
+        signalType === "popular"
+      ) {
+        signalBonus =
+          wantScore;
+      } else if (
+        signalType === "trends"
+      ) {
+        signalBonus =
+          freshnessScore * 0.6 +
+          wantScore * 0.8;
+      } else {
+        signalBonus =
+          wantScore * 0.5;
+      }
+
+      const sourceSignalScore =
+        product.retailScore * 3 +
+        product.categoryScore * 2 +
+        product.queryScore * 3 +
+        queryCoverage * 18 +
+        positionScore +
+        signalBonus;
+
+      return {
+        ...product,
+        sourceSignalScore
+      };
+    })
+    .sort(
+      (first, second) =>
+        second.sourceSignalScore -
+        first.sourceSignalScore ||
+        second.soldCount -
+        first.soldCount ||
+        first.bestPosition -
+        second.bestPosition
+    )
+    .slice(
+      0,
+      45
+    );
+
+  const bestSourceScore =
+    Math.max(
+      ...rankedProducts.map(
+        product =>
+          product.sourceSignalScore ||
+          0
+      ),
+      1
+    );
+
+  for (
+    const product
+    of rankedProducts
+  ) {
+    product.relevanceScore =
+      Math.round(
+        (
+          product.sourceSignalScore /
+          bestSourceScore
+        ) *
+        1000
+      ) / 10;
+  }
+
+  const selectedProducts =
+    selectBalancedMadeInChinaProducts(
+      rankedProducts,
+      15
+    );
+
+  const productsWithImages =
+    await loadChinagoodsProductImages(
+      selectedProducts
+    );
+
+  const products =
+    productsWithImages.map(
+      (product, index) => ({
+        ...product,
+        sourcePosition:
+          index + 1
+      })
+    );
+
+  return {
+    source:
+      CHINAGOODS_SOURCE_CONFIG.sourceName,
+    sourceType:
+      signalType,
+    status:
+      products.length
+        ? "ok"
+        : "no_results",
+    checkedSources,
+    totalExtracted,
+    products
+  };
+}
+
+function buildIdeasFromChinagoods(
+  sourceResult
+) {
+  const signalConfig =
+    CHINAGOODS_SIGNAL_CONFIG[
+      sourceResult.sourceType
+    ] ||
+    CHINAGOODS_SIGNAL_CONFIG.all;
+
+  return sourceResult.products.map(
+    product => ({
+      id:
+        `chinagoods-${product.productId}`,
+      title:
+        product.title,
+      imageUrl:
+        product.imageUrl ||
+        null,
+      description:
+        product.description,
+      signal:
+        signalConfig.label,
+      signalType:
+        sourceResult.sourceType,
+      geography:
+        CHINAGOODS_SOURCE_CONFIG
+          .geography,
+      sources: [
+        CHINAGOODS_SOURCE_CONFIG
+          .sourceName
+      ],
+      links: [
+        {
+          label:
+            "Відкрити на Chinagoods",
+          url:
+            product.link
+        }
+      ],
+      sourcePosition:
+        product.sourcePosition,
+      relevanceScore:
+        product.relevanceScore ||
+        0,
+      subgroup:
+        product.subgroup ||
+        null
+    })
+  );
+}
+
 async function loadYiwugoSignal({
   category,
   signalType,
@@ -10934,6 +11901,9 @@ function applyChinaCrossSourceRanking(
         ) ||
         idea.sources.includes(
           "Yiwugo"
+        ) ||
+        idea.sources.includes(
+          "Chinagoods"
         ) ||
         idea.sources.includes(
           "1688"
@@ -11370,7 +12340,7 @@ export async function searchProductTrends(
       sources.push(
         yiwugoResult
       );
-
+      
       ideas = ideas.concat(
         buildIdeasFromYiwugo(
           yiwugoResult
@@ -11392,6 +12362,51 @@ export async function searchProductTrends(
           "error",
         message:
           "Yiwugo тимчасово не повернув товарну видачу.",
+        products:
+          []
+      });
+    }
+  }
+
+  if (
+    CHINAGOODS_SOURCE_CONFIG
+      .supportedMarkets
+      .has(market)
+  ) {
+    try {
+      const chinagoodsResult =
+        await loadChinagoodsSignal({
+          category,
+          signalType,
+          searchDetails,
+          exclusions
+        });
+
+      sources.push(
+        chinagoodsResult
+      );
+
+      ideas = ideas.concat(
+        buildIdeasFromChinagoods(
+          chinagoodsResult
+        )
+      );
+    } catch (error) {
+      console.error(
+        "[Chinagoods]",
+        error
+      );
+
+      sources.push({
+        source:
+          CHINAGOODS_SOURCE_CONFIG
+            .sourceName,
+        sourceType:
+          signalType,
+        status:
+          "error",
+        message:
+          "Chinagoods тимчасово не повернув товарну видачу.",
         products:
           []
       });
