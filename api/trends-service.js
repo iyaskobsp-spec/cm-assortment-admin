@@ -885,7 +885,7 @@ const YIWUGO_SOURCE_CONFIG = {
   geography:
     "Китай",
   domain:
-    "https://www.yiwugo.com",
+    "https://en.yiwugo.com",
   supportedMarkets:
     new Set([
       "world",
@@ -903,21 +903,21 @@ const YIWUGO_SIGNAL_CONFIG = {
 
   new: {
     queryWords:
-      "新款 新品",
+      "new creative latest",
     label:
       "Новинка Yiwugo"
   },
 
   trends: {
     queryWords:
-      "爆款 网红 热销",
+      "hot trendy viral",
     label:
       "Трендовий сигнал Yiwugo"
   },
 
   popular: {
     queryWords:
-      "热卖 畅销 爆款",
+      "hot selling best selling",
     label:
       "Популярний сигнал Yiwugo"
   }
@@ -9724,26 +9724,26 @@ function buildYiwugoSearchQueries(
     const group
     of categoryConfig.groups
   ) {
-    const chineseQuery =
-      CHINA_1688_GROUP_QUERIES[
-        group.key
-      ];
+    const baseQuery =
+      Array.isArray(
+        group.queries
+      )
+        ? group.queries[0]
+        : "";
 
-    if (!chineseQuery) {
+    if (!baseQuery) {
       continue;
     }
 
-    const searchQuery =
-      [
-        chineseQuery,
-        signalConfig.queryWords
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
-
     queries.push({
-      searchQuery,
+      searchQuery:
+        [
+          signalConfig.queryWords,
+          baseQuery
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim(),
       subgroup:
         group.key
     });
@@ -9763,7 +9763,7 @@ function buildYiwugoSearchQueries(
 
   return queries.slice(
     0,
-    6
+    5
   );
 }
 
@@ -9772,12 +9772,12 @@ function buildYiwugoSearchUrl(
 ) {
   const url =
     new URL(
-      "/search/sproduct.html",
+      "/search/s.html",
       YIWUGO_SOURCE_CONFIG.domain
     );
 
   url.searchParams.set(
-    "q",
+    "queryKey",
     searchQuery
   );
 
@@ -10032,7 +10032,7 @@ function extractYiwugoProducts(
 
     const priceMatch =
       contextHtml.match(
-        /(?:¥|￥)\s*(\d+(?:\.\d+)?)(?:\s*~\s*(?:¥|￥)?\s*(\d+(?:\.\d+)?))?/i
+        /(?:CN\s*)?(?:¥|￥)\s*(\d+(?:\.\d+)?)(?:\s*~\s*(?:CN\s*)?(?:¥|￥)?\s*(\d+(?:\.\d+)?))?/i
       );
 
     const minPrice =
@@ -10079,7 +10079,7 @@ function extractYiwugoProducts(
 
     const moqMatch =
       contextHtml.match(
-        /(\d+(?:\.\d+)?)\s*(?:个|件|套|只|盒|袋|支|本|包|组|双|对|张|条|台|副|千克)\s*起购/i
+        /(?:Min\.\s*Order:\s*)?(\d+(?:\.\d+)?)\s*(?:piece|pieces|set|sets|pcs|pc|box|boxes|bag|bags|roll|rolls|pair|pairs)/i
       );
 
     let productLink = "";
@@ -10208,18 +10208,18 @@ async function loadYiwugoSignal({
                   Accept:
                     "text/html,application/xhtml+xml",
                   "Accept-Language":
-                    "zh-CN,zh;q=0.9,en;q=0.6",
+                    "en-US,en;q=0.9",
                   "User-Agent":
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
                     "AppleWebKit/537.36 Chrome/124 Safari/537.36",
                   Referer:
-                    "https://www.yiwugo.com/"
+                    "https://en.yiwugo.com/"
                 },
                 redirect:
                   "follow",
                 signal:
                   AbortSignal.timeout(
-                    12000
+                    9000
                   )
               }
             );
