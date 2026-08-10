@@ -9975,6 +9975,259 @@ function getYiwugoImageUrl(
   return null;
 }
 
+function getYiwugoProductPageImage(
+  pageText
+) {
+  const sourceText =
+    String(
+      pageText || ""
+    );
+
+  const candidates = [];
+
+  const markdownImagePattern =
+    /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/gi;
+
+  for (
+    const match
+    of sourceText.matchAll(
+      markdownImagePattern
+    )
+  ) {
+    candidates.push(
+      match[1]
+    );
+  }
+
+  const htmlImagePatterns = [
+    /<img\b[^>]*\bdata-original=["']([^"']+)["'][^>]*>/gi,
+    /<img\b[^>]*\bdata-src=["']([^"']+)["'][^>]*>/gi,
+    /<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi
+  ];
+
+  for (
+    const pattern
+    of htmlImagePatterns
+  ) {
+    for (
+      const match
+      of sourceText.matchAll(
+        pattern
+      )
+    ) {
+      candidates.push(
+        match[1]
+      );
+    }
+  }
+
+  const preparedCandidates =
+    candidates
+      .map(rawUrl => {
+        let imageUrl =
+          decodeHtmlEntities(
+            rawUrl
+          )
+            .replace(
+              /\\\//g,
+              "/"
+            )
+            .trim();
+
+        if (!imageUrl) {
+          return null;
+        }
+
+        if (
+          imageUrl.startsWith(
+            "//"
+          )
+        ) {
+          imageUrl =
+            `https:${imageUrl}`;
+        }
+
+        try {
+          imageUrl =
+            new URL(
+              imageUrl,
+              YIWUGO_SOURCE_CONFIG.domain
+            ).toString();
+        } catch {
+          return null;
+        }
+
+        const normalized =
+          imageUrl.toLocaleLowerCase(
+            "en-US"
+          );
+
+        if (
+          normalized.includes(
+            "static.yiwugo.com"
+          ) ||
+          normalized.includes(
+            "videoout.yiwugo.com"
+          ) ||
+          normalized.includes(
+            "ywgimg.yiwugo.com"
+          ) ||
+          normalized.includes(
+            "logo"
+          ) ||
+          normalized.includes(
+            "icon"
+          ) ||
+          normalized.includes(
+            "avatar"
+          ) ||
+          normalized.includes(
+            "loading"
+          ) ||
+          normalized.includes(
+            "default"
+          ) ||
+          normalized.includes(
+            "qr"
+          ) ||
+          normalized.endsWith(
+            ".gif"
+          ) ||
+          normalized.endsWith(
+            ".svg"
+          )
+        ) {
+          return null;
+        }
+
+        let priority = 0;
+
+        if (
+          normalized.includes(
+            "img1.yiwugo.com"
+          )
+        ) {
+          priority += 100;
+        }
+
+        if (
+          normalized.includes(
+            "cbu01.alicdn.com"
+          )
+        ) {
+          priority += 30;
+        }
+
+        return {
+          imageUrl,
+          priority
+        };
+      })
+      .filter(Boolean)
+      .sort(
+        (first, second) =>
+          second.priority -
+          first.priority
+      );
+
+  return (
+    preparedCandidates[0]
+      ?.imageUrl ||
+    null
+  );
+}
+
+async function loadYiwugoProductImage(
+  product
+) {
+  if (
+    product.imageUrl ||
+    !product.link
+  ) {
+    return product;
+  }
+
+  try {
+    const jinaUrl =
+      `https://r.jina.ai/${product.link}`;
+
+    const response =
+      await fetch(
+        jinaUrl,
+        {
+          method:
+            "GET",
+          headers: {
+            Accept:
+              "text/plain,text/markdown,*/*",
+            "User-Agent":
+              "Mozilla/5.0"
+          },
+          signal:
+            AbortSignal.timeout(
+              10000
+            )
+        }
+      );
+
+    if (!response.ok) {
+      return product;
+    }
+
+    const pageText =
+      await response.text();
+
+    const imageUrl =
+      getYiwugoProductPageImage(
+        pageText
+      );
+
+    return {
+      ...product,
+      imageUrl:
+        imageUrl ||
+        product.imageUrl ||
+        null
+    };
+  } catch {
+    return product;
+  }
+}
+
+async function loadYiwugoProductImages(
+  products
+) {
+  const result = [];
+
+  for (
+    let index = 0;
+    index < products.length;
+    index += 5
+  ) {
+    const batch =
+      products.slice(
+        index,
+        index + 5
+      );
+
+    const loadedBatch =
+      await Promise.all(
+        batch.map(
+          product =>
+            loadYiwugoProductImage(
+              product
+            )
+        )
+      );
+
+    result.push(
+      ...loadedBatch
+    );
+  }
+
+  return result;
+}
+
 function extractYiwugoProducts(
   html,
   category,
@@ -10578,18 +10831,25 @@ async function loadYiwugoSignal({
       ) / 10;
   }
 
-  const products =
+  const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
       15
-    )
-      .map(
-        (product, index) => ({
-          ...product,
-          sourcePosition:
-            index + 1
-        })
-      );
+    );
+
+  const productsWithImages =
+    await loadYiwugoProductImages(
+      selectedProducts
+    );
+
+  const products =
+    productsWithImages.map(
+      (product, index) => ({
+        ...product,
+        sourcePosition:
+          index + 1
+      })
+    );
 
   return {
     source:
