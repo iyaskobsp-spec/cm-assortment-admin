@@ -5553,6 +5553,53 @@ function getMadeInChinaImageUrl(
   );
 }
 
+function matchesChinaProductPhrase(
+  normalizedTitle,
+  phrase
+) {
+  const normalizedPhrase =
+    normalizeChinaText(
+      phrase
+    );
+
+  if (
+    !normalizedTitle ||
+    !normalizedPhrase
+  ) {
+    return false;
+  }
+
+  const titleWords =
+    getChinaWords(
+      normalizedTitle
+    );
+
+  const phraseWords =
+    getChinaWords(
+      normalizedPhrase
+    );
+
+  if (!phraseWords.length) {
+    return false;
+  }
+
+  if (phraseWords.length === 1) {
+    return titleWords.includes(
+      phraseWords[0]
+    );
+  }
+
+  const titleText =
+    ` ${titleWords.join(" ")} `;
+
+  const phraseText =
+    ` ${phraseWords.join(" ")} `;
+
+  return titleText.includes(
+    phraseText
+  );
+}
+
 function getMadeInChinaProductProfile(
   title,
   category,
@@ -5572,10 +5619,9 @@ function getMadeInChinaProductProfile(
   const isExcluded =
     categoryConfig.exclude.some(
       phrase =>
-        normalizedTitle.includes(
-          normalizeChinaText(
-            phrase
-          )
+        matchesChinaProductPhrase(
+          normalizedTitle,
+          phrase
         )
     );
 
@@ -5601,10 +5647,9 @@ function getMadeInChinaProductProfile(
     const matchedPhrases =
       group.include.filter(
         phrase =>
-          normalizedTitle.includes(
-            normalizeChinaText(
-              phrase
-            )
+          matchesChinaProductPhrase(
+            normalizedTitle,
+            phrase
           )
       );
 
@@ -6910,51 +6955,97 @@ function selectBalancedMadeInChinaProducts(
   const maxPerSubgroup =
     3;
 
-  const blockedLargeProductPhrases = [
-    "cold storage room",
-    "cold room",
-    "storage room",
-    "container room",
-    "container house",
-    "modular house",
-    "prefabricated house",
-    "prefab house",
-    "portable house",
-    "mobile house",
-    "warehouse",
-    "warehouse rack",
-    "storage warehouse",
-    "industrial storage",
-    "commercial storage",
-    "walk in freezer",
-    "walk in cooler",
-    "refrigeration room",
-    "refrigerated room",
-    "production line",
-    "processing line",
-    "assembly line",
-    "conveyor",
-    "conveyor belt",
-    "chain conveyor",
-    "injection mould",
-    "injection mold",
-    "plastic mould",
-    "plastic mold",
-    "molding machine",
-    "moulding machine",
-    "industrial machine",
-    "commercial machine",
-    "factory equipment",
-    "industrial equipment",
-    "commercial equipment",
-    "workshop equipment",
-    "restaurant equipment",
-    "hotel equipment",
-    "supermarket equipment",
-    "large capacity",
-    "heavy duty",
-    "customized project",
-    "turnkey project"
+  const blockedNonRetailPatterns = [
+    /*
+     * Промисловість і виробництво.
+     */
+    /\bindustrial\b/i,
+    /\bproduction line\b/i,
+    /\bprocessing line\b/i,
+    /\bassembly line\b/i,
+    /\bconveyor\b/i,
+    /\bmachine\b/i,
+    /\bmachinery\b/i,
+    /\bfactory equipment\b/i,
+    /\bworkshop equipment\b/i,
+    /\bcommercial equipment\b/i,
+    /\brestaurant equipment\b/i,
+    /\bhotel equipment\b/i,
+    /\bsupermarket equipment\b/i,
+
+    /*
+     * Форми, оснащення та виробництво
+     * замість готового consumer-товару.
+     */
+    /\binjection mould\b/i,
+    /\binjection mold\b/i,
+    /\bplastic mould\b/i,
+    /\bplastic mold\b/i,
+    /\bmoulding machine\b/i,
+    /\bmolding machine\b/i,
+    /\bdie casting\b/i,
+    /\btooling\b/i,
+
+    /*
+     * Будівлі, приміщення, логістика.
+     */
+    /\bcold storage room\b/i,
+    /\bcold room\b/i,
+    /\bcontainer room\b/i,
+    /\bcontainer house\b/i,
+    /\bmodular house\b/i,
+    /\bprefabricated house\b/i,
+    /\bprefab house\b/i,
+    /\bportable house\b/i,
+    /\bmobile house\b/i,
+    /\bwarehouse\b/i,
+    /\bwalk[- ]?in freezer\b/i,
+    /\bwalk[- ]?in cooler\b/i,
+    /\brefrigeration room\b/i,
+
+    /*
+     * Сантехнічне та будівельне оснащення.
+     * Нам потрібні товари для продажу,
+     * а не оснащення будівлі.
+     */
+    /\btoilet\b/i,
+    /\burinal\b/i,
+    /\bbidet\b/i,
+    /\bfaucet\b/i,
+    /\bmixer tap\b/i,
+    /\bwater tap\b/i,
+    /\bbath ?tub\b/i,
+    /\bshower enclosure\b/i,
+    /\bshower cabin\b/i,
+    /\bsanitary ware\b/i,
+    /\bwash basin\b/i,
+    /\bwashbasin\b/i,
+
+    /*
+     * Великі меблі та стаціонарні конструкції.
+     */
+    /\bkitchen cabinet\b/i,
+    /\bbathroom cabinet\b/i,
+    /\bwardrobe cabinet\b/i,
+    /\bdining table\b/i,
+    /\bbed frame\b/i,
+    /\bsofa\b/i,
+    /\bcommercial shelving\b/i,
+    /\bindustrial rack\b/i,
+    /\bpallet rack\b/i,
+
+    /*
+     * Важке технічне обладнання.
+     */
+    /\bcompressor\b/i,
+    /\bindustrial pump\b/i,
+    /\bhydraulic pump\b/i,
+    /\bindustrial motor\b/i,
+    /\bgenerator set\b/i,
+    /\bheavy duty\b/i,
+    /\blarge capacity\b/i,
+    /\bturnkey project\b/i,
+    /\bcustomized project\b/i
   ];
 
   const genericTitleWords =
@@ -6989,12 +7080,10 @@ function selectBalancedMadeInChinaProducts(
         product.title
       );
 
-    return blockedLargeProductPhrases.some(
-      phrase =>
-        normalizedTitle.includes(
-          normalizeChinaText(
-            phrase
-          )
+    return blockedNonRetailPatterns.some(
+      pattern =>
+        pattern.test(
+          normalizedTitle
         )
     );
   }
@@ -9706,12 +9795,6 @@ function buildYiwugoSearchQueries(
     ] ||
     MADE_IN_CHINA_CATEGORY_CONFIG.other;
 
-  const signalConfig =
-    YIWUGO_SIGNAL_CONFIG[
-      signalType
-    ] ||
-    YIWUGO_SIGNAL_CONFIG.all;
-
   const details =
     cleanTrendText(
       searchDetails,
@@ -9725,9 +9808,7 @@ function buildYiwugoSearchQueries(
     of categoryConfig.groups
   ) {
     const baseQuery =
-      Array.isArray(
-        group.queries
-      )
+      Array.isArray(group.queries)
         ? group.queries[0]
         : "";
 
@@ -9737,13 +9818,7 @@ function buildYiwugoSearchQueries(
 
     queries.push({
       searchQuery:
-        [
-          signalConfig.queryWords,
-          baseQuery
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .trim(),
+        baseQuery,
       subgroup:
         group.key
     });
@@ -9763,7 +9838,7 @@ function buildYiwugoSearchQueries(
 
   return queries.slice(
     0,
-    5
+    6
   );
 }
 
@@ -9884,21 +9959,20 @@ function getYiwugoImageUrl(
 
 function extractYiwugoProducts(
   html,
+  category,
   searchQuery,
   preferredSubgroup,
   exclusions
 ) {
   const sourceHtml =
-    String(
-      html || ""
-    );
+    String(html || "");
 
   const products = [];
   const seenIds =
     new Set();
 
   const productPattern =
-    /href=["']([^"']*\/product\/detail\/(\d+)\.html[^"']*)["']/gi;
+    /<a\b([^>]*\bhref=["']([^"']*\/product\/detail\/(\d+)\.html[^"']*)["'][^>]*)>([\s\S]*?)<\/a>/gi;
 
   for (
     const match
@@ -9906,82 +9980,53 @@ function extractYiwugoProducts(
       productPattern
     )
   ) {
+    const anchorAttributes =
+      String(match?.[1] || "");
+
+    const rawLink =
+      String(match?.[2] || "");
+
     const productId =
-      String(
-        match?.[2] || ""
-      ).trim();
+      String(match?.[3] || "")
+        .trim();
+
+    const anchorHtml =
+      String(match?.[4] || "");
 
     if (
       !productId ||
-      seenIds.has(
-        productId
-      )
+      seenIds.has(productId)
     ) {
       continue;
     }
 
-    const matchIndex =
-      Number(
-        match.index || 0
+    const titleFromAttribute =
+      decodeHtmlEntities(
+        anchorAttributes.match(
+          /\btitle=["']([^"']+)["']/i
+        )?.[1] || ""
       );
 
-    const contextStart =
-      Math.max(
-        0,
-        matchIndex - 1800
+    const titleFromAnchor =
+      cleanTrendText(
+        stripHtml(
+          decodeHtmlEntities(
+            anchorHtml
+          )
+        ),
+        320
       );
 
-    const contextEnd =
-      Math.min(
-        sourceHtml.length,
-        matchIndex + 2600
+    const title =
+      cleanTrendText(
+        titleFromAttribute ||
+        titleFromAnchor,
+        320
       );
-
-    const contextHtml =
-      sourceHtml.slice(
-        contextStart,
-        contextEnd
-      );
-
-    let title = "";
-
-    const titlePatterns = [
-      /\btitle=["']([^"']{4,320})["']/i,
-      /<a\b[^>]*href=["'][^"']*\/product\/detail\/\d+\.html[^"']*["'][^>]*>([\s\S]{1,500}?)<\/a>/i
-    ];
-
-    for (
-      const titlePattern
-      of titlePatterns
-    ) {
-      const titleMatch =
-        contextHtml.match(
-          titlePattern
-        );
-
-      if (!titleMatch?.[1]) {
-        continue;
-      }
-
-      title =
-        cleanTrendText(
-          stripHtml(
-            decodeHtmlEntities(
-              titleMatch[1]
-            )
-          ),
-          320
-        );
-
-      if (
-        title.length >= 4
-      ) {
-        break;
-      }
-    }
 
     if (
       !title ||
+      title.length < 8 ||
       title.includes(
         "义乌购"
       )
@@ -9998,37 +10043,34 @@ function extractYiwugoProducts(
       continue;
     }
 
-    const normalizedTitle =
-      normalizeChinaText(
-        title
+    const productProfile =
+      getMadeInChinaProductProfile(
+        title,
+        category,
+        preferredSubgroup
       );
 
-    const blockedWords = [
-      "工业设备",
-      "生产线",
-      "工程机械",
-      "大型设备",
-      "活动板房",
-      "集装箱房",
-      "冷库",
-      "仓储设备",
-      "生产设备",
-      "工厂设备",
-      "商用设备"
-    ];
-
     if (
-      blockedWords.some(
-        word =>
-          normalizedTitle.includes(
-            normalizeChinaText(
-              word
-            )
-          )
-      )
+      productProfile.retailScore <= 0 ||
+      !productProfile.subgroup
     ) {
       continue;
     }
+
+    const matchIndex =
+      Number(match.index || 0);
+
+    const contextHtml =
+      sourceHtml.slice(
+        Math.max(
+          0,
+          matchIndex - 700
+        ),
+        Math.min(
+          sourceHtml.length,
+          matchIndex + 1800
+        )
+      );
 
     const priceMatch =
       contextHtml.match(
@@ -10037,100 +10079,66 @@ function extractYiwugoProducts(
 
     const minPrice =
       priceMatch?.[1]
-        ? Number(
-            priceMatch[1]
-          )
+        ? Number(priceMatch[1])
         : null;
 
     const maxPrice =
       priceMatch?.[2]
-        ? Number(
-            priceMatch[2]
-          )
+        ? Number(priceMatch[2])
         : null;
-
-    const transactionMatch =
-      contextHtml.match(
-        /成交\s*(\d+(?:\.\d+)?)\s*(万|千)?\s*(?:个|件|套|只|盒|袋|笔|元)?/i
-      );
-
-    let soldCount = 0;
-
-    if (
-      transactionMatch?.[1]
-    ) {
-      soldCount =
-        Number(
-          transactionMatch[1]
-        );
-
-      if (
-        transactionMatch[2] ===
-        "万"
-      ) {
-        soldCount *= 10000;
-      } else if (
-        transactionMatch[2] ===
-        "千"
-      ) {
-        soldCount *= 1000;
-      }
-    }
 
     const moqMatch =
       contextHtml.match(
-        /(?:Min\.\s*Order:\s*)?(\d+(?:\.\d+)?)\s*(?:piece|pieces|set|sets|pcs|pc|box|boxes|bag|bags|roll|rolls|pair|pairs)/i
+        /Min\.\s*Order:\s*(\d+(?:\.\d+)?)\s*(?:piece|pieces|set|sets|pcs|pc\|pcs|pc|box|boxes|bag|bags|roll|rolls|pair|pairs|card|cards|bottle|bottles|handle|handles|volume|volumes)/i
       );
 
-    let productLink = "";
+    let productLink;
 
     try {
       productLink =
         new URL(
           decodeHtmlEntities(
-            match[1]
+            rawLink
           ),
           YIWUGO_SOURCE_CONFIG.domain
         ).toString();
     } catch {
       productLink =
-        `https://www.yiwugo.com/product/detail/${productId}.html`;
+        `${YIWUGO_SOURCE_CONFIG.domain}/product/detail/${productId}.html`;
     }
 
-    const descriptionParts =
-      [];
+    const descriptionParts = [];
 
     if (
-      Number.isFinite(
-        minPrice
-      ) &&
+      Number.isFinite(minPrice) &&
       minPrice > 0
     ) {
       descriptionParts.push(
-        maxPrice &&
+        Number.isFinite(maxPrice) &&
+        maxPrice > 0 &&
         maxPrice !== minPrice
-          ? `¥${minPrice}–${maxPrice}`
-          : `¥${minPrice}`
+          ? `CN¥ ${minPrice}–${maxPrice}`
+          : `CN¥ ${minPrice}`
       );
     }
 
-    if (
-      moqMatch?.[1]
-    ) {
+    if (moqMatch?.[1]) {
       descriptionParts.push(
         `MOQ ${moqMatch[1]}`
       );
     }
 
-    if (
-      soldCount > 0
-    ) {
-      descriptionParts.push(
-        `成交 ${Math.round(
-          soldCount
-        )}`
+    const categoryScore =
+      getChinaCategoryScore(
+        title,
+        category
       );
-    }
+
+    const queryScore =
+      getChinaQueryScore(
+        title,
+        searchQuery
+      );
 
     seenIds.add(
       productId
@@ -10139,35 +10147,43 @@ function extractYiwugoProducts(
     products.push({
       productId,
       title,
+
       description:
         descriptionParts.join(
           " · "
         ) ||
         "Товар знайдений у каталозі Yiwugo.",
+
       link:
         productLink,
+
       imageUrl:
         getYiwugoImageUrl(
           contextHtml
         ),
+
       subgroup:
-        preferredSubgroup,
+        productProfile.subgroup,
+
       retailScore:
-        15,
-      categoryScore:
-        12,
-      queryScore:
-        12,
+        productProfile.retailScore,
+
+      categoryScore,
+
+      queryScore,
+
       soldCount:
-        soldCount || 0,
+        0,
+
       sourcePosition:
         products.length + 1,
+
       matchedQuery:
         searchQuery
     });
 
     if (
-      products.length >= 35
+      products.length >= 40
     ) {
       break;
     }
@@ -10292,6 +10308,7 @@ async function loadYiwugoSignal({
     const extractedProducts =
       extractYiwugoProducts(
         html,
+        category,
         queryItem.searchQuery,
         queryItem.subgroup,
         exclusions
