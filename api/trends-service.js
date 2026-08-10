@@ -877,6 +877,52 @@ const ALIBABA_SOURCE_CONFIG = {
     ])
 };
 
+const YIWUGO_SOURCE_CONFIG = {
+  code:
+    "yiwugo",
+  sourceName:
+    "Yiwugo",
+  geography:
+    "Китай",
+  domain:
+    "https://www.yiwugo.com",
+  supportedMarkets:
+    new Set([
+      "world",
+      "china"
+    ])
+};
+
+const YIWUGO_SIGNAL_CONFIG = {
+  all: {
+    queryWords:
+      "",
+    label:
+      "Товарний сигнал Yiwugo"
+  },
+
+  new: {
+    queryWords:
+      "新款 新品",
+    label:
+      "Новинка Yiwugo"
+  },
+
+  trends: {
+    queryWords:
+      "爆款 网红 热销",
+    label:
+      "Трендовий сигнал Yiwugo"
+  },
+
+  popular: {
+    queryWords:
+      "热卖 畅销 爆款",
+    label:
+      "Популярний сигнал Yiwugo"
+  }
+};
+
 const CHINA_1688_SOURCE_CONFIG = {
   code:
     "1688",
@@ -9491,6 +9537,851 @@ function buildIdeasFromChina1688(
   );
 }
 
+function buildYiwugoSearchQueries(
+  category,
+  signalType,
+  searchDetails
+) {
+  const categoryConfig =
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ] ||
+    MADE_IN_CHINA_CATEGORY_CONFIG.other;
+
+  const signalConfig =
+    YIWUGO_SIGNAL_CONFIG[
+      signalType
+    ] ||
+    YIWUGO_SIGNAL_CONFIG.all;
+
+  const details =
+    cleanTrendText(
+      searchDetails,
+      120
+    );
+
+  const queries = [];
+
+  for (
+    const group
+    of categoryConfig.groups
+  ) {
+    const chineseQuery =
+      CHINA_1688_GROUP_QUERIES[
+        group.key
+      ];
+
+    if (!chineseQuery) {
+      continue;
+    }
+
+    const searchQuery =
+      [
+        chineseQuery,
+        signalConfig.queryWords
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+    queries.push({
+      searchQuery,
+      subgroup:
+        group.key
+    });
+  }
+
+  if (
+    details &&
+    queries.length
+  ) {
+    queries.push({
+      searchQuery:
+        `${queries[0].searchQuery} ${details}`,
+      subgroup:
+        queries[0].subgroup
+    });
+  }
+
+  return queries.slice(
+    0,
+    6
+  );
+}
+
+function buildYiwugoSearchUrl(
+  searchQuery
+) {
+  const url =
+    new URL(
+      "/search/sproduct.html",
+      YIWUGO_SOURCE_CONFIG.domain
+    );
+
+  url.searchParams.set(
+    "q",
+    searchQuery
+  );
+
+  return url.toString();
+}
+
+function getYiwugoImageUrl(
+  contextHtml
+) {
+  const html =
+    String(
+      contextHtml || ""
+    );
+
+  const imagePatterns = [
+    /<img\b[^>]*\bdata-original=["']([^"']+)["'][^>]*>/gi,
+    /<img\b[^>]*\bdata-src=["']([^"']+)["'][^>]*>/gi,
+    /<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi
+  ];
+
+  for (
+    const pattern
+    of imagePatterns
+  ) {
+    for (
+      const match
+      of html.matchAll(
+        pattern
+      )
+    ) {
+      let imageUrl =
+        decodeHtmlEntities(
+          match?.[1]
+        )
+          .replace(
+            /\\\//g,
+            "/"
+          )
+          .trim();
+
+      if (!imageUrl) {
+        continue;
+      }
+
+      try {
+        if (
+          imageUrl.startsWith(
+            "//"
+          )
+        ) {
+          imageUrl =
+            `https:${imageUrl}`;
+        } else {
+          imageUrl =
+            new URL(
+              imageUrl,
+              YIWUGO_SOURCE_CONFIG.domain
+            ).toString();
+        }
+
+        const normalized =
+          imageUrl.toLocaleLowerCase(
+            "en-US"
+          );
+
+        if (
+          normalized.includes(
+            "logo"
+          ) ||
+          normalized.includes(
+            "icon"
+          ) ||
+          normalized.includes(
+            "avatar"
+          ) ||
+          normalized.includes(
+            "loading"
+          ) ||
+          normalized.includes(
+            "default"
+          )
+        ) {
+          continue;
+        }
+
+        if (
+          !/\.(?:jpg|jpeg|png|webp)(?:[?#]|$)/i
+            .test(
+              imageUrl
+            )
+        ) {
+          continue;
+        }
+
+        return imageUrl;
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractYiwugoProducts(
+  html,
+  searchQuery,
+  preferredSubgroup,
+  exclusions
+) {
+  const sourceHtml =
+    String(
+      html || ""
+    );
+
+  const products = [];
+  const seenIds =
+    new Set();
+
+  const productPattern =
+    /href=["']([^"']*\/product\/detail\/(\d+)\.html[^"']*)["']/gi;
+
+  for (
+    const match
+    of sourceHtml.matchAll(
+      productPattern
+    )
+  ) {
+    const productId =
+      String(
+        match?.[2] || ""
+      ).trim();
+
+    if (
+      !productId ||
+      seenIds.has(
+        productId
+      )
+    ) {
+      continue;
+    }
+
+    const matchIndex =
+      Number(
+        match.index || 0
+      );
+
+    const contextStart =
+      Math.max(
+        0,
+        matchIndex - 1800
+      );
+
+    const contextEnd =
+      Math.min(
+        sourceHtml.length,
+        matchIndex + 2600
+      );
+
+    const contextHtml =
+      sourceHtml.slice(
+        contextStart,
+        contextEnd
+      );
+
+    let title = "";
+
+    const titlePatterns = [
+      /\btitle=["']([^"']{4,320})["']/i,
+      /<a\b[^>]*href=["'][^"']*\/product\/detail\/\d+\.html[^"']*["'][^>]*>([\s\S]{1,500}?)<\/a>/i
+    ];
+
+    for (
+      const titlePattern
+      of titlePatterns
+    ) {
+      const titleMatch =
+        contextHtml.match(
+          titlePattern
+        );
+
+      if (!titleMatch?.[1]) {
+        continue;
+      }
+
+      title =
+        cleanTrendText(
+          stripHtml(
+            decodeHtmlEntities(
+              titleMatch[1]
+            )
+          ),
+          320
+        );
+
+      if (
+        title.length >= 4
+      ) {
+        break;
+      }
+    }
+
+    if (
+      !title ||
+      title.includes(
+        "义乌购"
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      matchesExclusions(
+        title,
+        exclusions
+      )
+    ) {
+      continue;
+    }
+
+    const normalizedTitle =
+      normalizeChinaText(
+        title
+      );
+
+    const blockedWords = [
+      "工业设备",
+      "生产线",
+      "工程机械",
+      "大型设备",
+      "活动板房",
+      "集装箱房",
+      "冷库",
+      "仓储设备",
+      "生产设备",
+      "工厂设备",
+      "商用设备"
+    ];
+
+    if (
+      blockedWords.some(
+        word =>
+          normalizedTitle.includes(
+            normalizeChinaText(
+              word
+            )
+          )
+      )
+    ) {
+      continue;
+    }
+
+    const priceMatch =
+      contextHtml.match(
+        /(?:¥|￥)\s*(\d+(?:\.\d+)?)(?:\s*~\s*(?:¥|￥)?\s*(\d+(?:\.\d+)?))?/i
+      );
+
+    const minPrice =
+      priceMatch?.[1]
+        ? Number(
+            priceMatch[1]
+          )
+        : null;
+
+    const maxPrice =
+      priceMatch?.[2]
+        ? Number(
+            priceMatch[2]
+          )
+        : null;
+
+    const transactionMatch =
+      contextHtml.match(
+        /成交\s*(\d+(?:\.\d+)?)\s*(万|千)?\s*(?:个|件|套|只|盒|袋|笔|元)?/i
+      );
+
+    let soldCount = 0;
+
+    if (
+      transactionMatch?.[1]
+    ) {
+      soldCount =
+        Number(
+          transactionMatch[1]
+        );
+
+      if (
+        transactionMatch[2] ===
+        "万"
+      ) {
+        soldCount *= 10000;
+      } else if (
+        transactionMatch[2] ===
+        "千"
+      ) {
+        soldCount *= 1000;
+      }
+    }
+
+    const moqMatch =
+      contextHtml.match(
+        /(\d+(?:\.\d+)?)\s*(?:个|件|套|只|盒|袋|支|本|包|组|双|对|张|条|台|副|千克)\s*起购/i
+      );
+
+    let productLink = "";
+
+    try {
+      productLink =
+        new URL(
+          decodeHtmlEntities(
+            match[1]
+          ),
+          YIWUGO_SOURCE_CONFIG.domain
+        ).toString();
+    } catch {
+      productLink =
+        `https://www.yiwugo.com/product/detail/${productId}.html`;
+    }
+
+    const descriptionParts =
+      [];
+
+    if (
+      Number.isFinite(
+        minPrice
+      ) &&
+      minPrice > 0
+    ) {
+      descriptionParts.push(
+        maxPrice &&
+        maxPrice !== minPrice
+          ? `¥${minPrice}–${maxPrice}`
+          : `¥${minPrice}`
+      );
+    }
+
+    if (
+      moqMatch?.[1]
+    ) {
+      descriptionParts.push(
+        `MOQ ${moqMatch[1]}`
+      );
+    }
+
+    if (
+      soldCount > 0
+    ) {
+      descriptionParts.push(
+        `成交 ${Math.round(
+          soldCount
+        )}`
+      );
+    }
+
+    seenIds.add(
+      productId
+    );
+
+    products.push({
+      productId,
+      title,
+      description:
+        descriptionParts.join(
+          " · "
+        ) ||
+        "Товар знайдений у каталозі Yiwugo.",
+      link:
+        productLink,
+      imageUrl:
+        getYiwugoImageUrl(
+          contextHtml
+        ),
+      subgroup:
+        preferredSubgroup,
+      retailScore:
+        15,
+      categoryScore:
+        12,
+      queryScore:
+        12,
+      soldCount:
+        soldCount || 0,
+      sourcePosition:
+        products.length + 1,
+      matchedQuery:
+        searchQuery
+    });
+
+    if (
+      products.length >= 35
+    ) {
+      break;
+    }
+  }
+
+  return products;
+}
+
+async function loadYiwugoSignal({
+  category,
+  signalType,
+  searchDetails,
+  exclusions
+}) {
+  const searchQueries =
+    buildYiwugoSearchQueries(
+      category,
+      signalType,
+      searchDetails
+    );
+
+  const requestResults =
+    await Promise.allSettled(
+      searchQueries.map(
+        async queryItem => {
+          const sourceUrl =
+            buildYiwugoSearchUrl(
+              queryItem.searchQuery
+            );
+
+          const response =
+            await fetch(
+              sourceUrl,
+              {
+                method:
+                  "GET",
+                headers: {
+                  Accept:
+                    "text/html,application/xhtml+xml",
+                  "Accept-Language":
+                    "zh-CN,zh;q=0.9,en;q=0.6",
+                  "User-Agent":
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                    "AppleWebKit/537.36 Chrome/124 Safari/537.36",
+                  Referer:
+                    "https://www.yiwugo.com/"
+                },
+                redirect:
+                  "follow",
+                signal:
+                  AbortSignal.timeout(
+                    12000
+                  )
+              }
+            );
+
+          if (!response.ok) {
+            throw new Error(
+              `YIWUGO_REQUEST_FAILED_${response.status}`
+            );
+          }
+
+          const html =
+            await response.text();
+
+          if (
+            html.length < 3000
+          ) {
+            throw new Error(
+              "YIWUGO_EMPTY_PAGE"
+            );
+          }
+
+          return {
+            queryItem,
+            sourceUrl,
+            html
+          };
+        }
+      )
+    );
+
+  const productsById =
+    new Map();
+
+  const checkedSources = [];
+
+  let successfulRequests = 0;
+  let totalExtracted = 0;
+  let firstError = null;
+
+  for (
+    const requestResult
+    of requestResults
+  ) {
+    if (
+      requestResult.status !==
+      "fulfilled"
+    ) {
+      firstError ||=
+        requestResult.reason;
+
+      continue;
+    }
+
+    successfulRequests += 1;
+
+    const {
+      queryItem,
+      sourceUrl,
+      html
+    } =
+      requestResult.value;
+
+    checkedSources.push({
+      query:
+        queryItem.searchQuery,
+      url:
+        sourceUrl
+    });
+
+    const extractedProducts =
+      extractYiwugoProducts(
+        html,
+        queryItem.searchQuery,
+        queryItem.subgroup,
+        exclusions
+      );
+
+    totalExtracted +=
+      extractedProducts.length;
+
+    for (
+      const product
+      of extractedProducts
+    ) {
+      const current =
+        productsById.get(
+          product.productId
+        );
+
+      if (!current) {
+        productsById.set(
+          product.productId,
+          {
+            ...product,
+            occurrenceCount:
+              1,
+            matchedQueries: [
+              queryItem.searchQuery
+            ],
+            bestPosition:
+              product.sourcePosition
+          }
+        );
+
+        continue;
+      }
+
+      current.occurrenceCount +=
+        1;
+
+      current.soldCount =
+        Math.max(
+          current.soldCount || 0,
+          product.soldCount || 0
+        );
+
+      current.bestPosition =
+        Math.min(
+          current.bestPosition,
+          product.sourcePosition
+        );
+
+      if (
+        !current.matchedQueries.includes(
+          queryItem.searchQuery
+        )
+      ) {
+        current.matchedQueries.push(
+          queryItem.searchQuery
+        );
+      }
+
+      if (
+        !current.imageUrl &&
+        product.imageUrl
+      ) {
+        current.imageUrl =
+          product.imageUrl;
+      }
+    }
+  }
+
+  if (
+    !successfulRequests &&
+    firstError
+  ) {
+    throw firstError;
+  }
+
+  const totalQueryCount =
+    Math.max(
+      searchQueries.length,
+      1
+    );
+
+  const rankedProducts = [
+    ...productsById.values()
+  ]
+    .map(product => {
+      const positionScore =
+        Math.max(
+          0,
+          30 -
+          Number(
+            product.bestPosition || 30
+          )
+        );
+
+      const queryCoverage =
+        Math.min(
+          product.matchedQueries.length /
+            totalQueryCount,
+          1
+        );
+
+      let marketSignalScore = 0;
+
+      if (
+        product.soldCount > 0
+      ) {
+        marketSignalScore =
+          Math.min(
+            35,
+            Math.log10(
+              product.soldCount + 1
+            ) * 11
+          );
+      }
+
+      const sourceSignalScore =
+        product.retailScore * 3 +
+        product.categoryScore * 2 +
+        product.queryScore * 3 +
+        queryCoverage * 20 +
+        positionScore +
+        marketSignalScore;
+
+      return {
+        ...product,
+        marketSignalScore,
+        sourceSignalScore
+      };
+    })
+    .sort(
+      (first, second) =>
+        second.sourceSignalScore -
+        first.sourceSignalScore ||
+        second.soldCount -
+        first.soldCount ||
+        first.bestPosition -
+        second.bestPosition
+    )
+    .slice(
+      0,
+      45
+    );
+
+  const bestSourceScore =
+    Math.max(
+      ...rankedProducts.map(
+        product =>
+          product.sourceSignalScore ||
+          0
+      ),
+      1
+    );
+
+  for (
+    const product
+    of rankedProducts
+  ) {
+    product.relevanceScore =
+      Math.round(
+        (
+          product.sourceSignalScore /
+          bestSourceScore
+        ) *
+        1000
+      ) / 10;
+  }
+
+  const products =
+    selectBalancedMadeInChinaProducts(
+      rankedProducts,
+      15
+    )
+      .map(
+        (product, index) => ({
+          ...product,
+          sourcePosition:
+            index + 1
+        })
+      );
+
+  return {
+    source:
+      YIWUGO_SOURCE_CONFIG.sourceName,
+    sourceType:
+      signalType,
+    status:
+      products.length
+        ? "ok"
+        : "no_results",
+    checkedSources,
+    totalExtracted,
+    products
+  };
+}
+
+function buildIdeasFromYiwugo(
+  sourceResult
+) {
+  const signalConfig =
+    YIWUGO_SIGNAL_CONFIG[
+      sourceResult.sourceType
+    ] ||
+    YIWUGO_SIGNAL_CONFIG.all;
+
+  return sourceResult.products.map(
+    product => ({
+      id:
+        `yiwugo-${product.productId}`,
+      title:
+        product.title,
+      imageUrl:
+        product.imageUrl ||
+        null,
+      description:
+        product.description,
+      signal:
+        signalConfig.label,
+      signalType:
+        sourceResult.sourceType,
+      geography:
+        YIWUGO_SOURCE_CONFIG
+          .geography,
+      sources: [
+        YIWUGO_SOURCE_CONFIG
+          .sourceName
+      ],
+      links: [
+        {
+          label:
+            "Відкрити на Yiwugo",
+          url:
+            product.link
+        }
+      ],
+      sourcePosition:
+        product.sourcePosition,
+      relevanceScore:
+        product.relevanceScore ||
+        0,
+      subgroup:
+        product.subgroup ||
+        null
+    })
+  );
+}
+
 function applyChinaCrossSourceRanking(
   ideas
 ) {
@@ -9505,6 +10396,9 @@ function applyChinaCrossSourceRanking(
         ) ||
         idea.sources.includes(
           "Alibaba"
+        ) ||
+        idea.sources.includes(
+          "Yiwugo"
         ) ||
         idea.sources.includes(
           "1688"
@@ -9898,6 +10792,51 @@ export async function searchProductTrends(
         []
     });
   }
+
+  if (
+    YIWUGO_SOURCE_CONFIG
+      .supportedMarkets
+      .has(market)
+  ) {
+    try {
+      const yiwugoResult =
+        await loadYiwugoSignal({
+          category,
+          signalType,
+          searchDetails,
+          exclusions
+        });
+
+      sources.push(
+        yiwugoResult
+      );
+
+      ideas = ideas.concat(
+        buildIdeasFromYiwugo(
+          yiwugoResult
+        )
+      );
+    } catch (error) {
+      console.error(
+        "[Yiwugo]",
+        error
+      );
+
+      sources.push({
+        source:
+          YIWUGO_SOURCE_CONFIG
+            .sourceName,
+        sourceType:
+          signalType,
+        status:
+          "error",
+        message:
+          "Yiwugo тимчасово не повернув товарну видачу.",
+        products:
+          []
+      });
+    }
+  }  
 
   ideas =
     applyChinaCrossSourceRanking(
