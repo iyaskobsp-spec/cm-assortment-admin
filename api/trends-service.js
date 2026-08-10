@@ -8926,6 +8926,78 @@ function buildChina1688Queries(
   );
 }
 
+function getChina1688OfferList(
+  payload
+) {
+  const data =
+    payload?.data?.data;
+
+  if (!data) {
+    return [];
+  }
+
+  /*
+   * Варіант 1:
+   * класичний response 1688.
+   */
+  if (
+    Array.isArray(
+      data.offerList
+    )
+  ) {
+    return data.offerList;
+  }
+
+  /*
+   * Варіант 2:
+   * новіша AB-структура,
+   * яку зараз реально віддає gateway.
+   */
+  if (
+    Array.isArray(
+      data?.OFFER?.items
+    )
+  ) {
+    return data.OFFER.items
+      .map(item =>
+        item?.data &&
+        typeof item.data === "object"
+          ? item.data
+          : item
+      )
+      .filter(Boolean);
+  }
+
+  /*
+   * Додаткові fallback-варіанти,
+   * якщо 1688 перекине в інший bucket.
+   */
+  if (
+    Array.isArray(
+      data?.offers
+    )
+  ) {
+    return data.offers;
+  }
+
+  if (
+    Array.isArray(
+      data?.items
+    )
+  ) {
+    return data.items
+      .map(item =>
+        item?.data &&
+        typeof item.data === "object"
+          ? item.data
+          : item
+      )
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 async function fetchChina1688Offers(
   searchQuery,
   signalType
@@ -8979,28 +9051,35 @@ async function fetchChina1688Offers(
   }
 
   const offerList =
-    result.payload
-      ?.data
-      ?.data
-      ?.offerList;
+    getChina1688OfferList(
+      result.payload
+    );
 
-  if (
-    !Array.isArray(
-      offerList
-    )
-  ) {
+  if (!offerList.length) {
     throw new Error(
-      `1688_OFFER_LIST_MISSING ${
+      `1688_OFFER_LIST_EMPTY ${
         cleanTrendText(
           JSON.stringify(
-            result.payload?.data ||
+            result.payload
+              ?.data
+              ?.data ||
+            result.payload
+              ?.data ||
             {}
           ),
-          240
+          320
         )
       }`
     );
   }
+
+  /*
+   * Приводимо різні AB-відповіді
+   * 1688 до однієї форми,
+   * щоб старий extractor працював далі.
+   */
+  result.payload.data.data.offerList =
+    offerList;
 
   return {
     payload:
@@ -9023,7 +9102,10 @@ function getChina1688ImageUrl(
     "mainImage",
     "mainImageUrl",
     "offerImg",
-    "offerImage"
+    "offerImage",
+    "img",
+    "mainPic",
+    "mainPicUrl"
   ];
 
   for (
@@ -9149,8 +9231,9 @@ function extractChina1688Products(
   ) {
     const offerId =
       String(
-        offer?.id ||
         offer?.offerId ||
+        offer?.id ||
+        offer?.offer_id ||
         ""
       ).trim();
 
@@ -9159,6 +9242,7 @@ function extractChina1688Products(
         stripHtml(
           offer?.subject ||
           offer?.title ||
+          offer?.subjectTrans ||
           ""
         ),
         320
@@ -9214,6 +9298,10 @@ function extractChina1688Products(
         offer?.tradeInfo
           ?.tradeNumber ??
         offer?.monthSold ??
+        offer?.saleInfo
+          ?.saleQuantity ??
+        offer?.bookedCount ??
+        offer?.tradeNumber ??
         0
       ) || 0;
 
