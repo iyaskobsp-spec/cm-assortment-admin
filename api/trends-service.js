@@ -10510,8 +10510,8 @@ async function fetchYiwugoPage(
             signal:
               AbortSignal.timeout(
                 gateway.code === "direct"
-                  ? 4500
-                  : 12000
+                  ? 2200
+                  : 8000
               )
           }
         );
@@ -10577,47 +10577,36 @@ async function loadYiwugoSignal({
       searchDetails
     );
 
-  const requestResults = [];
+  const requestResults =
+    await Promise.allSettled(
+      searchQueries
+        .slice(
+          0,
+          4
+        )
+        .map(
+          async queryItem => {
+            const sourceUrl =
+              buildYiwugoSearchUrl(
+                queryItem.searchQuery
+              );
 
-  for (
-    const queryItem
-    of searchQueries.slice(
-      0,
-      4
-    )
-  ) {
-    try {
-      const sourceUrl =
-        buildYiwugoSearchUrl(
-          queryItem.searchQuery
-        );
+            const pageResult =
+              await fetchYiwugoPage(
+                sourceUrl
+              );
 
-      const pageResult =
-        await fetchYiwugoPage(
-          sourceUrl
-        );
-
-      requestResults.push({
-        status:
-          "fulfilled",
-        value: {
-          queryItem,
-          sourceUrl,
-          html:
-            pageResult.html,
-          gateway:
-            pageResult.gateway
-        }
-      });
-    } catch (error) {
-      requestResults.push({
-        status:
-          "rejected",
-        reason:
-          error
-      });
-    }
-  }
+            return {
+              queryItem,
+              sourceUrl,
+              html:
+                pageResult.html,
+              gateway:
+                pageResult.gateway
+            };
+          }
+        )
+    );
 
   const productsById =
     new Map();
