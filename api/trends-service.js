@@ -10382,17 +10382,7 @@ function extractYiwugoProducts(
         .trim();
 
     const anchorHtml =
-      productMatch.content;
-    
-    const anchorAttributes =
-      String(match?.[1] || "");
-
-    const rawLink =
-      String(match?.[2] || "");
-
-    const productId =
-      String(match?.[3] || "")
-        .trim();
+      productMatch.content;    
 
     if (
       !productId ||
