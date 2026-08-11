@@ -10329,7 +10329,7 @@ function extractYiwugoProducts(
   const productMatches = [];
 
   const htmlProductPattern =
-    /<a\b([^>]*\bhref=["']([^"']*\/product\/detail\/(\d+)\.html[^"']*)["'][^>]*)>([\s\S]*?)<\/a>/gi;
+    /<a\b([^>]*\bhref=["']([^"']*\/product\/detail\/(\d+)(?:\.html)?[^"']*)["'][^>]*)>([\s\S]*?)<\/a>/gi;
 
   for (
     const match
@@ -10362,7 +10362,7 @@ function extractYiwugoProducts(
   }
 
   const markdownProductPattern =
-    /\[([^\]\n]{4,500})\]\((https?:\/\/[^)\s]*yiwugo\.com\/product\/detail\/(\d+)\.html[^)\s]*)\)/gi;
+    /\[([^\]\n]{4,500})\]\((https?:\/\/[^)\s]*yiwugo\.com\/product\/detail\/(\d+)(?:\.html)?[^)\s]*)\)/gi;
 
   for (
     const match
@@ -10391,6 +10391,56 @@ function extractYiwugoProducts(
         )
     });
   }
+
+  if (!productMatches.length) {
+    const looseProductPattern =
+      /https?:\/\/(?:en\.)?yiwugo\.com\/product\/detail\/(\d+)(?:\.html)?[^\s)"'<]*/gi;
+
+    for (
+      const match
+      of sourceHtml.matchAll(
+        looseProductPattern
+      )
+    ) {
+      const matchIndex =
+        Number(
+          match.index || 0
+        );
+
+      const context =
+        sourceHtml.slice(
+          Math.max(
+            0,
+            matchIndex - 500
+          ),
+          Math.min(
+            sourceHtml.length,
+            matchIndex + 900
+          )
+        );
+
+      const markdownTitle =
+        context.match(
+          /\[([^\]\n]{8,320})\]\([^)]*yiwugo\.com\/product\/detail\/\d+/i
+        )?.[1] || "";
+
+      productMatches.push({
+        matchIndex,
+        anchorAttributes:
+          "",
+        rawLink:
+          String(
+            match?.[0] || ""
+          ),
+        productId:
+          String(
+            match?.[1] || ""
+          ),
+        content:
+          markdownTitle
+      });
+    }
+  }  
 
   for (
     const productMatch
@@ -11053,6 +11103,11 @@ function extractChinagoodsProducts(
         /"(?:productName|goodsName|title|name)"\s*:\s*"([^"]{8,500})"/i
       );
 
+    const attributeTitleMatch =
+      context.match(
+        /\b(?:title|alt)=["']([^"']{8,500})["']/i
+      );    
+
     const title =
       cleanTrendText(
         decodeHtmlEntities(
@@ -11062,6 +11117,7 @@ function extractChinagoodsProducts(
             ""
           ) ||
           jsonTitleMatch?.[1] ||
+          attributeTitleMatch?.[1] ||
           ""
         ),
         320
@@ -11085,10 +11141,16 @@ function extractChinagoodsProducts(
         preferredSubgroup
       );
 
-    if (
-      productProfile.retailScore <= 0 ||
-      !productProfile.subgroup
-    ) {
+    const effectiveSubgroup =
+      productProfile.subgroup ||
+      preferredSubgroup;
+
+    const effectiveRetailScore =
+      productProfile.retailScore > 0
+        ? productProfile.retailScore
+        : 10;
+
+    if (!effectiveSubgroup) {
       continue;
     }
 
@@ -11169,10 +11231,10 @@ function extractChinagoodsProducts(
         ),
 
       subgroup:
-        productProfile.subgroup,
+        effectiveSubgroup,
 
       retailScore:
-        productProfile.retailScore,
+        effectiveRetailScore,
 
       categoryScore,
 
