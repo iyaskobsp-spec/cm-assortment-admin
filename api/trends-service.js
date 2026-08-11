@@ -10846,7 +10846,8 @@ function getChinagoodsImageUrl(
   const htmlPatterns = [
     /<img\b[^>]*\bdata-src=["']([^"']+)["']/gi,
     /<img\b[^>]*\bdata-original=["']([^"']+)["']/gi,
-    /<img\b[^>]*\bsrc=["']([^"']+)["']/gi
+    /<img\b[^>]*\bsrc=["']([^"']+)["']/gi,
+    /"(?:image|imageUrl|mainImage|mainImageUrl|picUrl|pictureUrl)"\s*:\s*"([^"]+)"/gi
   ];
 
   for (
@@ -10949,7 +10950,23 @@ function extractChinagoodsProducts(
   const text =
     String(
       sourceText || ""
-    );
+    )
+      .replace(
+        /\\\//g,
+        "/"
+      )
+      .replace(
+        /\\u002F/gi,
+        "/"
+      )
+      .replace(
+        /\\u0026/gi,
+        "&"
+      )
+      .replace(
+        /\\"/g,
+        "\""
+      );
 
   const products = [];
   const seenIds =
@@ -11010,6 +11027,11 @@ function extractChinagoodsProducts(
         /<a\b[^>]*href=["'][^"']*\/product\/[^"']*["'][^>]*>([\s\S]{1,800}?)<\/a>/i
       );
 
+    const jsonTitleMatch =
+      context.match(
+        /"(?:productName|goodsName|title|name)"\s*:\s*"([^"]{8,500})"/i
+      );
+
     const title =
       cleanTrendText(
         decodeHtmlEntities(
@@ -11017,7 +11039,9 @@ function extractChinagoodsProducts(
           stripHtml(
             htmlTitleMatch?.[1] ||
             ""
-          )
+          ) ||
+          jsonTitleMatch?.[1] ||
+          ""
         ),
         320
       );
