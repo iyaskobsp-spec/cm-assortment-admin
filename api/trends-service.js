@@ -931,6 +931,23 @@ const CHINAGOODS_SIGNAL_CONFIG = {
   }
 };
 
+const CHINAGOODS_CATEGORY_IDS = {
+  "home-kitchen": 507,
+  "storage-organization": 220,
+  "decor": null,
+  "household": 220,
+  "beauty-care": null,
+  "kids": null,
+  "toys": null,
+  "stationery": null,
+  "accessories": null,
+  "pets": 521,
+  "seasonal": null,
+  "gifts": null,
+  "electronics-accessories": null,
+  "other": null
+};
+
 const CHINAGOODS_FETCH_GATEWAYS = [
   {
     code:
@@ -10711,22 +10728,30 @@ function buildChinagoodsSearchQueries(
     searchDetails
   ).slice(
     0,
-    4
+    1
   );
 }
 
 function buildChinagoodsSearchUrl(
-  searchQuery
+  searchQuery,
+  category
 ) {
   const url =
     new URL(
       "https://lm.chinagoods.com/search"
     );
 
-  url.searchParams.set(
-    "keyword",
-    searchQuery
-  );
+  const categoryId =
+    CHINAGOODS_CATEGORY_IDS[
+      category
+    ];
+
+  if (categoryId) {
+    url.searchParams.set(
+      "categoryId",
+      String(categoryId)
+    );
+  }
 
   return url.toString();
 }
@@ -11292,7 +11317,8 @@ async function loadChinagoodsSignal({
         async queryItem => {
           const sourceUrl =
             buildChinagoodsSearchUrl(
-              queryItem.searchQuery
+              queryItem.searchQuery,
+              category
             );
 
           const pageResult =
