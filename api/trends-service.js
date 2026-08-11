@@ -10736,24 +10736,7 @@ function buildChinagoodsSearchUrl(
   searchQuery,
   category
 ) {
-  const url =
-    new URL(
-      "https://lm.chinagoods.com/search"
-    );
-
-  const categoryId =
-    CHINAGOODS_CATEGORY_IDS[
-      category
-    ];
-
-  if (categoryId) {
-    url.searchParams.set(
-      "categoryId",
-      String(categoryId)
-    );
-  }
-
-  return url.toString();
+  return "https://lm.chinagoods.com/search";
 }
 
 async function fetchChinagoodsPage(
@@ -10999,6 +10982,19 @@ function extractChinagoodsProducts(
 
   const productPattern =
     /(?:href=["']|]\()([^"'()\s]*\/product\/[^"'()\s]*?_([0-9]{10,})[^"'()\s]*)(?:["']|\))/gi;
+
+  const rawProductMatches = [
+    ...text.matchAll(
+      /(?:href=["']|]\()([^"'()\s]*\/product\/[^"'()\s]*?_([0-9]{10,})[^"'()\s]*)(?:["']|\))/gi
+    )
+  ];
+
+  console.log(
+    "[Chinagoods] raw product links:",
+    rawProductMatches.length,
+    "page chars:",
+    text.length
+  );  
 
   for (
     const match
