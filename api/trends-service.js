@@ -2908,6 +2908,39 @@ function matchesSearchDetails(title, searchDetails) {
   );
 }
 
+function matchesAmazonRefinement(
+  title,
+  category,
+  refinementKey
+) {
+  if (!refinementKey) {
+    return true;
+  }
+
+  const refinementGroup =
+    getTrendRefinementGroup(
+      category,
+      refinementKey
+    );
+
+  if (!refinementGroup) {
+    return true;
+  }
+
+  const normalizedTitle =
+    normalizeChinaText(
+      title
+    );
+
+  return refinementGroup.include.some(
+    phrase =>
+      matchesChinaProductPhrase(
+        normalizedTitle,
+        phrase
+      )
+  );
+}
+
 function matchesExclusions(title, exclusions) {
   const excludedWords =
     normalizeFilterWords(exclusions);
@@ -4565,6 +4598,7 @@ async function loadAmazonRanking({
   amazonConfig,
   category,
   signalType,
+  refinementKey,
   searchDetails,
   exclusions
 }) {
@@ -4629,9 +4663,22 @@ async function loadAmazonRanking({
   const filteredProducts =
     extractedProducts
       .filter(product =>
+        matchesAmazonRefinement(
+          product.title,
+          category,
+          refinementKey
+        )
+      )
+      .filter(product =>
+        !searchDetails ||
         matchesSearchDetails(
           product.title,
           searchDetails
+        ) ||
+        matchesAmazonRefinement(
+          product.title,
+          category,
+          refinementKey
         )
       )
       .filter(product =>
@@ -4640,7 +4687,7 @@ async function loadAmazonRanking({
           exclusions
         )
       )
-      .slice(0, 12)
+      .slice(0, 30)
       .map((product, index) => ({
         ...product,
         signalType,
@@ -4674,6 +4721,7 @@ async function loadAmazonRanking({
 async function loadAmazonTrendCandidates({
   amazonConfig,
   category,
+  refinementKey,
   searchDetails,
   exclusions
 }) {
@@ -4685,6 +4733,7 @@ async function loadAmazonTrendCandidates({
       amazonConfig,
       category,
       signalType: "new",
+      refinementKey,
       searchDetails,
       exclusions
     }),
@@ -4693,6 +4742,7 @@ async function loadAmazonTrendCandidates({
       amazonConfig,
       category,
       signalType: "popular",
+      refinementKey,
       searchDetails,
       exclusions
     })
@@ -4753,7 +4803,7 @@ async function loadAmazonTrendCandidates({
           first.trendScore -
           second.trendScore
       )
-      .slice(0, 12);
+      .slice(0, 30);
 
   return {
     source:
@@ -12673,6 +12723,7 @@ export async function searchProductTrends(
             ? await loadAmazonTrendCandidates({
                 amazonConfig,
                 category,
+                refinementKey,
                 searchDetails,
                 exclusions
               })
@@ -12681,6 +12732,7 @@ export async function searchProductTrends(
                 category,
                 signalType:
                   amazonSignalType,
+                refinementKey,
                 searchDetails,
                 exclusions
               });
