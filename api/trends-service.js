@@ -10309,15 +10309,81 @@ function extractYiwugoProducts(
   const seenIds =
     new Set();
 
-  const productPattern =
+  const productMatches = [];
+
+  const htmlProductPattern =
     /<a\b([^>]*\bhref=["']([^"']*\/product\/detail\/(\d+)\.html[^"']*)["'][^>]*)>([\s\S]*?)<\/a>/gi;
 
   for (
     const match
     of sourceHtml.matchAll(
-      productPattern
+      htmlProductPattern
     )
   ) {
+    productMatches.push({
+      anchorAttributes:
+        String(
+          match?.[1] || ""
+        ),
+      rawLink:
+        String(
+          match?.[2] || ""
+        ),
+      productId:
+        String(
+          match?.[3] || ""
+        ),
+      content:
+        String(
+          match?.[4] || ""
+        )
+    });
+  }
+
+  const markdownProductPattern =
+    /\[([^\]\n]{4,500})\]\((https?:\/\/[^)\s]*yiwugo\.com\/product\/detail\/(\d+)\.html[^)\s]*)\)/gi;
+
+  for (
+    const match
+    of sourceHtml.matchAll(
+      markdownProductPattern
+    )
+  ) {
+    productMatches.push({
+      anchorAttributes:
+        "",
+      rawLink:
+        String(
+          match?.[2] || ""
+        ),
+      productId:
+        String(
+          match?.[3] || ""
+        ),
+      content:
+        String(
+          match?.[1] || ""
+        )
+    });
+  }
+
+  for (
+    const productMatch
+    of productMatches
+  ) {
+    const anchorAttributes =
+      productMatch.anchorAttributes;
+
+    const rawLink =
+      productMatch.rawLink;
+
+    const productId =
+      productMatch.productId
+        .trim();
+
+    const anchorHtml =
+      productMatch.content;
+    
     const anchorAttributes =
       String(match?.[1] || "");
 
@@ -10327,9 +10393,6 @@ function extractYiwugoProducts(
     const productId =
       String(match?.[3] || "")
         .trim();
-
-    const anchorHtml =
-      String(match?.[4] || "");
 
     if (
       !productId ||
@@ -11455,6 +11518,13 @@ async function loadChinagoodsSignal({
       ) / 10;
   }
 
+  console.log(
+    "[Chinagoods] extracted:",
+    totalExtracted,
+    "ranked:",
+    rankedProducts.length
+  );  
+
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
@@ -11796,6 +11866,13 @@ async function loadYiwugoSignal({
         1000
       ) / 10;
   }
+
+  console.log(
+    "[Yiwugo] extracted:",
+    totalExtracted,
+    "ranked:",
+    rankedProducts.length
+  );  
 
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
