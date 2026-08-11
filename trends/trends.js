@@ -2,6 +2,11 @@ const trendCategorySelect = document.getElementById(
   "trendCategorySelect"
 );
 
+const trendRefinementSelect =
+  document.getElementById(
+    "trendRefinementSelect"
+  );
+
 const trendSearchType = document.getElementById(
   "trendSearchType"
 );
@@ -48,6 +53,185 @@ const trendResultsGrid = document.getElementById(
 
 const closeTrendResultsButton = document.getElementById(
   "closeTrendResultsButton"
+);
+
+const TREND_REFINEMENT_OPTIONS = {
+  "home-kitchen": [
+    ["kitchen-gadgets", "Кухонні гаджети та інструменти"],
+    ["food-storage", "Зберігання продуктів"],
+    ["tableware", "Посуд і сервірування"],
+    ["baking", "Випічка"],
+    ["sink-accessories", "Аксесуари для мийки"]
+  ],
+
+  "storage-organization": [
+    ["wardrobe-storage", "Шафа та гардероб"],
+    ["drawer-desktop", "Шухляди та робочий стіл"],
+    ["bathroom-storage", "Зберігання у ванній"],
+    ["kitchen-storage", "Зберігання на кухні"],
+    ["boxes-baskets", "Короби, кошики та контейнери"]
+  ],
+
+  "decor": [
+    ["vases-planters", "Вази та кашпо"],
+    ["candles-holders", "Свічники та аромадекор"],
+    ["figurines-ornaments", "Статуетки та декоративні фігури"],
+    ["trays-stands", "Декоративні таці та підставки"],
+    ["frames-wall-decor", "Рамки та настінний декор"],
+    ["textile-decor", "Текстильний декор"]
+  ],
+
+  "household": [
+    ["cleaning-tools", "Прибирання"],
+    ["laundry-care", "Прання та догляд за одягом"],
+    ["bathroom-daily-use", "Побутові товари для ванної"],
+    ["waste-disposal", "Сміття та утилізація"],
+    ["home-care-gadgets", "Корисні побутові гаджети"]
+  ],
+
+  "beauty-care": [
+    ["skincare", "Догляд за шкірою"],
+    ["masks-patches", "Маски та патчі"],
+    ["makeup", "Декоративна косметика"],
+    ["makeup-accessories", "Аксесуари для макіяжу"],
+    ["beauty-devices", "Б'юті-пристрої та масажери"],
+    ["hair-care", "Догляд за волоссям"],
+    ["body-care", "Догляд за тілом"],
+    ["nail-care", "Догляд за нігтями"]
+  ],
+
+  "kids": [
+    ["feeding", "Годування"],
+    ["hygiene", "Гігієна та догляд"],
+    ["safety", "Безпека"],
+    ["travel", "Прогулянки та подорожі"],
+    ["sleep-nursery", "Сон та дитяча кімната"]
+  ],
+
+  "toys": [
+    ["educational", "Розвивальні та навчальні"],
+    ["sensory-fidget", "Сенсорні та антистрес"],
+    ["building-puzzles", "Конструктори та пазли"],
+    ["creative-sets", "Творчі набори"],
+    ["role-play", "Сюжетно-рольові"],
+    ["interactive", "Інтерактивні та електронні"]
+  ],
+
+  "stationery": [
+    ["writing", "Ручки, олівці та маркери"],
+    ["notebooks-planners", "Блокноти та планери"],
+    ["stickers-paper", "Стікери, папір та нотатки"],
+    ["cases-organizers", "Пенали та органайзери"],
+    ["art-supplies", "Товари для малювання і творчості"]
+  ],
+
+  "accessories": [
+    ["hair-accessories", "Аксесуари для волосся"],
+    ["jewelry", "Біжутерія та прикраси"],
+    ["wallets-holders", "Гаманці та кардхолдери"],
+    ["bag-accessories", "Аксесуари для сумок"],
+    ["phone-fashion", "Модні аксесуари для телефону"],
+    ["eyewear", "Окуляри та аксесуари"]
+  ],
+
+  "pets": [
+    ["toys", "Іграшки для тварин"],
+    ["walking", "Прогулянки"],
+    ["grooming", "Грумінг та догляд"],
+    ["beds-travel", "Лежанки та подорожі"]
+  ],
+
+  "seasonal": [
+    ["christmas", "Різдво та Новий рік"],
+    ["halloween", "Halloween"],
+    ["easter", "Великдень"],
+    ["party", "Свята та вечірки"],
+    ["summer", "Літні товари"],
+    ["back-to-school", "Back to school"]
+  ],
+
+  "gifts": [
+    ["gift-sets", "Подарункові набори"],
+    ["candles-aroma", "Свічки та аромаподарунки"],
+    ["frames-keepsakes", "Рамки та пам'ятні подарунки"],
+    ["figurines-souvenirs", "Сувеніри та декоративні подарунки"],
+    ["personal-gifts", "Персоналізовані подарунки"],
+    ["novelty-gifts", "Незвичайні та креативні подарунки"]
+  ],
+
+  "electronics-accessories": [
+    ["charging", "Зарядки та кабелі"],
+    ["phone-holders", "Тримачі та підставки"],
+    ["audio", "Аудіоаксесуари"],
+    ["smart-trackers", "Трекери та smart-аксесуари"],
+    ["lighting-gadgets", "Невеликі світлові гаджети"],
+    ["computer-accessories", "Комп'ютерні аксесуари"]
+  ],
+
+  "other": [
+    ["daily-use", "Корисні товари щоденного використання"],
+    ["novelty", "Нові та незвичайні товари"]
+  ]
+};
+
+function updateTrendRefinementOptions() {
+  const category =
+    trendCategorySelect.value;
+
+  const options =
+    TREND_REFINEMENT_OPTIONS[
+      category
+    ] || [];
+
+  trendRefinementSelect.innerHTML =
+    "";
+
+  const defaultOption =
+    document.createElement(
+      "option"
+    );
+
+  defaultOption.value = "";
+
+  defaultOption.textContent =
+    options.length
+      ? "Уся категорія"
+      : "Немає уточнень";
+
+  trendRefinementSelect.appendChild(
+    defaultOption
+  );
+
+  for (
+    const [
+      value,
+      label
+    ]
+    of options
+  ) {
+    const option =
+      document.createElement(
+        "option"
+      );
+
+    option.value =
+      value;
+
+    option.textContent =
+      label;
+
+    trendRefinementSelect.appendChild(
+      option
+    );
+  }
+
+  trendRefinementSelect.disabled =
+    !options.length;
+}
+
+trendCategorySelect.addEventListener(
+  "change",
+  updateTrendRefinementOptions
 );
 
 function escapeTrendHtml(value) {
@@ -257,6 +441,9 @@ async function processTrendSearch() {
   const market =
     trendMarketSelect.value;
 
+  const refinementKey =
+    trendRefinementSelect.value;
+
   const searchDetails =
     trendSearchInput.value.trim();
 
@@ -303,6 +490,7 @@ async function processTrendSearch() {
           categoryLabel,
           signalType,
           market,
+          refinementKey,
           searchDetails,
           exclusions
         })
