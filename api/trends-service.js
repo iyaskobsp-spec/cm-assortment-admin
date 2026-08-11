@@ -10238,7 +10238,7 @@ async function loadYiwugoProductImage(
           },
           signal:
             AbortSignal.timeout(
-              6500
+              3500
             )
         }
       );
@@ -10270,42 +10270,41 @@ async function loadYiwugoProductImage(
 async function loadYiwugoProductImages(
   products
 ) {
+  const preparedProducts =
+    Array.isArray(products)
+      ? products
+      : [];
+
+  const missingImageIndexes =
+    preparedProducts
+      .map((product, index) => ({
+        product,
+        index
+      }))
+      .filter(item =>
+        !item.product?.imageUrl &&
+        item.product?.link
+      )
+      .slice(
+        0,
+        6
+      );
+
   const result =
-    new Array(
-      products.length
+    preparedProducts.map(
+      product => ({
+        ...product
+      })
     );
-
-  let nextIndex = 0;
-
-  const workersCount =
-    Math.min(
-      8,
-      products.length
-    );
-
-  async function worker() {
-    while (
-      nextIndex <
-      products.length
-    ) {
-      const currentIndex =
-        nextIndex++;
-
-      result[currentIndex] =
-        await loadYiwugoProductImage(
-          products[currentIndex]
-        );
-    }
-  }
 
   await Promise.all(
-    Array.from(
-      {
-        length:
-          workersCount
-      },
-      () =>
-        worker()
+    missingImageIndexes.map(
+      async item => {
+        result[item.index] =
+          await loadYiwugoProductImage(
+            item.product
+          );
+      }
     )
   );
 
@@ -11283,7 +11282,7 @@ async function loadChinagoodsProductImage(
           },
           signal:
             AbortSignal.timeout(
-              6000
+              3500
             )
         }
       );
@@ -11314,42 +11313,41 @@ async function loadChinagoodsProductImage(
 async function loadChinagoodsProductImages(
   products
 ) {
+  const preparedProducts =
+    Array.isArray(products)
+      ? products
+      : [];
+
+  const missingImageIndexes =
+    preparedProducts
+      .map((product, index) => ({
+        product,
+        index
+      }))
+      .filter(item =>
+        !item.product?.imageUrl &&
+        item.product?.link
+      )
+      .slice(
+        0,
+        6
+      );
+
   const result =
-    new Array(
-      products.length
+    preparedProducts.map(
+      product => ({
+        ...product
+      })
     );
-
-  let nextIndex = 0;
-
-  const workersCount =
-    Math.min(
-      8,
-      products.length
-    );
-
-  async function worker() {
-    while (
-      nextIndex <
-      products.length
-    ) {
-      const currentIndex =
-        nextIndex++;
-
-      result[currentIndex] =
-        await loadChinagoodsProductImage(
-          products[currentIndex]
-        );
-    }
-  }
 
   await Promise.all(
-    Array.from(
-      {
-        length:
-          workersCount
-      },
-      () =>
-        worker()
+    missingImageIndexes.map(
+      async item => {
+        result[item.index] =
+          await loadChinagoodsProductImage(
+            item.product
+          );
+      }
     )
   );
 
@@ -12378,49 +12376,55 @@ export async function searchProductTrends(
     }
   }
 
+  const chinaTasks = [];
+
   if (
     MADE_IN_CHINA_SOURCE_CONFIG
       .supportedMarkets
       .has(market)
   ) {
-    try {
-      const madeInChinaResult =
-        await loadMadeInChinaSignal({
-          category,
-          signalType,
-          searchDetails,
-          exclusions
-        });
+    chinaTasks.push(
+      (async () => {
+        try {
+          const madeInChinaResult =
+            await loadMadeInChinaSignal({
+              category,
+              signalType,
+              searchDetails,
+              exclusions
+            });
 
-      sources.push(
-        madeInChinaResult
-      );
+          sources.push(
+            madeInChinaResult
+          );
 
-      ideas = ideas.concat(
-        buildIdeasFromMadeInChina(
-          madeInChinaResult
-        )
-      );
-    } catch (error) {
-      console.error(
-        "[Made-in-China]",
-        error
-      );
+          ideas = ideas.concat(
+            buildIdeasFromMadeInChina(
+              madeInChinaResult
+            )
+          );
+        } catch (error) {
+          console.error(
+            "[Made-in-China]",
+            error
+          );
 
-      sources.push({
-        source:
-          MADE_IN_CHINA_SOURCE_CONFIG
-            .sourceName,
-        sourceType:
-          signalType,
-        status:
-          "error",
-        message:
-          "Made-in-China тимчасово не повернув товарну видачу.",
-        products:
-          []
-      });
-    }
+          sources.push({
+            source:
+              MADE_IN_CHINA_SOURCE_CONFIG
+                .sourceName,
+            sourceType:
+              signalType,
+            status:
+              "error",
+            message:
+              "Made-in-China тимчасово не повернув товарну видачу.",
+            products:
+              []
+          });
+        }
+      })()
+    );
   }
 
   if (
@@ -12428,44 +12432,48 @@ export async function searchProductTrends(
       .supportedMarkets
       .has(market)
   ) {
-    try {
-      const alibabaResult =
-        await loadAlibabaSignal({
-          category,
-          signalType,
-          searchDetails,
-          exclusions
-        });
+    chinaTasks.push(
+      (async () => {
+        try {
+          const alibabaResult =
+            await loadAlibabaSignal({
+              category,
+              signalType,
+              searchDetails,
+              exclusions
+            });
 
-      sources.push(
-        alibabaResult
-      );
+          sources.push(
+            alibabaResult
+          );
 
-      ideas = ideas.concat(
-        buildIdeasFromAlibaba(
-          alibabaResult
-        )
-      );
-    } catch (error) {
-      console.error(
-        "[Alibaba]",
-        error
-      );
+          ideas = ideas.concat(
+            buildIdeasFromAlibaba(
+              alibabaResult
+            )
+          );
+        } catch (error) {
+          console.error(
+            "[Alibaba]",
+            error
+          );
 
-      sources.push({
-        source:
-          ALIBABA_SOURCE_CONFIG
-            .sourceName,
-        sourceType:
-          signalType,
-        status:
-          "error",
-        message:
-          "Alibaba тимчасово не повернув товарну видачу.",
-        products:
-          []
-      });
-    }
+          sources.push({
+            source:
+              ALIBABA_SOURCE_CONFIG
+                .sourceName,
+            sourceType:
+              signalType,
+            status:
+              "error",
+            message:
+              "Alibaba тимчасово не повернув товарну видачу.",
+            products:
+              []
+          });
+        }
+      })()
+    );
   }
 
   if (
@@ -12473,44 +12481,48 @@ export async function searchProductTrends(
       .supportedMarkets
       .has(market)
   ) {
-    try {
-      const china1688Result =
-        await loadChina1688Signal({
-          category,
-          signalType,
-          searchDetails,
-          exclusions
-        });
+    chinaTasks.push(
+      (async () => {
+        try {
+          const china1688Result =
+            await loadChina1688Signal({
+              category,
+              signalType,
+              searchDetails,
+              exclusions
+            });
 
-      sources.push(
-        china1688Result
-      );
+          sources.push(
+            china1688Result
+          );
 
-      ideas = ideas.concat(
-        buildIdeasFromChina1688(
-          china1688Result
-        )
-      );
-    } catch (error) {
-      console.error(
-        "[1688]",
-        error
-      );
+          ideas = ideas.concat(
+            buildIdeasFromChina1688(
+              china1688Result
+            )
+          );
+        } catch (error) {
+          console.error(
+            "[1688]",
+            error
+          );
 
-      sources.push({
-        source:
-          CHINA_1688_SOURCE_CONFIG
-            .sourceName,
-        sourceType:
-          signalType,
-        status:
-          "error",
-        message:
-          "1688 тимчасово не повернув товарну видачу.",
-        products:
-          []
-      });
-    }
+          sources.push({
+            source:
+              CHINA_1688_SOURCE_CONFIG
+                .sourceName,
+            sourceType:
+              signalType,
+            status:
+              "error",
+            message:
+              "1688 тимчасово не повернув товарну видачу.",
+            products:
+              []
+          });
+        }
+      })()
+    );
   }
 
   if (
@@ -12518,44 +12530,48 @@ export async function searchProductTrends(
       .supportedMarkets
       .has(market)
   ) {
-    try {
-      const yiwugoResult =
-        await loadYiwugoSignal({
-          category,
-          signalType,
-          searchDetails,
-          exclusions
-        });
+    chinaTasks.push(
+      (async () => {
+        try {
+          const yiwugoResult =
+            await loadYiwugoSignal({
+              category,
+              signalType,
+              searchDetails,
+              exclusions
+            });
 
-      sources.push(
-        yiwugoResult
-      );
-      
-      ideas = ideas.concat(
-        buildIdeasFromYiwugo(
-          yiwugoResult
-        )
-      );
-    } catch (error) {
-      console.error(
-        "[Yiwugo]",
-        error
-      );
+          sources.push(
+            yiwugoResult
+          );
 
-      sources.push({
-        source:
-          YIWUGO_SOURCE_CONFIG
-            .sourceName,
-        sourceType:
-          signalType,
-        status:
-          "error",
-        message:
-          "Yiwugo тимчасово не повернув товарну видачу.",
-        products:
-          []
-      });
-    }
+          ideas = ideas.concat(
+            buildIdeasFromYiwugo(
+              yiwugoResult
+            )
+          );
+        } catch (error) {
+          console.error(
+            "[Yiwugo]",
+            error
+          );
+
+          sources.push({
+            source:
+              YIWUGO_SOURCE_CONFIG
+                .sourceName,
+            sourceType:
+              signalType,
+            status:
+              "error",
+            message:
+              "Yiwugo тимчасово не повернув товарну видачу.",
+            products:
+              []
+          });
+        }
+      })()
+    );
   }
 
   if (
@@ -12563,45 +12579,53 @@ export async function searchProductTrends(
       .supportedMarkets
       .has(market)
   ) {
-    try {
-      const chinagoodsResult =
-        await loadChinagoodsSignal({
-          category,
-          signalType,
-          searchDetails,
-          exclusions
-        });
+    chinaTasks.push(
+      (async () => {
+        try {
+          const chinagoodsResult =
+            await loadChinagoodsSignal({
+              category,
+              signalType,
+              searchDetails,
+              exclusions
+            });
 
-      sources.push(
-        chinagoodsResult
-      );
+          sources.push(
+            chinagoodsResult
+          );
 
-      ideas = ideas.concat(
-        buildIdeasFromChinagoods(
-          chinagoodsResult
-        )
-      );
-    } catch (error) {
-      console.error(
-        "[Chinagoods]",
-        error
-      );
+          ideas = ideas.concat(
+            buildIdeasFromChinagoods(
+              chinagoodsResult
+            )
+          );
+        } catch (error) {
+          console.error(
+            "[Chinagoods]",
+            error
+          );
 
-      sources.push({
-        source:
-          CHINAGOODS_SOURCE_CONFIG
-            .sourceName,
-        sourceType:
-          signalType,
-        status:
-          "error",
-        message:
-          "Chinagoods тимчасово не повернув товарну видачу.",
-        products:
-          []
-      });
-    }
-  }  
+          sources.push({
+            source:
+              CHINAGOODS_SOURCE_CONFIG
+                .sourceName,
+            sourceType:
+              signalType,
+            status:
+              "error",
+            message:
+              "Chinagoods тимчасово не повернув товарну видачу.",
+            products:
+              []
+          });
+        }
+      })()
+    );
+  }
+
+  await Promise.all(
+    chinaTasks
+  );
 
   ideas =
     applyChinaCrossSourceRanking(
