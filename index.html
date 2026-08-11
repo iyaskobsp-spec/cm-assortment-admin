@@ -245,11 +245,29 @@
   </div>
 
   <div class="field field-wide">
-    <label for="trendSearchInput">Уточнення пошуку, необов’язково</label>
+    <label for="trendRefinementSelect">
+      Уточнення категорії, необов’язково
+    </label>
+
+    <select
+      id="trendRefinementSelect"
+      disabled
+    >
+      <option value="">
+        Спочатку оберіть категорію
+      </option>
+    </select>
+  </div>
+
+  <div class="field field-wide">
+    <label for="trendSearchInput">
+      Додаткове ручне уточнення, необов’язково
+    </label>
+
     <input
       id="trendSearchInput"
       type="text"
-      placeholder="Наприклад: для маленької кухні, дорожні, складані"
+      placeholder="Наприклад: складані, скляні, дорожні, компактні"
     >
   </div>
 
