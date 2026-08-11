@@ -10321,6 +10321,10 @@ function extractYiwugoProducts(
     )
   ) {
     productMatches.push({
+      matchIndex:
+        Number(
+          match.index || 0
+        ),
       anchorAttributes:
         String(
           match?.[1] || ""
@@ -10350,6 +10354,10 @@ function extractYiwugoProducts(
     )
   ) {
     productMatches.push({
+      matchIndex:
+        Number(
+          match.index || 0
+        ),
       anchorAttributes:
         "",
       rawLink:
@@ -10441,15 +10449,23 @@ function extractYiwugoProducts(
         preferredSubgroup
       );
 
-    if (
-      productProfile.retailScore <= 0 ||
-      !productProfile.subgroup
-    ) {
+    const effectiveSubgroup =
+      productProfile.subgroup ||
+      preferredSubgroup;
+
+    const effectiveRetailScore =
+      productProfile.retailScore > 0
+        ? productProfile.retailScore
+        : 10;
+
+    if (!effectiveSubgroup) {
       continue;
     }
 
     const matchIndex =
-      Number(match.index || 0);
+      Number(
+        productMatch.matchIndex || 0
+      );
 
     const contextHtml =
       sourceHtml.slice(
@@ -10554,10 +10570,10 @@ function extractYiwugoProducts(
         ),
 
       subgroup:
-        productProfile.subgroup,
+        effectiveSubgroup,
 
       retailScore:
-        productProfile.retailScore,
+        effectiveRetailScore,
 
       categoryScore,
 
