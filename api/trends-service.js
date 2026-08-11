@@ -4906,7 +4906,8 @@ function buildIdeasFromAliExpress(
 function buildMadeInChinaQueries(
   category,
   signalType,
-  searchDetails
+  searchDetails,
+  refinementKey
 ) {
   const categoryConfig =
     MADE_IN_CHINA_CATEGORY_CONFIG[
@@ -4928,9 +4929,18 @@ function buildMadeInChinaQueries(
 
   const queryItems = [];
 
+  const searchGroups =
+    refinementKey
+      ? categoryConfig.groups.filter(
+          group =>
+            group.key ===
+            refinementKey
+        )
+      : categoryConfig.groups;
+
   for (
     const group
-    of categoryConfig.groups
+    of searchGroups
   ) {
     const categoryQuery =
       group.queries[0];
@@ -5797,6 +5807,151 @@ function getMadeInChinaProductProfile(
     subgroup:
       bestGroup
   };
+}
+
+function getTrendRefinementGroup(
+  category,
+  refinementKey
+) {
+  if (!refinementKey) {
+    return null;
+  }
+
+  const categoryConfig =
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ];
+
+  if (!categoryConfig) {
+    return null;
+  }
+
+  return (
+    categoryConfig.groups.find(
+      group =>
+        group.key ===
+        refinementKey
+    ) ||
+    null
+  );
+}
+
+function matchesTrendRefinement(
+  title,
+  category,
+  refinementKey
+) {
+  const refinementGroup =
+    getTrendRefinementGroup(
+      category,
+      refinementKey
+    );
+
+  if (!refinementGroup) {
+    return true;
+  }
+
+  const normalizedTitle =
+    normalizeChinaText(
+      title
+    );
+
+  return refinementGroup.include.some(
+    phrase =>
+      matchesChinaProductPhrase(
+        normalizedTitle,
+        phrase
+      )
+  );
+}
+
+function matchesTrendCategory(
+  title,
+  category
+) {
+  const categoryConfig =
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ];
+
+  if (!categoryConfig) {
+    return true;
+  }
+
+  const normalizedTitle =
+    normalizeChinaText(
+      title
+    );
+
+  const isExcluded =
+    categoryConfig.exclude.some(
+      phrase =>
+        matchesChinaProductPhrase(
+          normalizedTitle,
+          phrase
+        )
+    );
+
+  if (isExcluded) {
+    return false;
+  }
+
+  return categoryConfig.groups.some(
+    group =>
+      group.include.some(
+        phrase =>
+          matchesChinaProductPhrase(
+            normalizedTitle,
+            phrase
+          )
+      )
+  );
+}
+
+function filterTrendIdeasByCategory({
+  ideas,
+  category,
+  refinementKey
+}) {
+  const sourceIdeas =
+    Array.isArray(ideas)
+      ? ideas
+      : [];
+
+  return sourceIdeas.filter(
+    idea => {
+      const title =
+        String(
+          idea?.title || ""
+        );
+
+      if (!title) {
+        return false;
+      }
+
+      if (
+        !matchesTrendCategory(
+          title,
+          category
+        )
+      ) {
+        return false;
+      }
+
+      if (
+        refinementKey &&
+        !matchesTrendRefinement(
+          title,
+          category,
+          refinementKey
+        )
+      ) {
+        return false;
+      }
+
+      return true;
+    }
+  );
 }
 
 function extractMadeInChinaProducts(
@@ -7535,6 +7690,7 @@ function selectBalancedMadeInChinaProducts(
 async function loadMadeInChinaSignal({
   category,
   signalType,
+  refinementKey,
   searchDetails,
   exclusions
 }) {
@@ -7542,7 +7698,8 @@ async function loadMadeInChinaSignal({
     buildMadeInChinaQueries(
       category,
       signalType,
-      searchDetails
+      searchDetails,
+      refinementKey
     );
 
   const productsById =
@@ -12404,6 +12561,12 @@ export async function searchProductTrends(
     40
   ) || "europe-usa";
 
+  const refinementKey =
+    cleanTrendText(
+      requestBody.refinementKey,
+      80
+    );
+
   const searchDetails = cleanTrendText(
     requestBody.searchDetails,
     300
@@ -12449,6 +12612,22 @@ export async function searchProductTrends(
     error.statusCode = 400;
     throw error;
   }
+
+  if (
+    refinementKey &&
+    !getTrendRefinementGroup(
+      category,
+      refinementKey
+    )
+  ) {
+    const error =
+      new Error(
+        "TREND_REFINEMENT_INVALID"
+      );
+
+    error.statusCode = 400;
+    throw error;
+  }  
 
   const sources = [];
   let ideas = [];
@@ -12551,6 +12730,7 @@ export async function searchProductTrends(
             await loadMadeInChinaSignal({
               category,
               signalType,
+              refinementKey,
               searchDetails,
               exclusions
             });
@@ -12791,7 +12971,14 @@ export async function searchProductTrends(
   ideas =
     applyChinaCrossSourceRanking(
       ideas
-    );  
+    );
+
+  ideas =
+    filterTrendIdeasByCategory({
+      ideas,
+      category,
+      refinementKey
+    });
 
   const uniqueIdeas = [];
   const seenIdeaIds = new Set();
@@ -12875,6 +13062,7 @@ export async function searchProductTrends(
       categoryLabel,
       signalType,
       market,
+      refinementKey,
       searchDetails,
       exclusions
     },
