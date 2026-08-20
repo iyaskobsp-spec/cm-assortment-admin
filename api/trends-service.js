@@ -1288,6 +1288,155 @@ const CHINA_1688_GROUP_QUERIES = {
     "新奇创意产品"
 };
 
+Object.assign(
+  CHINA_1688_GROUP_QUERIES,
+  {
+    "drinkware":
+      "保温杯保温瓶水杯",
+
+    "cookware":
+      "锅具炒锅煎锅",
+
+    "coffee-tea":
+      "咖啡茶具用品",
+
+    "small-kitchen-appliances":
+      "厨房小家电",
+
+    "vacuum-storage":
+      "真空收纳袋",
+
+    "travel-storage":
+      "旅行收纳袋",
+
+    "hooks-holders":
+      "家用挂钩置物架",
+
+    "decorative-lighting":
+      "创意家居氛围灯",
+
+    "clocks":
+      "创意家居时钟",
+
+    "artificial-flowers":
+      "仿真花装饰",
+
+    "air-home-care":
+      "家居除味除湿用品",
+
+    "shoe-care":
+      "鞋子清洁护理用品",
+
+    "kitchen-cleaning":
+      "厨房清洁用品",
+
+    "hair-styling-devices":
+      "美发造型小家电",
+
+    "oral-care":
+      "口腔护理用品",
+
+    "beauty-storage":
+      "化妆品收纳",
+
+    "development-baby":
+      "婴儿早教感官用品",
+
+    "potty-training":
+      "儿童如厕训练用品",
+
+    "baby-storage":
+      "婴儿用品收纳",
+
+    "outdoor-toys":
+      "儿童户外玩具",
+
+    "vehicles-rc":
+      "遥控车玩具",
+
+    "dolls-figures":
+      "娃娃人偶玩具",
+
+    "board-games":
+      "儿童桌游",
+
+    "plush":
+      "毛绒玩具",
+
+    "school-tools":
+      "学生文具用品",
+
+    "desk-accessories":
+      "桌面办公用品",
+
+    "filing-organization":
+      "文件夹文件收纳",
+
+    "keychains-charms":
+      "时尚钥匙扣挂件",
+
+    "belts-scarves":
+      "时尚腰带围巾",
+
+    "watches-straps":
+      "手表表带配件",
+
+    "travel-accessories":
+      "旅行随身配件",
+
+    "training":
+      "宠物训练用品",
+
+    "smart-pet":
+      "智能宠物用品",
+
+    "winter":
+      "冬季创意用品",
+
+    "valentine":
+      "情人节礼品装饰",
+
+    "garden-seasonal":
+      "花园季节用品",
+
+    "rain-weather":
+      "雨季用品",
+
+    "gift-packaging":
+      "创意礼品包装",
+
+    "drinkware-gifts":
+      "创意保温杯礼品",
+
+    "tech-gifts":
+      "创意科技礼品",
+
+    "self-care-gifts":
+      "美容护理礼品",
+
+    "power-banks":
+      "充电宝移动电源",
+
+    "wearable-accessories":
+      "智能手表配件",
+
+    "photo-video":
+      "手机摄影视频配件",
+
+    "gaming-accessories":
+      "游戏配件",
+
+    "smart-home":
+      "智能家居小设备",
+
+    "fitness-wellness":
+      "健身运动小用品",
+
+    "outdoor-hobby":
+      "户外兴趣用品"
+  }
+);
+
 const MADE_IN_CHINA_CATEGORY_CONFIG = {
   "home-kitchen": {
     groups: [
@@ -2724,6 +2873,770 @@ const MADE_IN_CHINA_CATEGORY_CONFIG = {
     ]
   }
 };
+
+const TREND_CATEGORY_GROUP_EXPANSIONS = {
+  "home-kitchen": [
+    {
+      key: "drinkware",
+      queries: [
+        "insulated drinkware travel mugs",
+        "thermos vacuum bottle tumbler"
+      ],
+      include: [
+        "thermos",
+        "vacuum flask",
+        "vacuum bottle",
+        "thermal mug",
+        "travel mug",
+        "insulated mug",
+        "insulated tumbler",
+        "tumbler",
+        "water bottle",
+        "sports bottle"
+      ]
+    },
+    {
+      key: "cookware",
+      queries: [
+        "modern cookware pots pans",
+        "nonstick cookware kitchen"
+      ],
+      include: [
+        "cookware",
+        "frying pan",
+        "saucepan",
+        "cooking pot",
+        "skillet",
+        "casserole",
+        "wok"
+      ]
+    },
+    {
+      key: "coffee-tea",
+      queries: [
+        "coffee tea accessories",
+        "coffee maker tea infuser"
+      ],
+      include: [
+        "french press",
+        "coffee dripper",
+        "coffee filter",
+        "coffee maker",
+        "tea infuser",
+        "teapot",
+        "tea strainer"
+      ]
+    },
+    {
+      key: "small-kitchen-appliances",
+      queries: [
+        "small kitchen appliances",
+        "compact kitchen electric gadgets"
+      ],
+      include: [
+        "mini blender",
+        "milk frother",
+        "sandwich maker",
+        "mini chopper",
+        "electric kettle",
+        "waffle maker",
+        "mini cooker"
+      ]
+    }
+  ],
+
+  "storage-organization": [
+    {
+      key: "vacuum-storage",
+      queries: [
+        "vacuum storage bags",
+        "space saving vacuum bags"
+      ],
+      include: [
+        "vacuum bag",
+        "vacuum storage",
+        "compression bag",
+        "space saver bag"
+      ]
+    },
+    {
+      key: "travel-storage",
+      queries: [
+        "travel packing organizers",
+        "packing cubes travel"
+      ],
+      include: [
+        "packing cube",
+        "travel organizer",
+        "luggage organizer",
+        "packing bag"
+      ]
+    },
+    {
+      key: "hooks-holders",
+      queries: [
+        "home hooks holders organizer",
+        "wall hooks household"
+      ],
+      include: [
+        "adhesive hook",
+        "wall hook",
+        "utility hook",
+        "holder",
+        "hanging organizer"
+      ]
+    }
+  ],
+
+  "decor": [
+    {
+      key: "decorative-lighting",
+      queries: [
+        "decorative ambient lighting home",
+        "creative night light decor"
+      ],
+      include: [
+        "ambient light",
+        "decorative lamp",
+        "night light",
+        "table lamp",
+        "mood light"
+      ]
+    },
+    {
+      key: "clocks",
+      queries: [
+        "decorative wall clock",
+        "creative desk clock"
+      ],
+      include: [
+        "wall clock",
+        "desk clock",
+        "table clock",
+        "decorative clock"
+      ]
+    },
+    {
+      key: "artificial-flowers",
+      queries: [
+        "artificial flowers home decor",
+        "decorative artificial plants"
+      ],
+      include: [
+        "artificial flower",
+        "artificial plant",
+        "fake flower",
+        "decorative plant"
+      ]
+    }
+  ],
+
+  "household": [
+    {
+      key: "air-home-care",
+      queries: [
+        "home odor moisture control",
+        "household air fresh care"
+      ],
+      include: [
+        "odor absorber",
+        "moisture absorber",
+        "dehumidifier box",
+        "air freshener",
+        "fragrance sachet"
+      ]
+    },
+    {
+      key: "shoe-care",
+      queries: [
+        "shoe care household products",
+        "shoe cleaning accessories"
+      ],
+      include: [
+        "shoe cleaner",
+        "shoe brush",
+        "shoe deodorizer",
+        "shoe care",
+        "shoe dryer"
+      ]
+    },
+    {
+      key: "kitchen-cleaning",
+      queries: [
+        "kitchen cleaning accessories",
+        "dish cleaning household tools"
+      ],
+      include: [
+        "dish brush",
+        "bottle brush",
+        "kitchen sponge",
+        "sink cleaning",
+        "dish scrubber"
+      ]
+    }
+  ],
+
+  "beauty-care": [
+    {
+      key: "hair-styling-devices",
+      queries: [
+        "hair styling devices",
+        "small hair styling tools"
+      ],
+      include: [
+        "hair straightener",
+        "hair curler",
+        "curling iron",
+        "hair dryer",
+        "hot brush"
+      ]
+    },
+    {
+      key: "oral-care",
+      queries: [
+        "oral care products",
+        "dental care accessories"
+      ],
+      include: [
+        "toothbrush",
+        "electric toothbrush",
+        "water flosser",
+        "tongue cleaner",
+        "oral care"
+      ]
+    },
+    {
+      key: "beauty-storage",
+      queries: [
+        "makeup storage organizer",
+        "cosmetic beauty organizer"
+      ],
+      include: [
+        "makeup organizer",
+        "cosmetic organizer",
+        "beauty storage",
+        "lipstick organizer"
+      ]
+    }
+  ],
+
+  "kids": [
+    {
+      key: "development-baby",
+      queries: [
+        "baby development sensory products",
+        "infant developmental toys"
+      ],
+      include: [
+        "baby sensory",
+        "teether",
+        "tummy time",
+        "baby activity",
+        "infant development"
+      ]
+    },
+    {
+      key: "potty-training",
+      queries: [
+        "potty training products",
+        "toddler toilet training"
+      ],
+      include: [
+        "potty training",
+        "baby potty",
+        "toilet trainer",
+        "potty seat"
+      ]
+    },
+    {
+      key: "baby-storage",
+      queries: [
+        "baby nursery storage",
+        "baby essentials organizer"
+      ],
+      include: [
+        "diaper organizer",
+        "nursery storage",
+        "baby organizer",
+        "stroller storage"
+      ]
+    }
+  ],
+
+  "toys": [
+    {
+      key: "outdoor-toys",
+      queries: [
+        "outdoor toys kids",
+        "active outdoor children toys"
+      ],
+      include: [
+        "outdoor toy",
+        "bubble toy",
+        "water toy",
+        "flying toy",
+        "ball game"
+      ]
+    },
+    {
+      key: "vehicles-rc",
+      queries: [
+        "toy vehicles rc toys",
+        "remote control cars kids"
+      ],
+      include: [
+        "rc car",
+        "remote control car",
+        "toy car",
+        "toy vehicle",
+        "remote control toy"
+      ]
+    },
+    {
+      key: "dolls-figures",
+      queries: [
+        "dolls action figures toys",
+        "collectible toy figures"
+      ],
+      include: [
+        "doll",
+        "action figure",
+        "toy figure",
+        "mini figure",
+        "playset figure"
+      ]
+    },
+    {
+      key: "board-games",
+      queries: [
+        "family board games",
+        "kids tabletop games"
+      ],
+      include: [
+        "board game",
+        "card game",
+        "table game",
+        "family game"
+      ]
+    },
+    {
+      key: "plush",
+      queries: [
+        "plush toys",
+        "soft stuffed toys"
+      ],
+      include: [
+        "plush toy",
+        "stuffed toy",
+        "soft toy",
+        "plush animal"
+      ]
+    }
+  ],
+
+  "stationery": [
+    {
+      key: "school-tools",
+      queries: [
+        "school stationery tools",
+        "school supplies accessories"
+      ],
+      include: [
+        "ruler",
+        "sharpener",
+        "school scissors",
+        "glue stick",
+        "geometry set"
+      ]
+    },
+    {
+      key: "desk-accessories",
+      queries: [
+        "creative desk accessories",
+        "office desktop accessories"
+      ],
+      include: [
+        "desk accessory",
+        "desk mat",
+        "book stand",
+        "memo holder",
+        "desktop holder"
+      ]
+    },
+    {
+      key: "filing-organization",
+      queries: [
+        "office filing organization",
+        "document folders organizer"
+      ],
+      include: [
+        "file folder",
+        "document folder",
+        "binder",
+        "document organizer",
+        "file organizer"
+      ]
+    }
+  ],
+
+  "accessories": [
+    {
+      key: "keychains-charms",
+      queries: [
+        "fashion keychains charms",
+        "bag keyring charms"
+      ],
+      include: [
+        "keychain",
+        "key ring",
+        "bag charm",
+        "pendant charm"
+      ]
+    },
+    {
+      key: "belts-scarves",
+      queries: [
+        "fashion belts scarves",
+        "women fashion scarf belt"
+      ],
+      include: [
+        "fashion belt",
+        "waist belt",
+        "scarf",
+        "neck scarf"
+      ]
+    },
+    {
+      key: "watches-straps",
+      queries: [
+        "fashion watches straps",
+        "watch bands accessories"
+      ],
+      include: [
+        "watch",
+        "watch strap",
+        "watch band",
+        "smartwatch band"
+      ]
+    },
+    {
+      key: "travel-accessories",
+      queries: [
+        "personal travel accessories",
+        "travel fashion accessories"
+      ],
+      include: [
+        "passport holder",
+        "travel wallet",
+        "luggage tag",
+        "travel pouch"
+      ]
+    }
+  ],
+
+  "pets": [
+    {
+      key: "training",
+      queries: [
+        "pet training accessories",
+        "dog training products"
+      ],
+      include: [
+        "training clicker",
+        "training whistle",
+        "dog training",
+        "pet training"
+      ]
+    },
+    {
+      key: "smart-pet",
+      queries: [
+        "smart pet products",
+        "automatic pet devices"
+      ],
+      include: [
+        "automatic feeder",
+        "pet fountain",
+        "smart feeder",
+        "pet tracker",
+        "automatic waterer"
+      ]
+    }
+  ],
+
+  "seasonal": [
+    {
+      key: "winter",
+      queries: [
+        "winter seasonal products",
+        "winter home accessories"
+      ],
+      include: [
+        "winter accessory",
+        "hand warmer",
+        "heated blanket",
+        "winter cover"
+      ]
+    },
+    {
+      key: "valentine",
+      queries: [
+        "valentine gifts decoration",
+        "valentines day products"
+      ],
+      include: [
+        "valentine",
+        "heart decoration",
+        "romantic gift"
+      ]
+    },
+    {
+      key: "garden-seasonal",
+      queries: [
+        "seasonal garden accessories",
+        "summer garden products"
+      ],
+      include: [
+        "garden accessory",
+        "watering accessory",
+        "plant support",
+        "garden decor"
+      ]
+    },
+    {
+      key: "rain-weather",
+      queries: [
+        "rain weather accessories",
+        "rainy day products"
+      ],
+      include: [
+        "umbrella",
+        "rain cover",
+        "shoe cover",
+        "waterproof cover"
+      ]
+    }
+  ],
+
+  "gifts": [
+    {
+      key: "gift-packaging",
+      queries: [
+        "creative gift packaging",
+        "gift bags boxes wrapping"
+      ],
+      include: [
+        "gift bag",
+        "gift box",
+        "wrapping paper",
+        "gift ribbon",
+        "gift packaging"
+      ]
+    },
+    {
+      key: "drinkware-gifts",
+      queries: [
+        "gift mugs tumblers",
+        "creative drinkware gifts"
+      ],
+      include: [
+        "gift mug",
+        "travel mug",
+        "tumbler",
+        "thermos",
+        "gift cup"
+      ]
+    },
+    {
+      key: "tech-gifts",
+      queries: [
+        "small tech gifts",
+        "creative electronic gifts"
+      ],
+      include: [
+        "tech gift",
+        "mini gadget",
+        "smart gadget",
+        "electronic gift"
+      ]
+    },
+    {
+      key: "self-care-gifts",
+      queries: [
+        "self care gift products",
+        "beauty wellness gifts"
+      ],
+      include: [
+        "self care gift",
+        "spa gift",
+        "beauty gift",
+        "wellness gift"
+      ]
+    }
+  ],
+
+  "electronics-accessories": [
+    {
+      key: "power-banks",
+      queries: [
+        "portable power banks",
+        "compact fast charging power bank"
+      ],
+      include: [
+        "power bank",
+        "portable charger",
+        "battery pack"
+      ]
+    },
+    {
+      key: "wearable-accessories",
+      queries: [
+        "smartwatch accessories",
+        "wearable device accessories"
+      ],
+      include: [
+        "smartwatch strap",
+        "watch band",
+        "watch charger",
+        "smartwatch case"
+      ]
+    },
+    {
+      key: "photo-video",
+      queries: [
+        "phone photo video accessories",
+        "small camera accessories"
+      ],
+      include: [
+        "phone tripod",
+        "camera light",
+        "selfie light",
+        "camera holder",
+        "phone lens"
+      ]
+    },
+    {
+      key: "gaming-accessories",
+      queries: [
+        "gaming accessories",
+        "small gaming gadgets"
+      ],
+      include: [
+        "gaming mouse",
+        "game controller",
+        "controller stand",
+        "gaming accessory"
+      ]
+    },
+    {
+      key: "smart-home",
+      queries: [
+        "small smart home devices",
+        "smart home accessories"
+      ],
+      include: [
+        "smart plug",
+        "smart sensor",
+        "smart switch",
+        "smart remote"
+      ]
+    }
+  ],
+
+  "other": [
+    {
+      key: "fitness-wellness",
+      queries: [
+        "small fitness wellness products",
+        "portable workout accessories"
+      ],
+      include: [
+        "fitness accessory",
+        "resistance band",
+        "massage ball",
+        "workout accessory"
+      ]
+    },
+    {
+      key: "outdoor-hobby",
+      queries: [
+        "small outdoor hobby products",
+        "portable hobby accessories"
+      ],
+      include: [
+        "outdoor accessory",
+        "hobby accessory",
+        "portable outdoor",
+        "camping accessory"
+      ]
+    }
+  ]
+};
+
+for (
+  const [
+    category,
+    groups
+  ]
+  of Object.entries(
+    TREND_CATEGORY_GROUP_EXPANSIONS
+  )
+) {
+  const categoryConfig =
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ];
+
+  if (!categoryConfig) {
+    continue;
+  }
+
+  const existingKeys =
+    new Set(
+      categoryConfig.groups.map(
+        group =>
+          group.key
+      )
+    );
+
+  for (
+    const group
+    of groups
+  ) {
+    if (
+      existingKeys.has(
+        group.key
+      )
+    ) {
+      continue;
+    }
+
+    categoryConfig.groups.push(
+      group
+    );
+  }
+}
+
+function getTrendSearchGroups(
+  category,
+  refinementKey
+) {
+  const categoryConfig =
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ] ||
+    MADE_IN_CHINA_CATEGORY_CONFIG.other;
+
+  if (!refinementKey) {
+    return categoryConfig.groups;
+  }
+
+  return categoryConfig.groups.filter(
+    group =>
+      group.key ===
+      refinementKey
+  );
+}
 
 const ALIEXPRESS_CACHE_TTL_MS =
   20 * 60 * 1000;
@@ -8714,6 +9627,7 @@ function buildIdeasFromMadeInChina(
 function buildAlibabaSearchQueries(
   category,
   signalType,
+  refinementKey,
   searchDetails
 ) {
   const categoryConfig =
@@ -8736,9 +9650,15 @@ function buildAlibabaSearchQueries(
 
   const queryItems = [];
 
+  const searchGroups =
+    getTrendSearchGroups(
+      category,
+      refinementKey
+    );
+
   for (
     const group
-    of categoryConfig.groups
+    of searchGroups
   ) {
     const baseQuery =
       group.queries[0];
@@ -9137,6 +10057,7 @@ async function loadAlibabaProductImage(
 async function loadAlibabaSignal({
   category,
   signalType,
+  refinementKey,
   searchDetails,
   exclusions
 }) {
@@ -9144,6 +10065,7 @@ async function loadAlibabaSignal({
     buildAlibabaSearchQueries(
       category,
       signalType,
+      refinementKey,
       searchDetails
     );
 
@@ -10026,19 +10948,20 @@ async function executeChina1688Request(
 
 function buildChina1688Queries(
   category,
+  refinementKey,
   searchDetails
 ) {
-  const categoryConfig =
-    MADE_IN_CHINA_CATEGORY_CONFIG[
-      category
-    ] ||
-    MADE_IN_CHINA_CATEGORY_CONFIG.other;
+  const searchGroups =
+    getTrendSearchGroups(
+      category,
+      refinementKey
+    );
 
   const queries = [];
 
   for (
     const group
-    of categoryConfig.groups
+    of searchGroups
   ) {
     const chineseQuery =
       CHINA_1688_GROUP_QUERIES[
@@ -10077,7 +11000,7 @@ function buildChina1688Queries(
 
   return queries.slice(
     0,
-    3
+    12
   );
 }
 
@@ -10558,12 +11481,14 @@ function extractChina1688Products(
 async function loadChina1688Signal({
   category,
   signalType,
+  refinementKey,
   searchDetails,
   exclusions
 }) {
   const searchQueries =
     buildChina1688Queries(
       category,
+      refinementKey,
       searchDetails
     );
 
@@ -10853,6 +11778,7 @@ function buildIdeasFromChina1688(
 function buildYiwugoSearchQueries(
   category,
   signalType,
+  refinementKey,
   searchDetails
 ) {
   const categoryConfig =
@@ -10869,9 +11795,15 @@ function buildYiwugoSearchQueries(
 
   const queries = [];
 
+  const searchGroups =
+    getTrendSearchGroups(
+      category,
+      refinementKey
+    );
+
   for (
     const group
-    of categoryConfig.groups
+    of searchGroups
   ) {
     const baseQuery =
       Array.isArray(group.queries)
@@ -10904,7 +11836,7 @@ function buildYiwugoSearchQueries(
 
   return queries.slice(
     0,
-    6
+    12
   );
 }
 
@@ -11691,11 +12623,13 @@ async function fetchYiwugoPage(
 function buildChinagoodsSearchQueries(
   category,
   signalType,
+  refinementKey,
   searchDetails
 ) {
   return buildYiwugoSearchQueries(
     category,
     signalType,
+    refinementKey,
     searchDetails
   ).slice(
     0,
@@ -12352,6 +13286,7 @@ async function loadChinagoodsProductImages(
 async function loadChinagoodsSignal({
   category,
   signalType,
+  refinementKey,
   searchDetails,
   exclusions
 }) {
@@ -12359,6 +13294,7 @@ async function loadChinagoodsSignal({
     buildChinagoodsSearchQueries(
       category,
       signalType,
+      refinementKey,
       searchDetails
     );
 
@@ -12721,6 +13657,7 @@ function buildIdeasFromChinagoods(
 async function loadYiwugoSignal({
   category,
   signalType,
+  refinementKey,
   searchDetails,
   exclusions
 }) {
@@ -12728,16 +13665,13 @@ async function loadYiwugoSignal({
     buildYiwugoSearchQueries(
       category,
       signalType,
+      refinementKey,
       searchDetails
     );
 
   const requestResults =
     await Promise.allSettled(
       searchQueries
-        .slice(
-          0,
-          4
-        )
         .map(
           async queryItem => {
             const sourceUrl =
@@ -13215,6 +14149,188 @@ function applyChinaCrossSourceRanking(
   return ideas;
 }
 
+function getTrendResultLimit(
+  market,
+  signalType
+) {
+  const multiMarket =
+    [
+      "europe",
+      "europe-usa",
+      "world"
+    ].includes(
+      market
+    );
+
+  if (multiMarket) {
+    return 150;
+  }
+
+  if (
+    signalType ===
+    "all"
+  ) {
+    return 100;
+  }
+
+  return 50;
+}
+
+function selectBalancedTrendIdeas({
+  ideas,
+  market,
+  signalType
+}) {
+  const sourceIdeas =
+    Array.isArray(ideas)
+      ? ideas
+      : [];
+
+  const limit =
+    getTrendResultLimit(
+      market,
+      signalType
+    );
+
+  const sortedIdeas =
+    [...sourceIdeas]
+      .sort(
+        (first, second) =>
+          Number(
+            second.relevanceScore ||
+            0
+          ) -
+          Number(
+            first.relevanceScore ||
+            0
+          ) ||
+          Number(
+            first.sourcePosition ||
+            999
+          ) -
+          Number(
+            second.sourcePosition ||
+            999
+          )
+      );
+
+  const buckets =
+    new Map();
+
+  for (
+    const idea
+    of sortedIdeas
+  ) {
+    const geography =
+      String(
+        idea.geography ||
+        "Інше"
+      );
+
+    const ideaSignal =
+      String(
+        idea.signalType ||
+        "other"
+      );
+
+    const bucketKey =
+      signalType === "all"
+        ? `${geography}|${ideaSignal}`
+        : geography;
+
+    if (
+      !buckets.has(
+        bucketKey
+      )
+    ) {
+      buckets.set(
+        bucketKey,
+        []
+      );
+    }
+
+    buckets
+      .get(
+        bucketKey
+      )
+      .push(
+        idea
+      );
+  }
+
+  const bucketEntries =
+    [...buckets.entries()];
+
+  const selectedIdeas = [];
+  const selectedIds =
+    new Set();
+
+  let round = 0;
+
+  while (
+    selectedIdeas.length <
+      limit
+  ) {
+    let addedInRound =
+      false;
+
+    for (
+      const [
+        ,
+        bucketIdeas
+      ]
+      of bucketEntries
+    ) {
+      const idea =
+        bucketIdeas[
+          round
+        ];
+
+      if (!idea) {
+        continue;
+      }
+
+      const ideaId =
+        idea.id ||
+        `${idea.title}|${idea.geography}|${idea.signalType}`;
+
+      if (
+        selectedIds.has(
+          ideaId
+        )
+      ) {
+        continue;
+      }
+
+      selectedIds.add(
+        ideaId
+      );
+
+      selectedIdeas.push(
+        idea
+      );
+
+      addedInRound =
+        true;
+
+      if (
+        selectedIdeas.length >=
+        limit
+      ) {
+        break;
+      }
+    }
+
+    if (!addedInRound) {
+      break;
+    }
+
+    round += 1;
+  }
+
+  return selectedIdeas;
+}
+
 export async function searchProductTrends(
   requestBody
 ) {
@@ -13459,6 +14575,7 @@ export async function searchProductTrends(
             await loadAlibabaSignal({
               category,
               signalType,
+              refinementKey,
               searchDetails,
               exclusions
             });
@@ -13508,6 +14625,7 @@ export async function searchProductTrends(
             await loadChina1688Signal({
               category,
               signalType,
+              refinementKey,
               searchDetails,
               exclusions
             });
@@ -13557,6 +14675,7 @@ export async function searchProductTrends(
             await loadYiwugoSignal({
               category,
               signalType,
+              refinementKey,
               searchDetails,
               exclusions
             });
@@ -13606,6 +14725,7 @@ export async function searchProductTrends(
             await loadChinagoodsSignal({
               category,
               signalType,
+              refinementKey,
               searchDetails,
               exclusions
             });
@@ -13675,26 +14795,13 @@ export async function searchProductTrends(
     uniqueIdeas.push(idea);
   }
 
-  ideas = uniqueIdeas
-    .sort(
-      (first, second) =>
-        Number(
-          second.relevanceScore || 0
-        ) -
-        Number(
-          first.relevanceScore || 0
-        ) ||
-        Number(
-          first.sourcePosition || 99
-        ) -
-        Number(
-          second.sourcePosition || 99
-        )
-    )
-    .slice(
-      0,
-      36
-    );
+  ideas =
+    selectBalancedTrendIdeas({
+      ideas:
+        uniqueIdeas,
+      market,
+      signalType
+    });
 
   let summary = "";
 
