@@ -4625,68 +4625,83 @@ function buildAmazonSearchQueries(
       120
     );
 
-  const queries = [];
+  const queryItems = [];
 
   for (
     const group
     of searchGroups
   ) {
+    const groupQueries =
+      Array.isArray(
+        group.queries
+      )
+        ? group.queries
+        : [];
+
     for (
       const groupQuery
-      of group.queries
+      of groupQueries.slice(
+        0,
+        2
+      )
     ) {
-      queries.push(
+      const searchQuery =
         [
           groupQuery,
           signalPhrase,
           details
         ]
           .filter(Boolean)
-          .join(" ")
-      );
+          .join(" ");
 
-      if (
-        refinementGroup &&
-        queries.length >= 4
-      ) {
-        break;
+      const cleanedQuery =
+        cleanTrendText(
+          searchQuery,
+          220
+        );
+
+      if (!cleanedQuery) {
+        continue;
       }
 
-      if (
-        !refinementGroup &&
-        queries.length >= 8
-      ) {
-        break;
-      }
-    }
+      queryItems.push({
+        searchQuery:
+          cleanedQuery,
 
-    if (
-      refinementGroup &&
-      queries.length >= 4
-    ) {
-      break;
-    }
-
-    if (
-      !refinementGroup &&
-      queries.length >= 8
-    ) {
-      break;
+        subgroup:
+          group.key
+      });
     }
   }
 
-  return [
-    ...new Set(
-      queries
-        .map(query =>
-          cleanTrendText(
-            query,
-            220
-          )
-        )
-        .filter(Boolean)
-    )
-  ];
+  const uniqueItems = [];
+  const seen = new Set();
+
+  for (
+    const queryItem
+    of queryItems
+  ) {
+    const key =
+      `${queryItem.subgroup}|${queryItem.searchQuery}`;
+
+    if (
+      seen.has(
+        key
+      )
+    ) {
+      continue;
+    }
+
+    seen.add(
+      key
+    );
+
+    uniqueItems.push(
+      queryItem
+    );
+  }
+
+  return uniqueItems;
 }
 
 function getAmazonSearchUrl(
@@ -4814,7 +4829,13 @@ async function loadAmazonRanking({
   const requestResults =
     await Promise.allSettled(
       searchQueries.map(
-        async searchQuery => {
+        async queryItem => {
+          const searchQuery =
+            queryItem.searchQuery;
+
+          const subgroup =
+            queryItem.subgroup;
+
           const sourceUrl =
             getAmazonSearchUrl(
               amazonConfig,
@@ -4855,6 +4876,7 @@ async function loadAmazonRanking({
 
           return {
             searchQuery,
+            subgroup,
             sourceUrl,
             products:
               extractAmazonProducts(
@@ -4897,6 +4919,7 @@ async function loadAmazonRanking({
 
     const {
       searchQuery,
+      subgroup,
       sourceUrl,
       products
     } =
@@ -4908,6 +4931,7 @@ async function loadAmazonRanking({
     checkedSources.push({
       query:
         searchQuery,
+      subgroup,
       url:
         sourceUrl
     });
@@ -4938,11 +4962,19 @@ async function loadAmazonRanking({
           product.asin,
           {
             ...product,
+
             occurrenceCount:
               1,
+
             matchedQueries: [
               searchQuery
-            ]
+            ],
+
+            matchedSubgroups: [
+              subgroup
+            ],
+
+            subgroup
           }
         );
 
@@ -4975,6 +5007,21 @@ async function loadAmazonRanking({
             searchQuery
           );
       }
+
+      if (
+        subgroup &&
+        !existingProduct
+          .matchedSubgroups
+          .includes(
+            subgroup
+          )
+      ) {
+        existingProduct
+          .matchedSubgroups
+          .push(
+            subgroup
+          );
+      }      
 
       if (
         !existingProduct.imageUrl &&
@@ -5010,7 +5057,7 @@ async function loadAmazonRanking({
       refinementKey
     );
 
-  const products =
+  const rankedProducts =
     [...productsByAsin.values()]
       .map(product => {
         const refinementScore =
@@ -5044,14 +5091,6 @@ async function loadAmazonRanking({
       .sort(
         (first, second) =>
           Number(
-            second.occurrenceCount ||
-            0
-          ) -
-          Number(
-            first.occurrenceCount ||
-            0
-          ) ||
-          Number(
             second.refinementScore ||
             0
           ) -
@@ -5067,7 +5106,200 @@ async function loadAmazonRanking({
             second.sourcePosition ||
             999
           )
-      )
+      );
+
+  let selectedProducts = [];
+
+  if (refinementKey) {
+    selectedProducts =
+      rankedProducts.slice(
+        0,
+        50
+      );
+  } else {
+    const categoryGroups =
+      MADE_IN_CHINA_CATEGORY_CONFIG[
+        category
+      ]?.groups || [];
+
+    const productsBySubgroup =
+      new Map();
+
+    for (
+      const group
+      of categoryGroups
+    ) {
+      productsBySubgroup.set(
+        group.key,
+        []
+      );
+    }
+
+    for (
+      const product
+      of rankedProducts
+    ) {
+      const productSubgroups =
+        Array.isArray(
+          product.matchedSubgroups
+        )
+          ? product.matchedSubgroups
+          : [];
+
+      for (
+        const subgroup
+        of productSubgroups
+      ) {
+        if (
+          !productsBySubgroup.has(
+            subgroup
+          )
+        ) {
+          continue;
+        }
+
+        productsBySubgroup
+          .get(
+            subgroup
+          )
+          .push(
+            product
+          );
+      }
+    }
+
+    const maxPerSubgroup =
+      Math.max(
+        6,
+        Math.ceil(
+          50 /
+          Math.max(
+            categoryGroups.length,
+            1
+          )
+        )
+      );
+
+    const selectedAsins =
+      new Set();
+
+    let round = 0;
+
+    while (
+      selectedProducts.length <
+      50
+    ) {
+      let addedInRound =
+        false;
+
+      for (
+        const group
+        of categoryGroups
+      ) {
+        const groupProducts =
+          productsBySubgroup.get(
+            group.key
+          ) || [];
+
+        let addedFromGroup =
+          0;
+
+        for (
+          const product
+          of groupProducts
+        ) {
+          if (
+            selectedAsins.has(
+              product.asin
+            )
+          ) {
+            continue;
+          }
+
+          if (
+            addedFromGroup >=
+            maxPerSubgroup
+          ) {
+            break;
+          }
+
+          if (
+            round >
+            addedFromGroup
+          ) {
+            addedFromGroup +=
+              1;
+
+            continue;
+          }
+
+          selectedAsins.add(
+            product.asin
+          );
+
+          selectedProducts.push({
+            ...product,
+            subgroup:
+              group.key
+          });
+
+          addedInRound =
+            true;
+
+          break;
+        }
+
+        if (
+          selectedProducts.length >=
+          50
+        ) {
+          break;
+        }
+      }
+
+      if (!addedInRound) {
+        break;
+      }
+
+      round += 1;
+    }
+
+    if (
+      selectedProducts.length <
+      50
+    ) {
+      for (
+        const product
+        of rankedProducts
+      ) {
+        if (
+          selectedAsins.has(
+            product.asin
+          )
+        ) {
+          continue;
+        }
+
+        selectedAsins.add(
+          product.asin
+        );
+
+        selectedProducts.push(
+          product
+        );
+
+        if (
+          selectedProducts.length >=
+          50
+        ) {
+          break;
+        }
+      }
+    }
+  }
+
+  const products =
+    selectedProducts
       .slice(
         0,
         50
@@ -5075,6 +5307,7 @@ async function loadAmazonRanking({
       .map(
         (product, index) => ({
           ...product,
+
           sourcePosition:
             index + 1
         })
