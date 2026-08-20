@@ -9607,7 +9607,7 @@ async function loadMadeInChinaSignal({
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
-      15
+      50
     );
 
   const productsWithImages =
@@ -10433,7 +10433,7 @@ async function loadAlibabaSignal({
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
-      15
+      50
     );
 
   const productsWithImages =
@@ -11765,7 +11765,7 @@ async function loadChina1688Signal({
   const products =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
-      15
+      50
     )
       .map(
         (product, index) => ({
@@ -13637,7 +13637,7 @@ async function loadChinagoodsSignal({
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
-      15
+      50
     );
 
   const productsWithImages =
@@ -13984,7 +13984,7 @@ async function loadYiwugoSignal({
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
-      15
+      50
     );
 
   const productsWithImages =
