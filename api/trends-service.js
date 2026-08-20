@@ -361,6 +361,13 @@ const AMAZON_MARKET_CONFIG = {
 };
 
 const AMAZON_SIGNAL_PATHS = {
+  all: {
+    path: null,
+    rankingName: "Product Search",
+    description:
+      "Товар знайдений у широкому категорійному пошуку Amazon."
+  },
+  
   new: {
     path: "new-releases",
     rankingName: "Hot New Releases",
@@ -5520,17 +5527,20 @@ function buildAmazonSearchQueries(
       : categoryConfig.groups;
 
   const signalWords = {
+    all:
+      "",
     new:
-      "new arrivals latest",
+      "new arrivals",
     trends:
-      "trending popular",
+      "trending",
     popular:
-      "best seller popular"
+      "best seller"
   };
 
   const signalPhrase =
-    signalWords[signalType] ||
-    "";
+    signalWords[
+      signalType
+    ] || "";
 
   const details =
     cleanTrendText(
@@ -5551,12 +5561,20 @@ function buildAmazonSearchQueries(
         ? group.queries
         : [];
 
+    const queriesForGroup =
+      refinementKey
+        ? groupQueries.slice(
+            0,
+            2
+          )
+        : groupQueries.slice(
+            0,
+            1
+          );
+
     for (
       const groupQuery
-      of groupQueries.slice(
-        0,
-        2
-      )
+      of queriesForGroup
     ) {
       const searchQuery =
         [
@@ -5744,130 +5762,209 @@ async function loadAmazonRanking({
     };
   }
 
-  const requestResults =
-    await Promise.allSettled(
-      searchQueries.map(
-        async queryItem => {
-          const searchQuery =
-            queryItem.searchQuery;
+  const requestResults = [];
 
-          const subgroup =
-            queryItem.subgroup;
+  const AMAZON_QUERY_CONCURRENCY =
+    2;
 
-          const scopedSourceUrl =
-            getAmazonSearchUrl(
-              amazonConfig,
-              category,
-              searchQuery,
-              true
-            );
+  let queryCursor =
+    0;
 
-          const fallbackSourceUrl =
-            getAmazonSearchUrl(
-              amazonConfig,
-              category,
-              searchQuery,
-              false
-            );
+  async function runAmazonQuery(
+    queryItem
+  ) {
+    const searchQuery =
+      queryItem.searchQuery;
 
-          async function loadAmazonSearchPage(
-            sourceUrl
-          ) {
-            const response =
-              await fetch(
-                sourceUrl,
-                {
-                  method:
-                    "GET",
-                  headers: {
-                    Accept:
-                      "text/html,application/xhtml+xml",
-                    "Accept-Language":
-                      amazonConfig.language,
-                    "User-Agent":
-                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-                      "AppleWebKit/537.36 Chrome/124 Safari/537.36"
-                  },
-                  signal:
-                    AbortSignal.timeout(
-                      15000
-                    )
-                }
-              );
+    const subgroup =
+      queryItem.subgroup;
 
-            if (!response.ok) {
-              throw new Error(
-                `AMAZON_${amazonConfig.code.toUpperCase()}_REQUEST_FAILED_${response.status}`
-              );
-            }
+    const scopedSourceUrl =
+      getAmazonSearchUrl(
+        amazonConfig,
+        category,
+        searchQuery,
+        true
+      );
 
-            const html =
-              await response.text();
+    const fallbackSourceUrl =
+      getAmazonSearchUrl(
+        amazonConfig,
+        category,
+        searchQuery,
+        false
+      );
 
-            return extractAmazonProducts(
-              html,
-              amazonConfig,
-              signalType,
-              true
-            );
+    async function loadAmazonSearchPage(
+      sourceUrl,
+      attempt = 1
+    ) {
+      const response =
+        await fetch(
+          sourceUrl,
+          {
+            method:
+              "GET",
+            headers: {
+              Accept:
+                "text/html,application/xhtml+xml",
+              "Accept-Language":
+                amazonConfig.language,
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+            },
+            signal:
+              AbortSignal.timeout(
+                15000
+              )
           }
+        );
 
-          let sourceUrl =
-            scopedSourceUrl;
+      if (
+        response.status === 503 &&
+        attempt < 3
+      ) {
+        await new Promise(
+          resolve =>
+            setTimeout(
+              resolve,
+              700 * attempt
+            )
+        );
 
-          let products = [];
+        return loadAmazonSearchPage(
+          sourceUrl,
+          attempt + 1
+        );
+      }
 
-          try {
-            products =
-              await loadAmazonSearchPage(
-                scopedSourceUrl
-              );
-          } catch (error) {
-            console.warn(
-              `[${amazonConfig.sourceName}] scoped search failed:`,
-              error?.message ||
-              error
-            );
-          }
+      if (!response.ok) {
+        throw new Error(
+          `AMAZON_${amazonConfig.code.toUpperCase()}_REQUEST_FAILED_${response.status}`
+        );
+      }
 
-          if (
-            !products.length &&
-            fallbackSourceUrl !==
-              scopedSourceUrl
-          ) {
-            try {
-              const fallbackProducts =
-                await loadAmazonSearchPage(
-                  fallbackSourceUrl
-                );
+      const html =
+        await response.text();
 
-              if (
-                fallbackProducts.length
-              ) {
-                products =
-                  fallbackProducts;
+      return extractAmazonProducts(
+        html,
+        amazonConfig,
+        signalType,
+        true
+      );
+    }
 
-                sourceUrl =
-                  fallbackSourceUrl;
-              }
-            } catch (error) {
-              console.warn(
-                `[${amazonConfig.sourceName}] fallback search failed:`,
-                error?.message ||
-                error
-              );
-            }
-          }
+    let sourceUrl =
+      scopedSourceUrl;
 
-          return {
-            searchQuery,
-            subgroup,
-            sourceUrl,
-            products
-          };
+    let products = [];
+
+    try {
+      products =
+        await loadAmazonSearchPage(
+          scopedSourceUrl
+        );
+    } catch (error) {
+      console.warn(
+        `[${amazonConfig.sourceName}] scoped search failed:`,
+        error?.message ||
+        error
+      );
+    }
+
+    if (
+      !products.length &&
+      fallbackSourceUrl !==
+        scopedSourceUrl
+    ) {
+      try {
+        const fallbackProducts =
+          await loadAmazonSearchPage(
+            fallbackSourceUrl
+          );
+
+        if (
+          fallbackProducts.length
+        ) {
+          products =
+            fallbackProducts;
+
+          sourceUrl =
+            fallbackSourceUrl;
         }
-      )
-    );
+      } catch (error) {
+        console.warn(
+          `[${amazonConfig.sourceName}] fallback search failed:`,
+          error?.message ||
+          error
+        );
+      }
+    }
+
+    return {
+      searchQuery,
+      subgroup,
+      sourceUrl,
+      products
+    };
+  }
+
+  async function amazonQueryWorker() {
+    while (
+      queryCursor <
+      searchQueries.length
+    ) {
+      const currentIndex =
+        queryCursor;
+
+      queryCursor += 1;
+
+      const queryItem =
+        searchQueries[
+          currentIndex
+        ];
+
+      try {
+        const value =
+          await runAmazonQuery(
+            queryItem
+          );
+
+        requestResults[
+          currentIndex
+        ] = {
+          status:
+            "fulfilled",
+          value
+        };
+      } catch (error) {
+        requestResults[
+          currentIndex
+        ] = {
+          status:
+            "rejected",
+          reason:
+            error
+        };
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      {
+        length:
+          Math.min(
+            AMAZON_QUERY_CONCURRENCY,
+            searchQueries.length
+          )
+      },
+      () =>
+        amazonQueryWorker()
+    )
+  );
 
   const productsByAsin =
     new Map();
@@ -6438,7 +6535,9 @@ function buildIdeasFromAmazon(
   return sourceResult.products.map(
     product => {
       let signalLabel =
-        "Товар у рейтингу Amazon";
+        product.signalType === "all"
+          ? "Товарний сигнал Amazon"
+          : "Товар у рейтингу Amazon";
 
       if (product.signalType === "new") {
         signalLabel =
@@ -14562,13 +14661,9 @@ export async function searchProductTrends(
   let ideas = [];
 
   const requestedSignalTypes =
-    signalType === "all"
-      ? [
-          "new",
-          "trends",
-          "popular"
-        ]
-      : [signalType];
+    [
+      signalType
+    ];
 
   const amazonConfigs =
     Object.values(
