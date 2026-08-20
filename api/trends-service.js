@@ -5620,7 +5620,8 @@ function buildAmazonSearchQueries(
 function getAmazonSearchUrl(
   amazonConfig,
   category,
-  searchQuery
+  searchQuery,
+  useCategoryPath = true
 ) {
   const url =
     new URL(
@@ -5632,6 +5633,10 @@ function getAmazonSearchUrl(
     "k",
     searchQuery
   );
+
+  if (!useCategoryPath) {
+    return url.toString();
+  }
 
   const categoryConfig =
     AMAZON_CATEGORY_PATHS[
@@ -5749,55 +5754,116 @@ async function loadAmazonRanking({
           const subgroup =
             queryItem.subgroup;
 
-          const sourceUrl =
+          const scopedSourceUrl =
             getAmazonSearchUrl(
               amazonConfig,
               category,
-              searchQuery
+              searchQuery,
+              true
             );
 
-          const response =
-            await fetch(
-              sourceUrl,
-              {
-                method:
-                  "GET",
-                headers: {
-                  Accept:
-                    "text/html,application/xhtml+xml",
-                  "Accept-Language":
-                    amazonConfig.language,
-                  "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-                    "AppleWebKit/537.36 Chrome/124 Safari/537.36"
-                },
-                signal:
-                  AbortSignal.timeout(
-                    15000
-                  )
-              }
+          const fallbackSourceUrl =
+            getAmazonSearchUrl(
+              amazonConfig,
+              category,
+              searchQuery,
+              false
             );
 
-          if (!response.ok) {
-            throw new Error(
-              `AMAZON_${amazonConfig.code.toUpperCase()}_REQUEST_FAILED_${response.status}`
+          async function loadAmazonSearchPage(
+            sourceUrl
+          ) {
+            const response =
+              await fetch(
+                sourceUrl,
+                {
+                  method:
+                    "GET",
+                  headers: {
+                    Accept:
+                      "text/html,application/xhtml+xml",
+                    "Accept-Language":
+                      amazonConfig.language,
+                    "User-Agent":
+                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                      "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+                  },
+                  signal:
+                    AbortSignal.timeout(
+                      15000
+                    )
+                }
+              );
+
+            if (!response.ok) {
+              throw new Error(
+                `AMAZON_${amazonConfig.code.toUpperCase()}_REQUEST_FAILED_${response.status}`
+              );
+            }
+
+            const html =
+              await response.text();
+
+            return extractAmazonProducts(
+              html,
+              amazonConfig,
+              signalType,
+              true
             );
           }
 
-          const html =
-            await response.text();
+          let sourceUrl =
+            scopedSourceUrl;
+
+          let products = [];
+
+          try {
+            products =
+              await loadAmazonSearchPage(
+                scopedSourceUrl
+              );
+          } catch (error) {
+            console.warn(
+              `[${amazonConfig.sourceName}] scoped search failed:`,
+              error?.message ||
+              error
+            );
+          }
+
+          if (
+            !products.length &&
+            fallbackSourceUrl !==
+              scopedSourceUrl
+          ) {
+            try {
+              const fallbackProducts =
+                await loadAmazonSearchPage(
+                  fallbackSourceUrl
+                );
+
+              if (
+                fallbackProducts.length
+              ) {
+                products =
+                  fallbackProducts;
+
+                sourceUrl =
+                  fallbackSourceUrl;
+              }
+            } catch (error) {
+              console.warn(
+                `[${amazonConfig.sourceName}] fallback search failed:`,
+                error?.message ||
+                error
+              );
+            }
+          }
 
           return {
             searchQuery,
             subgroup,
             sourceUrl,
-            products:
-              extractAmazonProducts(
-                html,
-                amazonConfig,
-                signalType,
-                true
-              )
+            products
           };
         }
       )
@@ -6397,7 +6463,7 @@ function buildIdeasFromAmazon(
 
       return {
         id:
-          `amazon-${amazonConfig.code}-${product.signalType}-${product.asin}`,
+          `amazon-${amazonConfig.code}-${product.asin}`,
         title:
           product.title,
         imageUrl:
@@ -14192,6 +14258,48 @@ function selectBalancedTrendIdeas({
       signalType
     );
 
+  const expectedGeographies = {
+    europe: [
+      "Велика Британія",
+      "Німеччина",
+      "Франція",
+      "Італія",
+      "Польща"
+    ],
+
+    "europe-usa": [
+      "США",
+      "Велика Британія",
+      "Німеччина",
+      "Франція",
+      "Італія",
+      "Польща"
+    ],
+
+    world: [
+      "Китай",
+      "США",
+      "Велика Британія",
+      "Німеччина",
+      "Франція",
+      "Італія",
+      "Польща"
+    ]
+  };
+
+  const marketGeographies =
+    expectedGeographies[
+      market
+    ] || [];
+
+  const maxPerGeography =
+    marketGeographies.length
+      ? Math.ceil(
+          limit /
+          marketGeographies.length
+        )
+      : limit;
+
   const sortedIdeas =
     [...sourceIdeas]
       .sort(
@@ -14262,8 +14370,12 @@ function selectBalancedTrendIdeas({
     [...buckets.entries()];
 
   const selectedIdeas = [];
+
   const selectedIds =
     new Set();
+
+  const geographyCounts =
+    new Map();
 
   let round = 0;
 
@@ -14290,9 +14402,28 @@ function selectBalancedTrendIdeas({
         continue;
       }
 
+      const geography =
+        String(
+          idea.geography ||
+          "Інше"
+        );
+
+      const geographyCount =
+        geographyCounts.get(
+          geography
+        ) || 0;
+
+      if (
+        marketGeographies.length &&
+        geographyCount >=
+          maxPerGeography
+      ) {
+        continue;
+      }
+
       const ideaId =
         idea.id ||
-        `${idea.title}|${idea.geography}|${idea.signalType}`;
+        `${idea.title}|${idea.geography}`;
 
       if (
         selectedIds.has(
@@ -14308,6 +14439,11 @@ function selectBalancedTrendIdeas({
 
       selectedIdeas.push(
         idea
+      );
+
+      geographyCounts.set(
+        geography,
+        geographyCount + 1
       );
 
       addedInRound =
@@ -14780,19 +14916,72 @@ export async function searchProductTrends(
     });
 
   const uniqueIdeas = [];
-  const seenIdeaIds = new Set();
 
-  for (const idea of ideas) {
-    const ideaKey =
-      idea.id ||
-      `${idea.title}|${idea.geography}`;
+  const seenIdeaIds =
+    new Set();
 
-    if (seenIdeaIds.has(ideaKey)) {
+  const seenTitleKeys =
+    new Set();
+
+  for (
+    const idea
+    of ideas
+  ) {
+    const ideaId =
+      String(
+        idea.id || ""
+      );
+
+    const normalizedTitle =
+      normalizeChinaText(
+        idea.title
+      )
+        .replace(
+          /\b(?:new|latest|popular|best seller|best selling|hot)\b/g,
+          " "
+        )
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .trim();
+
+    const titleKey =
+      `${normalizedTitle}|${idea.geography}`;
+
+    if (
+      ideaId &&
+      seenIdeaIds.has(
+        ideaId
+      )
+    ) {
       continue;
     }
 
-    seenIdeaIds.add(ideaKey);
-    uniqueIdeas.push(idea);
+    if (
+      normalizedTitle &&
+      seenTitleKeys.has(
+        titleKey
+      )
+    ) {
+      continue;
+    }
+
+    if (ideaId) {
+      seenIdeaIds.add(
+        ideaId
+      );
+    }
+
+    if (normalizedTitle) {
+      seenTitleKeys.add(
+        titleKey
+      );
+    }
+
+    uniqueIdeas.push(
+      idea
+    );
   }
 
   ideas =
