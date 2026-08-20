@@ -4361,7 +4361,8 @@ function matchesAmazonCategorySection(
 function extractAmazonProducts(
   html,
   amazonConfig,
-  signalType
+  signalType,
+  allowSearchResults = false
 ) {
   const products = [];
   const seenAsins = new Set();
@@ -4458,6 +4459,7 @@ function extractAmazonProducts(
       /<img\b/i.test(productBlock);
 
     if (
+      !allowSearchResults &&
       !hasRankingMarker &&
       !isMoversAndShakersProduct
     ) {
@@ -4483,14 +4485,26 @@ function extractAmazonProducts(
       /<[^>]+\bclass=["'][^"']*(?:p13n-sc-truncate-desktop-type2|_cDEzb_p13n-sc-css-line-clamp)[^"']*["'][^>]*>([\s\S]*?)<\/[^>]+>/i
     );
 
+    const searchTitleMatch =
+      productBlock.match(
+        /<h2\b[^>]*>[\s\S]*?<span\b[^>]*>([\s\S]{4,700}?)<\/span>[\s\S]*?<\/h2>/i
+      ); 
+
     const fallbackTitleMatch = productBlock.match(
       /<span\b[^>]*>([\s\S]{8,500}?)<\/span>/i
     );
 
     const title = cleanTrendText(
       imageAltMatch?.[1] ||
-      stripHtml(titleClassMatch?.[1]) ||
-      stripHtml(fallbackTitleMatch?.[1]),
+      stripHtml(
+        titleClassMatch?.[1]
+      ) ||
+      stripHtml(
+        searchTitleMatch?.[1]
+      ) ||
+      stripHtml(
+        fallbackTitleMatch?.[1]
+      ),
       300
     );
 
@@ -4563,6 +4577,154 @@ function extractAmazonProducts(
     .slice(0, 30);
 }
 
+function buildAmazonSearchQueries(
+  category,
+  signalType,
+  refinementKey,
+  searchDetails
+) {
+  const categoryConfig =
+    MADE_IN_CHINA_CATEGORY_CONFIG[
+      category
+    ];
+
+  if (!categoryConfig) {
+    return [];
+  }
+
+  const refinementGroup =
+    refinementKey
+      ? categoryConfig.groups.find(
+          group =>
+            group.key ===
+            refinementKey
+        )
+      : null;
+
+  const searchGroups =
+    refinementGroup
+      ? [refinementGroup]
+      : categoryConfig.groups;
+
+  const signalWords = {
+    new:
+      "new arrivals latest",
+    trends:
+      "trending popular",
+    popular:
+      "best seller popular"
+  };
+
+  const signalPhrase =
+    signalWords[signalType] ||
+    "";
+
+  const details =
+    cleanTrendText(
+      searchDetails,
+      120
+    );
+
+  const queries = [];
+
+  for (
+    const group
+    of searchGroups
+  ) {
+    for (
+      const groupQuery
+      of group.queries
+    ) {
+      queries.push(
+        [
+          groupQuery,
+          signalPhrase,
+          details
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+
+      if (
+        refinementGroup &&
+        queries.length >= 4
+      ) {
+        break;
+      }
+
+      if (
+        !refinementGroup &&
+        queries.length >= 8
+      ) {
+        break;
+      }
+    }
+
+    if (
+      refinementGroup &&
+      queries.length >= 4
+    ) {
+      break;
+    }
+
+    if (
+      !refinementGroup &&
+      queries.length >= 8
+    ) {
+      break;
+    }
+  }
+
+  return [
+    ...new Set(
+      queries
+        .map(query =>
+          cleanTrendText(
+            query,
+            220
+          )
+        )
+        .filter(Boolean)
+    )
+  ];
+}
+
+function getAmazonSearchUrl(
+  amazonConfig,
+  category,
+  searchQuery
+) {
+  const url =
+    new URL(
+      "/s",
+      amazonConfig.domain
+    );
+
+  url.searchParams.set(
+    "k",
+    searchQuery
+  );
+
+  const categoryConfig =
+    AMAZON_CATEGORY_PATHS[
+      category
+    ] || {};
+
+  const categoryPath =
+    categoryConfig[
+      amazonConfig.code
+    ] || "";
+
+  if (categoryPath) {
+    url.searchParams.set(
+      "i",
+      categoryPath
+    );
+  }
+
+  return url.toString();
+}
+
 function getAmazonRankingUrl(
   amazonConfig,
   category,
@@ -4603,7 +4765,9 @@ async function loadAmazonRanking({
   exclusions
 }) {
   const signalConfig =
-    AMAZON_SIGNAL_PATHS[signalType];
+    AMAZON_SIGNAL_PATHS[
+      signalType
+    ];
 
   if (!signalConfig) {
     return {
@@ -4622,99 +4786,320 @@ async function loadAmazonRanking({
     };
   }
 
-  const sourceUrl =
-    getAmazonRankingUrl(
-      amazonConfig,
+  const searchQueries =
+    buildAmazonSearchQueries(
       category,
-      signalType
+      signalType,
+      refinementKey,
+      searchDetails
     );
 
-  const response = await fetch(sourceUrl, {
-    method: "GET",
-    headers: {
-      Accept:
-        "text/html,application/xhtml+xml",
-      "Accept-Language":
-        amazonConfig.language,
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-        "AppleWebKit/537.36 Chrome/124 Safari/537.36"
-    },
-    signal: AbortSignal.timeout(20000)
-  });
-
-  if (!response.ok) {
-    const error = new Error(
-      `AMAZON_${amazonConfig.code.toUpperCase()}_REQUEST_FAILED_${response.status}`
-    );
-
-    error.statusCode = 502;
-    throw error;
+  if (!searchQueries.length) {
+    return {
+      source:
+        amazonConfig.sourceName,
+      sourceType:
+        signalType,
+      sourceUrl:
+        null,
+      status:
+        "no_results",
+      totalExtracted:
+        0,
+      products:
+        []
+    };
   }
 
-  const html = await response.text();
+  const requestResults =
+    await Promise.allSettled(
+      searchQueries.map(
+        async searchQuery => {
+          const sourceUrl =
+            getAmazonSearchUrl(
+              amazonConfig,
+              category,
+              searchQuery
+            );
 
-  const extractedProducts =
-    extractAmazonProducts(
-      html,
-      amazonConfig,
-      signalType
+          const response =
+            await fetch(
+              sourceUrl,
+              {
+                method:
+                  "GET",
+                headers: {
+                  Accept:
+                    "text/html,application/xhtml+xml",
+                  "Accept-Language":
+                    amazonConfig.language,
+                  "User-Agent":
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                    "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+                },
+                signal:
+                  AbortSignal.timeout(
+                    15000
+                  )
+              }
+            );
+
+          if (!response.ok) {
+            throw new Error(
+              `AMAZON_${amazonConfig.code.toUpperCase()}_REQUEST_FAILED_${response.status}`
+            );
+          }
+
+          const html =
+            await response.text();
+
+          return {
+            searchQuery,
+            sourceUrl,
+            products:
+              extractAmazonProducts(
+                html,
+                amazonConfig,
+                signalType,
+                true
+              )
+          };
+        }
+      )
     );
-  const filteredProducts =
-    extractedProducts
-      .filter(product =>
-        matchesAmazonRefinement(
-          product.title,
-          category,
-          refinementKey
-        )
-      )
-      .filter(product =>
-        !searchDetails ||
-        matchesSearchDetails(
-          product.title,
-          searchDetails
-        ) ||
-        matchesAmazonRefinement(
-          product.title,
-          category,
-          refinementKey
-        )
-      )
-      .filter(product =>
-        !matchesExclusions(
+
+  const productsByAsin =
+    new Map();
+
+  const checkedSources = [];
+
+  let successfulRequests = 0;
+  let totalExtracted = 0;
+  let firstSourceUrl = null;
+
+  for (
+    const requestResult
+    of requestResults
+  ) {
+    if (
+      requestResult.status !==
+      "fulfilled"
+    ) {
+      console.error(
+        `[${amazonConfig.sourceName} ${signalType}]`,
+        requestResult.reason
+      );
+
+      continue;
+    }
+
+    successfulRequests += 1;
+
+    const {
+      searchQuery,
+      sourceUrl,
+      products
+    } =
+      requestResult.value;
+
+    firstSourceUrl ||=
+      sourceUrl;
+
+    checkedSources.push({
+      query:
+        searchQuery,
+      url:
+        sourceUrl
+    });
+
+    totalExtracted +=
+      products.length;
+
+    for (
+      const product
+      of products
+    ) {
+      if (
+        matchesExclusions(
           product.title,
           exclusions
         )
-      )
-      .slice(0, 30)
-      .map((product, index) => ({
-        ...product,
+      ) {
+        continue;
+      }
+
+      const existingProduct =
+        productsByAsin.get(
+          product.asin
+        );
+
+      if (!existingProduct) {
+        productsByAsin.set(
+          product.asin,
+          {
+            ...product,
+            occurrenceCount:
+              1,
+            matchedQueries: [
+              searchQuery
+            ]
+          }
+        );
+
+        continue;
+      }
+
+      existingProduct.occurrenceCount +=
+        1;
+
+      existingProduct.sourcePosition =
+        Math.min(
+          Number(
+            existingProduct.sourcePosition
+          ) || 999,
+          Number(
+            product.sourcePosition
+          ) || 999
+        );
+
+      if (
+        !existingProduct
+          .matchedQueries
+          .includes(
+            searchQuery
+          )
+      ) {
+        existingProduct
+          .matchedQueries
+          .push(
+            searchQuery
+          );
+      }
+
+      if (
+        !existingProduct.imageUrl &&
+        product.imageUrl
+      ) {
+        existingProduct.imageUrl =
+          product.imageUrl;
+      }
+    }
+  }
+
+  if (!successfulRequests) {
+    return {
+      source:
+        amazonConfig.sourceName,
+      sourceType:
         signalType,
-        sourceName:
-          `${amazonConfig.sourceName} ${signalConfig.rankingName}`,
-        description:
-          signalConfig.description,
-        sourcePosition:
-          Number(product.sourcePosition) > 0
-            ? Number(product.sourcePosition)
-            : index + 1
-      }));
+      sourceUrl:
+        firstSourceUrl,
+      status:
+        "no_results",
+      totalExtracted:
+        0,
+      checkedSources,
+      products:
+        []
+    };
+  }
+
+  const refinementGroup =
+    getTrendRefinementGroup(
+      category,
+      refinementKey
+    );
+
+  const products =
+    [...productsByAsin.values()]
+      .map(product => {
+        const refinementScore =
+          refinementGroup
+            ? refinementGroup.include.filter(
+                phrase =>
+                  normalizeChinaText(
+                    product.title
+                  ).includes(
+                    normalizeChinaText(
+                      phrase
+                    )
+                  )
+              ).length
+            : 0;
+
+        return {
+          ...product,
+
+          refinementScore,
+
+          signalType,
+
+          sourceName:
+            `${amazonConfig.sourceName} ${signalConfig.rankingName}`,
+
+          description:
+            signalConfig.description
+        };
+      })
+      .sort(
+        (first, second) =>
+          Number(
+            second.occurrenceCount ||
+            0
+          ) -
+          Number(
+            first.occurrenceCount ||
+            0
+          ) ||
+          Number(
+            second.refinementScore ||
+            0
+          ) -
+          Number(
+            first.refinementScore ||
+            0
+          ) ||
+          Number(
+            first.sourcePosition ||
+            999
+          ) -
+          Number(
+            second.sourcePosition ||
+            999
+          )
+      )
+      .slice(
+        0,
+        50
+      )
+      .map(
+        (product, index) => ({
+          ...product,
+          sourcePosition:
+            index + 1
+        })
+      );
 
   return {
     source:
       amazonConfig.sourceName,
+
     sourceType:
       signalType,
-    sourceUrl,
+
+    sourceUrl:
+      firstSourceUrl,
+
     status:
-      filteredProducts.length
+      products.length
         ? "ok"
         : "no_results",
-    totalExtracted:
-      extractedProducts.length,
-    products:
-      filteredProducts
+
+    totalExtracted,
+
+    checkedSources,
+
+    products
   };
 }
 
@@ -4884,6 +5269,13 @@ function buildIdeasFromAmazon(
           product.sourceName ||
           amazonConfig.sourceName
         ],
+        categoryVerified:
+          true,
+
+        refinementVerified:
+          Boolean(
+            product.matchedQueries?.length
+          ),        
         links: [
           {
             label:
@@ -5980,6 +6372,7 @@ function filterTrendIdeasByCategory({
       }
 
       if (
+        !idea.categoryVerified &&
         !matchesTrendCategory(
           title,
           category
@@ -5990,6 +6383,7 @@ function filterTrendIdeasByCategory({
 
       if (
         refinementKey &&
+        !idea.refinementVerified &&
         !matchesTrendRefinement(
           title,
           category,
