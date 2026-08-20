@@ -60,6 +60,10 @@ const TREND_REFINEMENT_OPTIONS = {
     ["kitchen-gadgets", "Кухонні гаджети та інструменти"],
     ["food-storage", "Зберігання продуктів"],
     ["tableware", "Посуд і сервірування"],
+    ["drinkware", "Термоси, пляшки та термокружки"],
+    ["cookware", "Каструлі, сковорідки та cookware"],
+    ["coffee-tea", "Кава та чай"],
+    ["small-kitchen-appliances", "Компактна кухонна техніка"],
     ["baking", "Випічка"],
     ["sink-accessories", "Аксесуари для мийки"]
   ],
@@ -69,7 +73,10 @@ const TREND_REFINEMENT_OPTIONS = {
     ["drawer-desktop", "Шухляди та робочий стіл"],
     ["bathroom-storage", "Зберігання у ванній"],
     ["kitchen-storage", "Зберігання на кухні"],
-    ["boxes-baskets", "Короби, кошики та контейнери"]
+    ["boxes-baskets", "Короби, кошики та контейнери"],
+    ["vacuum-storage", "Вакуумне зберігання"],
+    ["travel-storage", "Органайзери для подорожей"],
+    ["hooks-holders", "Гачки та тримачі"]
   ],
 
   "decor": [
@@ -78,7 +85,10 @@ const TREND_REFINEMENT_OPTIONS = {
     ["figurines-ornaments", "Статуетки та декоративні фігури"],
     ["trays-stands", "Декоративні таці та підставки"],
     ["frames-wall-decor", "Рамки та настінний декор"],
-    ["textile-decor", "Текстильний декор"]
+    ["textile-decor", "Текстильний декор"],
+    ["decorative-lighting", "Декоративне освітлення"],
+    ["clocks", "Декоративні годинники"],
+    ["artificial-flowers", "Штучні квіти та рослини"]
   ],
 
   "household": [
@@ -86,7 +96,10 @@ const TREND_REFINEMENT_OPTIONS = {
     ["laundry-care", "Прання та догляд за одягом"],
     ["bathroom-daily-use", "Побутові товари для ванної"],
     ["waste-disposal", "Сміття та утилізація"],
-    ["home-care-gadgets", "Корисні побутові гаджети"]
+    ["home-care-gadgets", "Корисні побутові гаджети"],
+    ["air-home-care", "Запахи, волога та повітря"],
+    ["shoe-care", "Догляд за взуттям"],
+    ["kitchen-cleaning", "Прибирання кухні"]
   ],
 
   "beauty-care": [
@@ -96,8 +109,11 @@ const TREND_REFINEMENT_OPTIONS = {
     ["makeup-accessories", "Аксесуари для макіяжу"],
     ["beauty-devices", "Б'юті-пристрої та масажери"],
     ["hair-care", "Догляд за волоссям"],
+    ["hair-styling-devices", "Пристрої для укладки волосся"],
     ["body-care", "Догляд за тілом"],
-    ["nail-care", "Догляд за нігтями"]
+    ["nail-care", "Догляд за нігтями"],
+    ["oral-care", "Догляд за зубами та ротовою порожниною"],
+    ["beauty-storage", "Організація косметики"]
   ],
 
   "kids": [
@@ -105,7 +121,10 @@ const TREND_REFINEMENT_OPTIONS = {
     ["hygiene", "Гігієна та догляд"],
     ["safety", "Безпека"],
     ["travel", "Прогулянки та подорожі"],
-    ["sleep-nursery", "Сон та дитяча кімната"]
+    ["sleep-nursery", "Сон та дитяча кімната"],
+    ["development-baby", "Розвиток малюка"],
+    ["potty-training", "Привчання до горщика"],
+    ["baby-storage", "Організація дитячих речей"]
   ],
 
   "toys": [
@@ -114,7 +133,12 @@ const TREND_REFINEMENT_OPTIONS = {
     ["building-puzzles", "Конструктори та пазли"],
     ["creative-sets", "Творчі набори"],
     ["role-play", "Сюжетно-рольові"],
-    ["interactive", "Інтерактивні та електронні"]
+    ["interactive", "Інтерактивні та електронні"],
+    ["outdoor-toys", "Іграшки для вулиці"],
+    ["vehicles-rc", "Машинки та радіокеровані"],
+    ["dolls-figures", "Ляльки та фігурки"],
+    ["board-games", "Настільні ігри"],
+    ["plush", "М'які іграшки"]
   ],
 
   "stationery": [
@@ -122,7 +146,10 @@ const TREND_REFINEMENT_OPTIONS = {
     ["notebooks-planners", "Блокноти та планери"],
     ["stickers-paper", "Стікери, папір та нотатки"],
     ["cases-organizers", "Пенали та органайзери"],
-    ["art-supplies", "Товари для малювання і творчості"]
+    ["art-supplies", "Товари для малювання і творчості"],
+    ["school-tools", "Шкільне приладдя"],
+    ["desk-accessories", "Аксесуари для робочого столу"],
+    ["filing-organization", "Папки та організація документів"]
   ],
 
   "accessories": [
@@ -131,14 +158,22 @@ const TREND_REFINEMENT_OPTIONS = {
     ["wallets-holders", "Гаманці та кардхолдери"],
     ["bag-accessories", "Аксесуари для сумок"],
     ["phone-fashion", "Модні аксесуари для телефону"],
-    ["eyewear", "Окуляри та аксесуари"]
+    ["eyewear", "Окуляри та аксесуари"],
+    ["keychains-charms", "Брелоки та підвіски"],
+    ["belts-scarves", "Ремені та шарфи"],
+    ["watches-straps", "Годинники та ремінці"],
+    ["travel-accessories", "Особисті аксесуари для подорожей"]
   ],
 
   "pets": [
+    ["feeding", "Годування"],
     ["toys", "Іграшки для тварин"],
     ["walking", "Прогулянки"],
     ["grooming", "Грумінг та догляд"],
-    ["beds-travel", "Лежанки та подорожі"]
+    ["hygiene", "Гігієна та туалет"],
+    ["beds-travel", "Лежанки та подорожі"],
+    ["training", "Тренування та дресирування"],
+    ["smart-pet", "Розумні товари для тварин"]
   ],
 
   "seasonal": [
@@ -147,6 +182,10 @@ const TREND_REFINEMENT_OPTIONS = {
     ["easter", "Великдень"],
     ["party", "Свята та вечірки"],
     ["summer", "Літні товари"],
+    ["winter", "Зимові товари"],
+    ["valentine", "День закоханих"],
+    ["garden-seasonal", "Сад і сезонний outdoor"],
+    ["rain-weather", "Дощ та негода"],
     ["back-to-school", "Back to school"]
   ],
 
@@ -156,7 +195,11 @@ const TREND_REFINEMENT_OPTIONS = {
     ["frames-keepsakes", "Рамки та пам'ятні подарунки"],
     ["figurines-souvenirs", "Сувеніри та декоративні подарунки"],
     ["personal-gifts", "Персоналізовані подарунки"],
-    ["novelty-gifts", "Незвичайні та креативні подарунки"]
+    ["novelty-gifts", "Незвичайні та креативні подарунки"],
+    ["gift-packaging", "Подарункове пакування"],
+    ["drinkware-gifts", "Чашки, термокружки та drinkware"],
+    ["tech-gifts", "Технологічні подарунки"],
+    ["self-care-gifts", "Подарунки для догляду за собою"]
   ],
 
   "electronics-accessories": [
@@ -165,12 +208,20 @@ const TREND_REFINEMENT_OPTIONS = {
     ["audio", "Аудіоаксесуари"],
     ["smart-trackers", "Трекери та smart-аксесуари"],
     ["lighting-gadgets", "Невеликі світлові гаджети"],
-    ["computer-accessories", "Комп'ютерні аксесуари"]
+    ["computer-accessories", "Комп'ютерні аксесуари"],
+    ["power-banks", "Павербанки"],
+    ["wearable-accessories", "Аксесуари для smart-годинників"],
+    ["photo-video", "Фото та відео аксесуари"],
+    ["gaming-accessories", "Ігрові аксесуари"],
+    ["smart-home", "Невеликі smart-home пристрої"]
   ],
 
   "other": [
     ["daily-use", "Корисні товари щоденного використання"],
-    ["novelty", "Нові та незвичайні товари"]
+    ["novelty", "Нові та незвичайні товари"],
+    ["travel", "Товари для подорожей"],
+    ["fitness-wellness", "Фітнес та wellness"],
+    ["outdoor-hobby", "Outdoor та хобі"]
   ]
 };
 
