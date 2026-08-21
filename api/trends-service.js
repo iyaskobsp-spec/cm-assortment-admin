@@ -5561,78 +5561,57 @@ function buildAmazonSearchQueries(
         ? group.queries
         : [];
 
-    const queriesForGroup =
-      refinementKey
-        ? groupQueries.slice(
-            0,
-            2
-          )
-        : groupQueries.slice(
-            0,
-            1
-          );
+    const primaryQuery =
+      [
+        groupQueries[0] || "",
+        signalPhrase,
+        details
+      ]
+        .filter(Boolean)
+        .join(" ");
 
-    for (
-      const groupQuery
-      of queriesForGroup
-    ) {
-      const searchQuery =
-        [
-          groupQuery,
-          signalPhrase,
-          details
-        ]
-          .filter(Boolean)
-          .join(" ");
+    const fallbackQuery =
+      [
+        groupQueries[1] || "",
+        signalPhrase,
+        details
+      ]
+        .filter(Boolean)
+        .join(" ");
 
-      const cleanedQuery =
-        cleanTrendText(
-          searchQuery,
-          220
-        );
+    const cleanedPrimaryQuery =
+      cleanTrendText(
+        primaryQuery,
+        220
+      );
 
-      if (!cleanedQuery) {
-        continue;
-      }
+    const cleanedFallbackQuery =
+      cleanTrendText(
+        fallbackQuery,
+        220
+      );
 
-      queryItems.push({
-        searchQuery:
-          cleanedQuery,
-
-        subgroup:
-          group.key
-      });
-    }
-  }
-
-  const uniqueItems = [];
-  const seen = new Set();
-
-  for (
-    const queryItem
-    of queryItems
-  ) {
-    const key =
-      `${queryItem.subgroup}|${queryItem.searchQuery}`;
-
-    if (
-      seen.has(
-        key
-      )
-    ) {
+    if (!cleanedPrimaryQuery) {
       continue;
     }
 
-    seen.add(
-      key
-    );
+    queryItems.push({
+      searchQuery:
+        cleanedPrimaryQuery,
 
-    uniqueItems.push(
-      queryItem
-    );
+      fallbackSearchQuery:
+        cleanedFallbackQuery &&
+        cleanedFallbackQuery !==
+          cleanedPrimaryQuery
+          ? cleanedFallbackQuery
+          : "",
+
+      subgroup:
+        group.key
+    });
   }
 
-  return uniqueItems;
+  return queryItems;
 }
 
 function getAmazonSearchUrl(
