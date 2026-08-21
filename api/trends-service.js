@@ -12292,7 +12292,7 @@ async function loadChina1688Signal({
       getChinaSourcePoolLimit(
         refinementKey
       )
-    );
+    )
       .map(
         (product, index) => ({
           ...product,
