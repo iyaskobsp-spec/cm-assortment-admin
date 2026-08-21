@@ -6932,7 +6932,11 @@ function buildIdeasFromAmazon(
           }
         ],
         sourcePosition:
-          product.sourcePosition
+          product.sourcePosition,
+        subgroup:
+          product.subgroup ||
+          product.matchedSubgroups?.[0] ||
+          null
       };
     }
   );
