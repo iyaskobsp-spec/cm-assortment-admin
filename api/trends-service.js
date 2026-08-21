@@ -15165,6 +15165,8 @@ export async function searchProductTrends(
       )
     );  
 
+  const amazonTasks = [];
+
   for (
     const amazonConfig
     of amazonConfigs
@@ -15173,55 +15175,82 @@ export async function searchProductTrends(
       const amazonSignalType
       of requestedSignalTypes
     ) {
-      try {
-        const amazonResult =
-          amazonSignalType === "trends"
-            ? await loadAmazonTrendCandidates({
-                amazonConfig,
-                category,
-                refinementKey,
-                searchDetails,
-                exclusions
-              })
-            : await loadAmazonRanking({
-                amazonConfig,
-                category,
-                signalType:
-                  amazonSignalType,
-                refinementKey,
-                searchDetails,
-                exclusions
-              });
-        sources.push(
-          amazonResult
-        );
+      amazonTasks.push(
+        async () => {
+          try {
+            const amazonResult =
+              amazonSignalType === "trends"
+                ? await loadAmazonTrendCandidates({
+                    amazonConfig,
+                    category,
+                    refinementKey,
+                    searchDetails,
+                    exclusions
+                  })
+                : await loadAmazonRanking({
+                    amazonConfig,
+                    category,
+                    signalType:
+                      amazonSignalType,
+                    refinementKey,
+                    searchDetails,
+                    exclusions
+                  });
 
-        ideas = ideas.concat(
-          buildIdeasFromAmazon(
-            amazonResult,
-            amazonConfig
-          )
-        );
-      } catch (error) {
-        console.error(
-          `[${amazonConfig.sourceName} ${amazonSignalType}]`,
-          error
-        );
+            sources.push(
+              amazonResult
+            );
 
-        sources.push({
-          source:
-            amazonConfig.sourceName,
-          sourceType:
-            amazonSignalType,
-          status:
-            "error",
-          message:
-            `${amazonConfig.sourceName} тимчасово не повернув вибраний рейтинг.`,
-          products:
-            []
-        });
-      }
+            ideas = ideas.concat(
+              buildIdeasFromAmazon(
+                amazonResult,
+                amazonConfig
+              )
+            );
+          } catch (error) {
+            console.error(
+              `[${amazonConfig.sourceName} ${amazonSignalType}]`,
+              error
+            );
+
+            sources.push({
+              source:
+                amazonConfig.sourceName,
+              sourceType:
+                amazonSignalType,
+              status:
+                "error",
+              message:
+                `${amazonConfig.sourceName} тимчасово не повернув вибраний рейтинг.`,
+              products:
+                []
+            });
+          }
+        }
+      );
     }
+  }
+
+  const amazonBatchSize = 2;
+
+  for (
+    let amazonIndex = 0;
+    amazonIndex <
+      amazonTasks.length;
+    amazonIndex +=
+      amazonBatchSize
+  ) {
+    await Promise.all(
+      amazonTasks
+        .slice(
+          amazonIndex,
+          amazonIndex +
+            amazonBatchSize
+        )
+        .map(amazonTask =>
+          amazonTask()
+        )
+    );
   }
 
   const chinaTasks = [];
