@@ -6939,7 +6939,13 @@ function buildIdeasFromAmazon(
         subgroup:
           product.subgroup ||
           product.matchedSubgroups?.[0] ||
-          null
+          null,
+        varietyKeys:
+          Array.isArray(
+            product.matchedQueries
+          )
+            ? product.matchedQueries
+            : []
       };
     }
   );
@@ -7038,30 +7044,59 @@ function buildMadeInChinaQueries(
     const group
     of searchGroups
   ) {
-    const categoryQuery =
-      group.queries[0];
+    const groupQueries =
+      Array.isArray(
+        group.queries
+      )
+        ? group.queries
+        : [];
 
-    const searchQuery =
-      cleanTrendText(
-        [
-          categoryQuery,
-          signalConfig.queryWords,
-          details
-        ]
-          .filter(Boolean)
-          .join(" "),
-        220
-      );
+    const selectedGroupQueries =
+      refinementKey
+        ? groupQueries.slice(
+            0,
+            2
+          )
+        : groupQueries.slice(
+            0,
+            1
+          );
 
-    if (!searchQuery) {
-      continue;
+    for (
+      const categoryQuery
+      of selectedGroupQueries
+    ) {
+      const searchQuery =
+        cleanTrendText(
+          [
+            categoryQuery,
+            signalConfig.queryWords,
+            details
+          ]
+            .filter(Boolean)
+            .join(" "),
+          220
+        );
+
+      if (
+        !searchQuery ||
+        queryItems.some(
+          queryItem =>
+            queryItem.searchQuery ===
+              searchQuery &&
+            queryItem.subgroup ===
+              group.key
+        )
+      ) {
+        continue;
+      }
+
+      queryItems.push({
+        searchQuery,
+        subgroup:
+          group.key
+      });
     }
-
-    queryItems.push({
-      searchQuery,
-      subgroup:
-        group.key
-    });
   }
 
   return queryItems.slice(
@@ -10168,30 +10203,59 @@ function buildAlibabaSearchQueries(
     const group
     of searchGroups
   ) {
-    const baseQuery =
-      group.queries[0];
+    const groupQueries =
+      Array.isArray(
+        group.queries
+      )
+        ? group.queries
+        : [];
 
-    const searchQuery =
-      cleanTrendText(
-        [
-          signalConfig.prefix,
-          baseQuery,
-          details
-        ]
-          .filter(Boolean)
-          .join(" "),
-        200
-      );
+    const selectedGroupQueries =
+      refinementKey
+        ? groupQueries.slice(
+            0,
+            2
+          )
+        : groupQueries.slice(
+            0,
+            1
+          );
 
-    if (!searchQuery) {
-      continue;
+    for (
+      const baseQuery
+      of selectedGroupQueries
+    ) {
+      const searchQuery =
+        cleanTrendText(
+          [
+            signalConfig.prefix,
+            baseQuery,
+            details
+          ]
+            .filter(Boolean)
+            .join(" "),
+          200
+        );
+
+      if (
+        !searchQuery ||
+        queryItems.some(
+          queryItem =>
+            queryItem.searchQuery ===
+              searchQuery &&
+            queryItem.subgroup ===
+              group.key
+        )
+      ) {
+        continue;
+      }
+
+      queryItems.push({
+        searchQuery,
+        subgroup:
+          group.key
+      });
     }
-
-    queryItems.push({
-      searchQuery,
-      subgroup:
-        group.key
-    });
   }
 
   return queryItems.slice(
@@ -12313,33 +12377,58 @@ function buildYiwugoSearchQueries(
     const group
     of searchGroups
   ) {
-    const baseQuery =
-      Array.isArray(group.queries)
-        ? group.queries[0]
-        : "";
+    const groupQueries =
+      Array.isArray(
+        group.queries
+      )
+        ? group.queries
+        : [];
 
-    if (!baseQuery) {
-      continue;
+    const selectedGroupQueries =
+      refinementKey
+        ? groupQueries.slice(
+            0,
+            2
+          )
+        : groupQueries.slice(
+            0,
+            1
+          );
+
+    for (
+      const baseQuery
+      of selectedGroupQueries
+    ) {
+      const searchQuery =
+        cleanTrendText(
+          [
+            baseQuery,
+            details
+          ]
+            .filter(Boolean)
+            .join(" "),
+          200
+        );
+
+      if (
+        !searchQuery ||
+        queries.some(
+          queryItem =>
+            queryItem.searchQuery ===
+              searchQuery &&
+            queryItem.subgroup ===
+              group.key
+        )
+      ) {
+        continue;
+      }
+
+      queries.push({
+        searchQuery,
+        subgroup:
+          group.key
+      });
     }
-
-    queries.push({
-      searchQuery:
-        baseQuery,
-      subgroup:
-        group.key
-    });
-  }
-
-  if (
-    details &&
-    queries.length
-  ) {
-    queries.push({
-      searchQuery:
-        `${queries[0].searchQuery} ${details}`,
-      subgroup:
-        queries[0].subgroup
-    });
   }
 
   return queries.slice(
@@ -13141,7 +13230,9 @@ function buildChinagoodsSearchQueries(
     searchDetails
   ).slice(
     0,
-    1
+    refinementKey
+      ? 2
+      : 1
   );
 }
 
@@ -14679,6 +14770,160 @@ function getTrendResultLimit(
     : 150;
 }
 
+function getTrendIdeaVarietyKey({
+  idea,
+  category,
+  subgroup
+}) {
+  const refinementGroup =
+    getTrendRefinementGroup(
+      category,
+      subgroup
+    );
+
+  if (refinementGroup) {
+    const normalizedTitle =
+      normalizeChinaText(
+        idea.title
+      );
+
+    const matchedPhrases =
+      refinementGroup.include
+        .filter(phrase =>
+          matchesChinaProductPhrase(
+            normalizedTitle,
+            phrase
+          )
+        )
+        .sort(
+          (first, second) =>
+            getChinaWords(
+              second
+            ).length -
+              getChinaWords(
+                first
+              ).length ||
+            String(second).length -
+              String(first).length
+        );
+
+    if (matchedPhrases.length) {
+      return normalizeChinaText(
+        matchedPhrases[0]
+      );
+    }
+  }
+
+  const varietyKeys =
+    Array.isArray(
+      idea.varietyKeys
+    )
+      ? idea.varietyKeys
+      : [];
+
+  const firstVarietyKey =
+    varietyKeys
+      .map(value =>
+        normalizeChinaText(
+          value
+        )
+      )
+      .find(Boolean);
+
+  return firstVarietyKey ||
+    "other";
+}
+
+function balanceTrendIdeasByVariety({
+  ideas,
+  category,
+  subgroup
+}) {
+  const sourceIdeas =
+    Array.isArray(ideas)
+      ? ideas
+      : [];
+
+  const varietyBuckets =
+    new Map();
+
+  for (
+    const idea
+    of sourceIdeas
+  ) {
+    const varietyKey =
+      getTrendIdeaVarietyKey({
+        idea,
+        category,
+        subgroup
+      });
+
+    if (
+      !varietyBuckets.has(
+        varietyKey
+      )
+    ) {
+      varietyBuckets.set(
+        varietyKey,
+        []
+      );
+    }
+
+    varietyBuckets
+      .get(
+        varietyKey
+      )
+      .push(
+        idea
+      );
+  }
+
+  const bucketIdeas = [
+    ...varietyBuckets.values()
+  ];
+
+  const balancedIdeas = [];
+
+  let round = 0;
+
+  while (
+    balancedIdeas.length <
+      sourceIdeas.length
+  ) {
+    let addedInRound =
+      false;
+
+    for (
+      const varietyIdeas
+      of bucketIdeas
+    ) {
+      const idea =
+        varietyIdeas[
+          round
+        ];
+
+      if (!idea) {
+        continue;
+      }
+
+      balancedIdeas.push(
+        idea
+      );
+
+      addedInRound =
+        true;
+    }
+
+    if (!addedInRound) {
+      break;
+    }
+
+    round += 1;
+  }
+
+  return balancedIdeas;
+}
+
 function selectBalancedTrendIdeas({
   ideas,
   market,
@@ -14890,6 +15135,30 @@ function selectBalancedTrendIdeas({
       .push(
         idea
       );
+  }
+
+  for (
+    const [
+      bucketKey,
+      bucketIdeas
+    ]
+    of buckets.entries()
+  ) {
+    const subgroup =
+      bucketKey
+        .split("|")
+        .pop() ||
+      "other";
+
+    buckets.set(
+      bucketKey,
+      balanceTrendIdeasByVariety({
+        ideas:
+          bucketIdeas,
+        category,
+        subgroup
+      })
+    );
   }
 
   const bucketKeys = [];
