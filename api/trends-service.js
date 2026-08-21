@@ -14656,7 +14656,7 @@ function applyChinaCrossSourceRanking(
 
 function getTrendResultLimit(
   market,
-  signalType
+  refinementKey
 ) {
   const multiMarket =
     [
@@ -14671,20 +14671,16 @@ function getTrendResultLimit(
     return 150;
   }
 
-  if (
-    signalType ===
-    "all"
-  ) {
-    return 100;
-  }
-
-  return 50;
+  return refinementKey
+    ? 50
+    : 150;
 }
 
 function selectBalancedTrendIdeas({
   ideas,
   market,
-  signalType
+  category,
+  refinementKey
 }) {
   const sourceIdeas =
     Array.isArray(ideas)
@@ -14694,7 +14690,7 @@ function selectBalancedTrendIdeas({
   const limit =
     getTrendResultLimit(
       market,
-      signalType
+      refinementKey
     );
 
   const expectedGeographies = {
@@ -14726,21 +14722,54 @@ function selectBalancedTrendIdeas({
     ]
   };
 
-  const marketGeographies =
-    expectedGeographies[
-      market
-    ] || [];
+  const categorySubgroups =
+    getTrendSearchGroups(
+      category,
+      ""
+    )
+      .map(group =>
+        group.key
+      )
+      .filter(Boolean);
 
-  const maxPerGeography =
-    marketGeographies.length
-      ? Math.ceil(
-          limit /
-          marketGeographies.length
+  const requestedSubgroups =
+    refinementKey
+      ? [refinementKey]
+      : categorySubgroups;
+
+  const preparedIdeas =
+    sourceIdeas.map(idea => {
+      let subgroup =
+        String(
+          idea.subgroup || ""
+        );
+
+      if (refinementKey) {
+        subgroup =
+          refinementKey;
+      } else if (
+        !subgroup ||
+        !requestedSubgroups.includes(
+          subgroup
         )
-      : limit;
+      ) {
+        subgroup =
+          getMadeInChinaProductProfile(
+            idea.title,
+            category,
+            null
+          ).subgroup ||
+          "other";
+      }
+
+      return {
+        ...idea,
+        subgroup
+      };
+    });
 
   const sortedIdeas =
-    [...sourceIdeas]
+    [...preparedIdeas]
       .sort(
         (first, second) =>
           Number(
@@ -14761,6 +14790,63 @@ function selectBalancedTrendIdeas({
           )
       );
 
+  const availableGeographies = [
+    ...new Set(
+      sortedIdeas.map(idea =>
+        String(
+          idea.geography ||
+          "Інше"
+        )
+      )
+    )
+  ];
+
+  const marketGeographies =
+    expectedGeographies[
+      market
+    ] || [];
+
+  const geographyOrder = [
+    ...marketGeographies.filter(
+      geography =>
+        availableGeographies.includes(
+          geography
+        )
+    ),
+    ...availableGeographies.filter(
+      geography =>
+        !marketGeographies.includes(
+          geography
+        )
+    )
+  ];
+
+  const availableSubgroups = [
+    ...new Set(
+      sortedIdeas.map(idea =>
+        String(
+          idea.subgroup ||
+          "other"
+        )
+      )
+    )
+  ];
+
+  const subgroupOrder = [
+    ...requestedSubgroups.filter(
+      subgroup =>
+        availableSubgroups.includes(
+          subgroup
+        )
+    ),
+    ...availableSubgroups.filter(
+      subgroup =>
+        !requestedSubgroups.includes(
+          subgroup
+        )
+    )
+  ];
+
   const buckets =
     new Map();
 
@@ -14774,16 +14860,14 @@ function selectBalancedTrendIdeas({
         "Інше"
       );
 
-    const ideaSignal =
+    const subgroup =
       String(
-        idea.signalType ||
+        idea.subgroup ||
         "other"
       );
 
     const bucketKey =
-      signalType === "all"
-        ? `${geography}|${ideaSignal}`
-        : geography;
+      `${geography}|${subgroup}`;
 
     if (
       !buckets.has(
@@ -14805,18 +14889,45 @@ function selectBalancedTrendIdeas({
       );
   }
 
-  const bucketEntries =
-    [...buckets.entries()];
+  const bucketKeys = [];
+
+  for (
+    const subgroup
+    of subgroupOrder
+  ) {
+    for (
+      const geography
+      of geographyOrder
+    ) {
+      const bucketKey =
+        `${geography}|${subgroup}`;
+
+      if (
+        buckets.has(
+          bucketKey
+        )
+      ) {
+        bucketKeys.push(
+          bucketKey
+        );
+      }
+    }
+  }
 
   const selectedIdeas = [];
 
   const selectedIds =
     new Set();
 
-  const geographyCounts =
-    new Map();
-
-  let round = 0;
+  const bucketCursors =
+    new Map(
+      bucketKeys.map(
+        bucketKey => [
+          bucketKey,
+          0
+        ]
+      )
+    );
 
   while (
     selectedIdeas.length <
@@ -14826,40 +14937,82 @@ function selectBalancedTrendIdeas({
       false;
 
     for (
-      const [
-        ,
-        bucketIdeas
-      ]
-      of bucketEntries
+      const bucketKey
+      of bucketKeys
     ) {
-      const idea =
-        bucketIdeas[
-          round
-        ];
+      const bucketIdeas =
+        buckets.get(
+          bucketKey
+        ) || [];
 
-      if (!idea) {
-        continue;
-      }
-
-      const geography =
-        String(
-          idea.geography ||
-          "Інше"
-        );
-
-      const geographyCount =
-        geographyCounts.get(
-          geography
+      let cursor =
+        bucketCursors.get(
+          bucketKey
         ) || 0;
 
-      if (
-        marketGeographies.length &&
-        geographyCount >=
-          maxPerGeography
+      while (
+        cursor <
+          bucketIdeas.length
       ) {
-        continue;
+        const idea =
+          bucketIdeas[
+            cursor
+          ];
+
+        cursor += 1;
+
+        const ideaId =
+          idea.id ||
+          `${idea.title}|${idea.geography}`;
+
+        if (
+          selectedIds.has(
+            ideaId
+          )
+        ) {
+          continue;
+        }
+
+        selectedIds.add(
+          ideaId
+        );
+
+        selectedIdeas.push(
+          idea
+        );
+
+        addedInRound =
+          true;
+
+        break;
       }
 
+      bucketCursors.set(
+        bucketKey,
+        cursor
+      );
+
+      if (
+        selectedIdeas.length >=
+        limit
+      ) {
+        break;
+      }
+    }
+
+    if (!addedInRound) {
+      break;
+    }
+  }
+
+  if (
+    selectedIdeas.length <
+    limit
+  ) {
+    for (
+      const idea
+      of sortedIdeas
+    ) {
       const ideaId =
         idea.id ||
         `${idea.title}|${idea.geography}`;
@@ -14880,14 +15033,6 @@ function selectBalancedTrendIdeas({
         idea
       );
 
-      geographyCounts.set(
-        geography,
-        geographyCount + 1
-      );
-
-      addedInRound =
-        true;
-
       if (
         selectedIdeas.length >=
         limit
@@ -14895,15 +15040,12 @@ function selectBalancedTrendIdeas({
         break;
       }
     }
-
-    if (!addedInRound) {
-      break;
-    }
-
-    round += 1;
   }
 
-  return selectedIdeas;
+  return selectedIdeas.slice(
+    0,
+    limit
+  );
 }
 
 export async function searchProductTrends(
@@ -15350,6 +15492,13 @@ export async function searchProductTrends(
       refinementKey
     });
 
+  ideas =
+    ideas.filter(idea =>
+      isUsableChinaProductImageUrl(
+        idea.imageUrl
+      )
+    );
+
   const uniqueIdeas = [];
 
   const seenIdeaIds =
@@ -15424,7 +15573,8 @@ export async function searchProductTrends(
       ideas:
         uniqueIdeas,
       market,
-      signalType
+      category,
+      refinementKey
     });
 
   let summary = "";
