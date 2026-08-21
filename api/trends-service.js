@@ -5855,54 +5855,57 @@ function buildAmazonSearchQueries(
         ? group.queries
         : [];
 
-    const primaryQuery =
-      [
-        groupQueries[0] || "",
-        signalPhrase,
-        details
-      ]
-        .filter(Boolean)
-        .join(" ");
+    const selectedGroupQueries =
+      refinementGroup
+        ? groupQueries.slice(
+            0,
+            2
+          )
+        : groupQueries.slice(
+            0,
+            1
+          );
 
-    const fallbackQuery =
-      [
-        groupQueries[1] || "",
-        signalPhrase,
-        details
-      ]
-        .filter(Boolean)
-        .join(" ");
+    for (
+      const groupQuery
+      of selectedGroupQueries
+    ) {
+      const searchQuery =
+        [
+          groupQuery,
+          signalPhrase,
+          details
+        ]
+          .filter(Boolean)
+          .join(" ");
 
-    const cleanedPrimaryQuery =
-      cleanTrendText(
-        primaryQuery,
-        220
-      );
+      const cleanedSearchQuery =
+        cleanTrendText(
+          searchQuery,
+          220
+        );
 
-    const cleanedFallbackQuery =
-      cleanTrendText(
-        fallbackQuery,
-        220
-      );
+      if (
+        !cleanedSearchQuery ||
+        queryItems.some(
+          queryItem =>
+            queryItem.searchQuery ===
+              cleanedSearchQuery &&
+            queryItem.subgroup ===
+              group.key
+        )
+      ) {
+        continue;
+      }
 
-    if (!cleanedPrimaryQuery) {
-      continue;
+      queryItems.push({
+        searchQuery:
+          cleanedSearchQuery,
+
+        subgroup:
+          group.key
+      });
     }
-
-    queryItems.push({
-      searchQuery:
-        cleanedPrimaryQuery,
-
-      fallbackSearchQuery:
-        cleanedFallbackQuery &&
-        cleanedFallbackQuery !==
-          cleanedPrimaryQuery
-          ? cleanedFallbackQuery
-          : "",
-
-      subgroup:
-        group.key
-    });
   }
 
   return queryItems;
