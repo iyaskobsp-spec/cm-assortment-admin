@@ -9424,6 +9424,14 @@ async function loadMadeInChinaProductImage(
   );
 }
 
+function getChinaSourcePoolLimit(
+  refinementKey
+) {
+  return refinementKey
+    ? 75
+    : 50;
+}
+
 function selectBalancedMadeInChinaProducts(
   rankedProducts,
   limit
@@ -10055,9 +10063,11 @@ async function loadMadeInChinaSignal({
     )
     .slice(
       0,
-      45
+      getChinaSourcePoolLimit(
+        refinementKey
+      )
     );
-
+  
   const bestSourceScore =
     Math.max(
       ...rankedProducts.map(
@@ -10084,7 +10094,9 @@ async function loadMadeInChinaSignal({
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
-      50
+      getChinaSourcePoolLimit(
+        refinementKey
+      )
     );
 
   const productsWithImages =
@@ -10910,7 +10922,9 @@ async function loadAlibabaSignal({
     )
     .slice(
       0,
-      50
+      getChinaSourcePoolLimit(
+        refinementKey
+      )
     );
 
   const bestSourceScore =
@@ -10939,7 +10953,9 @@ async function loadAlibabaSignal({
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
-      50
+      getChinaSourcePoolLimit(
+        refinementKey
+      )
     );
 
   const productsWithImages =
@@ -12241,7 +12257,9 @@ async function loadChina1688Signal({
     )
     .slice(
       0,
-      50
+      getChinaSourcePoolLimit(
+        refinementKey
+      )
     );
 
   const bestSourceScore =
@@ -12271,8 +12289,10 @@ async function loadChina1688Signal({
   const products =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
-      50
-    )
+      getChinaSourcePoolLimit(
+        refinementKey
+      )
+    );
       .map(
         (product, index) => ({
           ...product,
@@ -12742,20 +12762,43 @@ async function loadYiwugoProductImages(
       .filter(item =>
         !item.product.imageUrl &&
         item.product.link
-      )
-      .slice(
-        0,
-        12
       );
 
+  let nextImageIndex = 0;
+
+  async function loadNextImage() {
+    while (
+      nextImageIndex <
+        missingImageIndexes.length
+    ) {
+      const currentImageIndex =
+        nextImageIndex;
+
+      nextImageIndex += 1;
+
+      const item =
+        missingImageIndexes[
+          currentImageIndex
+        ];
+
+      result[item.index] =
+        await loadYiwugoProductImage(
+          item.product
+        );
+    }
+  }
+
   await Promise.all(
-    missingImageIndexes.map(
-      async item => {
-        result[item.index] =
-          await loadYiwugoProductImage(
-            item.product
-          );
-      }
+    Array.from(
+      {
+        length:
+          Math.min(
+            8,
+            missingImageIndexes.length
+          )
+      },
+      () =>
+        loadNextImage()
     )
   );
 
@@ -13862,20 +13905,43 @@ async function loadChinagoodsProductImages(
       .filter(item =>
         !item.product.imageUrl &&
         item.product.link
-      )
-      .slice(
-        0,
-        12
       );
 
+  let nextImageIndex = 0;
+
+  async function loadNextImage() {
+    while (
+      nextImageIndex <
+        missingImageIndexes.length
+    ) {
+      const currentImageIndex =
+        nextImageIndex;
+
+      nextImageIndex += 1;
+
+      const item =
+        missingImageIndexes[
+          currentImageIndex
+        ];
+
+      result[item.index] =
+        await loadChinagoodsProductImage(
+          item.product
+        );
+    }
+  }
+
   await Promise.all(
-    missingImageIndexes.map(
-      async item => {
-        result[item.index] =
-          await loadChinagoodsProductImage(
-            item.product
-          );
-      }
+    Array.from(
+      {
+        length:
+          Math.min(
+            8,
+            missingImageIndexes.length
+          )
+      },
+      () =>
+        loadNextImage()
     )
   );
 
@@ -14133,9 +14199,11 @@ async function loadChinagoodsSignal({
     )
     .slice(
       0,
-      45
+      getChinaSourcePoolLimit(
+        refinementKey
+      )
     );
-
+  
   const bestSourceScore =
     Math.max(
       ...rankedProducts.map(
@@ -14170,7 +14238,9 @@ async function loadChinagoodsSignal({
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
-      50
+      getChinaSourcePoolLimit(
+        refinementKey
+      )
     );
 
   const productsWithImages =
@@ -14480,7 +14550,9 @@ async function loadYiwugoSignal({
     )
     .slice(
       0,
-      45
+      getChinaSourcePoolLimit(
+        refinementKey
+      )
     );
 
   const bestSourceScore =
@@ -14517,7 +14589,9 @@ async function loadYiwugoSignal({
   const selectedProducts =
     selectBalancedMadeInChinaProducts(
       rankedProducts,
-      50
+      getChinaSourcePoolLimit(
+        refinementKey
+      )
     );
 
   const productsWithImages =
