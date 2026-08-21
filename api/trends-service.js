@@ -7101,7 +7101,7 @@ function buildMadeInChinaQueries(
 
   return queryItems.slice(
     0,
-    8
+    12
   );
 }
 
@@ -10272,7 +10272,7 @@ function buildAlibabaSearchQueries(
 
   return queryItems.slice(
     0,
-    8
+    12
   );
 }
 
