@@ -5497,6 +5497,158 @@ function extractAmazonProducts(
     .slice(0, 30);
 }
 
+function extractAmazonProductsFromJina(
+  text,
+  amazonConfig
+) {
+  const sourceText =
+    String(
+      text || ""
+    );
+
+  const products = [];
+  const seenAsins =
+    new Set();
+
+  const productLinkPattern =
+    /\[([^\]]{4,600})\]\((https?:\/\/[^)\s]*\/(?:dp|gp\/product)\/([A-Z0-9]{10})[^)]*)\)/gi;
+
+  for (
+    const match
+    of sourceText.matchAll(
+      productLinkPattern
+    )
+  ) {
+    const asin =
+      String(
+        match[3] || ""
+      ).trim();
+
+    if (
+      !asin ||
+      seenAsins.has(
+        asin
+      )
+    ) {
+      continue;
+    }
+
+    let title =
+      cleanTrendText(
+        String(
+          match[1] || ""
+        )
+          .replace(
+            /^!\[/,
+            ""
+          )
+          .replace(
+            /[*_`#]+/g,
+            " "
+          ),
+        300
+      );
+
+    if (
+      !title ||
+      title.length < 8
+    ) {
+      continue;
+    }
+
+    const link =
+      buildAbsoluteAmazonUrl(
+        match[2],
+        amazonConfig.domain
+      );
+
+    if (!link) {
+      continue;
+    }
+
+    const matchIndex =
+      Number(
+        match.index || 0
+      );
+
+    const contextStart =
+      Math.max(
+        0,
+        matchIndex - 900
+      );
+
+    const contextEnd =
+      Math.min(
+        sourceText.length,
+        matchIndex +
+          match[0].length +
+          900
+      );
+
+    const contextText =
+      sourceText.slice(
+        contextStart,
+        contextEnd
+      );
+
+    const imageMatches = [
+      ...contextText.matchAll(
+        /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/gi
+      )
+    ];
+
+    let imageUrl = null;
+
+    for (
+      const imageMatch
+      of imageMatches
+    ) {
+      const candidate =
+        String(
+          imageMatch[1] || ""
+        );
+
+      if (
+        candidate.includes(
+          "m.media-amazon.com"
+        ) ||
+        candidate.includes(
+          "images-na.ssl-images-amazon.com"
+        )
+      ) {
+        imageUrl =
+          candidate;
+
+        break;
+      }
+    }
+
+    seenAsins.add(
+      asin
+    );
+
+    products.push({
+      asin,
+      title,
+      link,
+      imageUrl,
+      sourcePosition:
+        products.length + 1,
+      sectionTitle:
+        ""
+    });
+
+    if (
+      products.length >=
+      30
+    ) {
+      break;
+    }
+  }
+
+  return products;
+}
+
 function buildAmazonSearchQueries(
   category,
   signalType,
@@ -5752,31 +5904,18 @@ async function loadAmazonRanking({
   async function runAmazonQuery(
     queryItem
   ) {
-    const searchQuery =
-      queryItem.searchQuery;
-
     const subgroup =
       queryItem.subgroup;
 
-    const scopedSourceUrl =
-      getAmazonSearchUrl(
-        amazonConfig,
-        category,
-        searchQuery,
-        true
-      );
+    const queryVariants = [
+      queryItem.searchQuery,
+      queryItem.fallbackSearchQuery
+    ].filter(Boolean);
 
-    const fallbackSourceUrl =
-      getAmazonSearchUrl(
-        amazonConfig,
-        category,
-        searchQuery,
-        false
-      );
+    let lastError = null;
 
-    async function loadAmazonSearchPage(
-      sourceUrl,
-      attempt = 1
+    async function loadDirectAmazonPage(
+      sourceUrl
     ) {
       const response =
         await fetch(
@@ -5795,28 +5934,10 @@ async function loadAmazonRanking({
             },
             signal:
               AbortSignal.timeout(
-                15000
+                12000
               )
           }
         );
-
-      if (
-        response.status === 503 &&
-        attempt < 3
-      ) {
-        await new Promise(
-          resolve =>
-            setTimeout(
-              resolve,
-              700 * attempt
-            )
-        );
-
-        return loadAmazonSearchPage(
-          sourceUrl,
-          attempt + 1
-        );
-      }
 
       if (!response.ok) {
         throw new Error(
@@ -5835,58 +5956,189 @@ async function loadAmazonRanking({
       );
     }
 
-    let sourceUrl =
-      scopedSourceUrl;
+    async function loadJinaAmazonPage(
+      sourceUrl
+    ) {
+      const jinaUrl =
+        `https://r.jina.ai/${sourceUrl}`;
 
-    let products = [];
-
-    try {
-      products =
-        await loadAmazonSearchPage(
-          scopedSourceUrl
+      const response =
+        await fetch(
+          jinaUrl,
+          {
+            method:
+              "GET",
+            headers: {
+              Accept:
+                "text/plain,text/markdown,*/*",
+              "User-Agent":
+                "Mozilla/5.0"
+            },
+            signal:
+              AbortSignal.timeout(
+                15000
+              )
+          }
         );
-    } catch (error) {
-      console.warn(
-        `[${amazonConfig.sourceName}] scoped search failed:`,
-        error?.message ||
-        error
+
+      if (!response.ok) {
+        throw new Error(
+          `AMAZON_${amazonConfig.code.toUpperCase()}_JINA_FAILED_${response.status}`
+        );
+      }
+
+      const text =
+        await response.text();
+
+      return extractAmazonProductsFromJina(
+        text,
+        amazonConfig
       );
     }
 
-    if (
-      !products.length &&
-      fallbackSourceUrl !==
-        scopedSourceUrl
+    async function loadAmazonUrl(
+      sourceUrl
     ) {
       try {
-        const fallbackProducts =
-          await loadAmazonSearchPage(
-            fallbackSourceUrl
+        const directProducts =
+          await loadDirectAmazonPage(
+            sourceUrl
           );
 
         if (
-          fallbackProducts.length
+          directProducts.length
         ) {
-          products =
-            fallbackProducts;
-
-          sourceUrl =
-            fallbackSourceUrl;
+          return {
+            products:
+              directProducts,
+            gateway:
+              "direct"
+          };
         }
       } catch (error) {
+        lastError =
+          error;
+
         console.warn(
-          `[${amazonConfig.sourceName}] fallback search failed:`,
+          `[${amazonConfig.sourceName}] direct failed:`,
           error?.message ||
           error
         );
       }
+
+      try {
+        const jinaProducts =
+          await loadJinaAmazonPage(
+            sourceUrl
+          );
+
+        if (
+          jinaProducts.length
+        ) {
+          return {
+            products:
+              jinaProducts,
+            gateway:
+              "jina"
+          };
+        }
+      } catch (error) {
+        lastError =
+          error;
+
+        console.warn(
+          `[${amazonConfig.sourceName}] jina failed:`,
+          error?.message ||
+          error
+        );
+      }
+
+      return {
+        products: [],
+        gateway: null
+      };
+    }
+
+    for (
+      const searchQuery
+      of queryVariants
+    ) {
+      const scopedSourceUrl =
+        getAmazonSearchUrl(
+          amazonConfig,
+          category,
+          searchQuery,
+          true
+        );
+
+      const fallbackSourceUrl =
+        getAmazonSearchUrl(
+          amazonConfig,
+          category,
+          searchQuery,
+          false
+        );
+
+      const scopedResult =
+        await loadAmazonUrl(
+          scopedSourceUrl
+        );
+
+      if (
+        scopedResult.products.length
+      ) {
+        return {
+          searchQuery,
+          subgroup,
+          sourceUrl:
+            scopedSourceUrl,
+          gateway:
+            scopedResult.gateway,
+          products:
+            scopedResult.products
+        };
+      }
+
+      if (
+        fallbackSourceUrl !==
+        scopedSourceUrl
+      ) {
+        const fallbackResult =
+          await loadAmazonUrl(
+            fallbackSourceUrl
+          );
+
+        if (
+          fallbackResult.products.length
+        ) {
+          return {
+            searchQuery,
+            subgroup,
+            sourceUrl:
+              fallbackSourceUrl,
+            gateway:
+              fallbackResult.gateway,
+            products:
+              fallbackResult.products
+          };
+        }
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
     }
 
     return {
-      searchQuery,
+      searchQuery:
+        queryItem.searchQuery,
       subgroup,
-      sourceUrl,
-      products
+      sourceUrl:
+        null,
+      gateway:
+        null,
+      products:
+        []
     };
   }
 
@@ -5976,6 +6228,7 @@ async function loadAmazonRanking({
       searchQuery,
       subgroup,
       sourceUrl,
+      gateway,
       products
     } =
       requestResult.value;
@@ -5988,7 +6241,11 @@ async function loadAmazonRanking({
         searchQuery,
       subgroup,
       url:
-        sourceUrl
+        sourceUrl,
+      gateway:
+        gateway || null,
+      productsCount:
+        products.length
     });
 
     totalExtracted +=
@@ -15069,29 +15326,40 @@ export async function searchProductTrends(
   let summary = "";
 
   if (ideas.length) {
-    const successfulSources =
-      sources.filter(
-        source =>
-          source.status === "ok"
-      );
+    const attemptedMarkets = [
+      ...new Set(
+        sources
+          .map(
+            source =>
+              source.source
+          )
+          .filter(Boolean)
+      )
+    ];
 
     const successfulMarkets = [
       ...new Set(
-        successfulSources.map(
-          source => source.source
-        )
+        sources
+          .filter(
+            source =>
+              source.status === "ok"
+          )
+          .map(
+            source =>
+              source.source
+          )
       )
     ];
 
     summary =
       `Знайдено товарних ідей: ${ideas.length}. ` +
-      `Успішно перевірено джерел: ${successfulSources.length}. ` +
+      `Товари отримано з ${successfulMarkets.length} із ${attemptedMarkets.length} джерел. ` +
       (
         successfulMarkets.length
-          ? `Джерела: ${successfulMarkets.join(", ")}. `
+          ? `Спрацювали: ${successfulMarkets.join(", ")}. `
           : ""
       ) +
-      "Результати можуть включати новинки, товари, що набирають позиції, та популярні товари.";
+      "Результати сформовано з джерел, які фактично повернули товарну видачу.";
   } else if (
     !amazonConfigs.length &&
     !chinaConfigs.length
