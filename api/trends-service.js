@@ -3748,56 +3748,199 @@ function extractAmazonImageUrl(
   linkContent,
   amazonDomain
 ) {
-  const imageTagMatch = String(
-    linkContent || ""
-  ).match(/<img\b[^>]*>/i);
-
-  if (!imageTagMatch) {
-    return null;
-  }
-
-  const imageTag = imageTagMatch[0];
-
-  const sourceMatch =
-    imageTag.match(
-      /\bdata-a-dynamic-image=["']([^"']+)["']/i
-    ) ||
-    imageTag.match(
-      /\bdata-src=["']([^"']+)["']/i
-    ) ||
-    imageTag.match(
-      /\bsrc=["']([^"']+)["']/i
+  const sourceContent =
+    String(
+      linkContent || ""
     );
 
-  if (!sourceMatch?.[1]) {
-    return null;
-  }
+  const candidates = [];
 
-  if (
-    sourceMatch[0]
-      .toLocaleLowerCase("en-US")
-      .startsWith("data-a-dynamic-image")
+  function addCandidate(
+    rawUrl,
+    score = 0
   ) {
-    try {
-      const dynamicImages = JSON.parse(
-        decodeHtmlEntities(sourceMatch[1])
-      );
-
-      const firstImageUrl =
-        Object.keys(dynamicImages)[0];
-
-      return buildAbsoluteImageUrl(
-        firstImageUrl,
+    const imageUrl =
+      buildAbsoluteImageUrl(
+        rawUrl,
         amazonDomain
       );
-    } catch {
-      return null;
+
+    if (!imageUrl) {
+      return;
+    }
+
+    const normalizedUrl =
+      imageUrl.toLocaleLowerCase(
+        "en-US"
+      );
+
+    const blockedParts = [
+      "logo",
+      "icon",
+      "sprite",
+      "transparent",
+      "pixel",
+      "loading",
+      "placeholder",
+      "badge",
+      "favicon"
+    ];
+
+    if (
+      blockedParts.some(
+        part =>
+          normalizedUrl.includes(
+            part
+          )
+      )
+    ) {
+      return;
+    }
+
+    if (
+      /\.(?:svg|gif)(?:[?#]|$)/i
+        .test(normalizedUrl)
+    ) {
+      return;
+    }
+
+    if (
+      normalizedUrl.includes(
+        "m.media-amazon.com"
+      ) ||
+      normalizedUrl.includes(
+        "images-na.ssl-images-amazon.com"
+      )
+    ) {
+      score += 100000;
+    }
+
+    candidates.push({
+      imageUrl,
+      score
+    });
+  }
+
+  for (
+    const imageMatch
+    of sourceContent.matchAll(
+      /<img\b[^>]*>/gi
+    )
+  ) {
+    const imageTag =
+      imageMatch[0];
+
+    const dynamicMatch =
+      imageTag.match(
+        /\bdata-a-dynamic-image=["']([^"']+)["']/i
+      );
+
+    if (dynamicMatch?.[1]) {
+      try {
+        const dynamicImages =
+          JSON.parse(
+            decodeHtmlEntities(
+              dynamicMatch[1]
+            )
+          );
+
+        for (
+          const [
+            imageUrl,
+            dimensions
+          ]
+          of Object.entries(
+            dynamicImages
+          )
+        ) {
+          const width =
+            Number(
+              dimensions?.[0] || 0
+            );
+
+          const height =
+            Number(
+              dimensions?.[1] || 0
+            );
+
+          addCandidate(
+            imageUrl,
+            50000 +
+              width * height
+          );
+        }
+      } catch {
+        // Переходимо до інших атрибутів IMG.
+      }
+    }
+
+    const srcsetMatch =
+      imageTag.match(
+        /\bsrcset=["']([^"']+)["']/i
+      );
+
+    if (srcsetMatch?.[1]) {
+      for (
+        const srcsetItem
+        of srcsetMatch[1]
+          .split(",")
+          .map(item =>
+            item.trim()
+          )
+          .filter(Boolean)
+      ) {
+        const parts =
+          srcsetItem.split(/\s+/);
+
+        const width =
+          Number(
+            String(
+              parts[1] || ""
+            ).replace(/w$/i, "")
+          ) || 0;
+
+        addCandidate(
+          parts[0],
+          30000 + width
+        );
+      }
+    }
+
+    const dataSrcMatch =
+      imageTag.match(
+        /\bdata-src=["']([^"']+)["']/i
+      );
+
+    if (dataSrcMatch?.[1]) {
+      addCandidate(
+        dataSrcMatch[1],
+        20000
+      );
+    }
+
+    const srcMatch =
+      imageTag.match(
+        /\bsrc=["']([^"']+)["']/i
+      );
+
+    if (srcMatch?.[1]) {
+      addCandidate(
+        srcMatch[1],
+        10000
+      );
     }
   }
 
-  return buildAbsoluteImageUrl(
-    sourceMatch[1],
-    amazonDomain
+  candidates.sort(
+    (first, second) =>
+      second.score -
+      first.score
+  );
+
+  return (
+    candidates[0]
+      ?.imageUrl ||
+    null
   );
 }
 
@@ -5415,13 +5558,13 @@ function extractAmazonProducts(
     );
 
     const title = cleanTrendText(
-      imageAltMatch?.[1] ||
-      stripHtml(
-        titleClassMatch?.[1]
-      ) ||
       stripHtml(
         searchTitleMatch?.[1]
       ) ||
+      stripHtml(
+        titleClassMatch?.[1]
+      ) ||
+      imageAltMatch?.[1] ||
       stripHtml(
         fallbackTitleMatch?.[1]
       ),
@@ -5493,8 +5636,7 @@ function extractAmazonProducts(
       (first, second) =>
         first.sourcePosition -
         second.sourcePosition
-    )
-    .slice(0, 30);
+    );
 }
 
 function extractAmazonProductsFromJina(
@@ -5904,18 +6046,31 @@ async function loadAmazonRanking({
   async function runAmazonQuery(
     queryItem
   ) {
+    const searchQuery =
+      queryItem.searchQuery;
+
     const subgroup =
       queryItem.subgroup;
 
-    const queryVariants = [
-      queryItem.searchQuery,
-      queryItem.fallbackSearchQuery
-    ].filter(Boolean);
+    const scopedSourceUrl =
+      getAmazonSearchUrl(
+        amazonConfig,
+        category,
+        searchQuery,
+        true
+      );
 
-    let lastError = null;
+    const fallbackSourceUrl =
+      getAmazonSearchUrl(
+        amazonConfig,
+        category,
+        searchQuery,
+        false
+      );
 
-    async function loadDirectAmazonPage(
-      sourceUrl
+    async function loadAmazonSearchPage(
+      sourceUrl,
+      attempt = 1
     ) {
       const response =
         await fetch(
@@ -5934,10 +6089,33 @@ async function loadAmazonRanking({
             },
             signal:
               AbortSignal.timeout(
-                12000
+                9000
               )
           }
         );
+
+      if (
+        [429, 503].includes(
+          response.status
+        ) &&
+        attempt < 2
+      ) {
+        await new Promise(
+          resolve =>
+            setTimeout(
+              resolve,
+              450 +
+                Math.floor(
+                  Math.random() * 250
+                )
+            )
+        );
+
+        return loadAmazonSearchPage(
+          sourceUrl,
+          attempt + 1
+        );
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -5956,189 +6134,99 @@ async function loadAmazonRanking({
       );
     }
 
-    async function loadJinaAmazonPage(
-      sourceUrl
-    ) {
-      const jinaUrl =
-        `https://r.jina.ai/${sourceUrl}`;
+    let products = [];
+    let scopedFailed = false;
 
-      const response =
-        await fetch(
-          jinaUrl,
-          {
-            method:
-              "GET",
-            headers: {
-              Accept:
-                "text/plain,text/markdown,*/*",
-              "User-Agent":
-                "Mozilla/5.0"
-            },
-            signal:
-              AbortSignal.timeout(
-                15000
-              )
-          }
+    try {
+      products =
+        await loadAmazonSearchPage(
+          scopedSourceUrl
         );
+    } catch (error) {
+      scopedFailed = true;
 
-      if (!response.ok) {
-        throw new Error(
-          `AMAZON_${amazonConfig.code.toUpperCase()}_JINA_FAILED_${response.status}`
-        );
-      }
-
-      const text =
-        await response.text();
-
-      return extractAmazonProductsFromJina(
-        text,
-        amazonConfig
+      console.warn(
+        `[${amazonConfig.sourceName}] scoped search failed:`,
+        error?.message ||
+        error
       );
     }
 
-    async function loadAmazonUrl(
-      sourceUrl
-    ) {
+    let sourceUrl =
+      scopedSourceUrl;
+
+    let gateway =
+      "direct";
+
+    const shouldTryFallback =
+      fallbackSourceUrl !==
+        scopedSourceUrl &&
+      (
+        scopedFailed ||
+        products.length < 12
+      );
+
+    if (shouldTryFallback) {
       try {
-        const directProducts =
-          await loadDirectAmazonPage(
-            sourceUrl
-          );
-
-        if (
-          directProducts.length
-        ) {
-          return {
-            products:
-              directProducts,
-            gateway:
-              "direct"
-          };
-        }
-      } catch (error) {
-        lastError =
-          error;
-
-        console.warn(
-          `[${amazonConfig.sourceName}] direct failed:`,
-          error?.message ||
-          error
-        );
-      }
-
-      try {
-        const jinaProducts =
-          await loadJinaAmazonPage(
-            sourceUrl
-          );
-
-        if (
-          jinaProducts.length
-        ) {
-          return {
-            products:
-              jinaProducts,
-            gateway:
-              "jina"
-          };
-        }
-      } catch (error) {
-        lastError =
-          error;
-
-        console.warn(
-          `[${amazonConfig.sourceName}] jina failed:`,
-          error?.message ||
-          error
-        );
-      }
-
-      return {
-        products: [],
-        gateway: null
-      };
-    }
-
-    for (
-      const searchQuery
-      of queryVariants
-    ) {
-      const scopedSourceUrl =
-        getAmazonSearchUrl(
-          amazonConfig,
-          category,
-          searchQuery,
-          true
-        );
-
-      const fallbackSourceUrl =
-        getAmazonSearchUrl(
-          amazonConfig,
-          category,
-          searchQuery,
-          false
-        );
-
-      const scopedResult =
-        await loadAmazonUrl(
-          scopedSourceUrl
-        );
-
-      if (
-        scopedResult.products.length
-      ) {
-        return {
-          searchQuery,
-          subgroup,
-          sourceUrl:
-            scopedSourceUrl,
-          gateway:
-            scopedResult.gateway,
-          products:
-            scopedResult.products
-        };
-      }
-
-      if (
-        fallbackSourceUrl !==
-        scopedSourceUrl
-      ) {
-        const fallbackResult =
-          await loadAmazonUrl(
+        const fallbackProducts =
+          await loadAmazonSearchPage(
             fallbackSourceUrl
           );
 
         if (
-          fallbackResult.products.length
+          fallbackProducts.length
         ) {
-          return {
-            searchQuery,
-            subgroup,
-            sourceUrl:
-              fallbackSourceUrl,
-            gateway:
-              fallbackResult.gateway,
-            products:
-              fallbackResult.products
-          };
+          const productsByAsin =
+            new Map(
+              products.map(
+                product => [
+                  product.asin,
+                  product
+                ]
+              )
+            );
+
+          for (
+            const fallbackProduct
+            of fallbackProducts
+          ) {
+            if (
+              !productsByAsin.has(
+                fallbackProduct.asin
+              )
+            ) {
+              productsByAsin.set(
+                fallbackProduct.asin,
+                fallbackProduct
+              );
+            }
+          }
+
+          products = [
+            ...productsByAsin.values()
+          ];
+
+          sourceUrl =
+            fallbackSourceUrl;
+
+          gateway =
+            "direct+fallback";
         }
+      } catch (error) {
+        console.warn(
+          `[${amazonConfig.sourceName}] fallback search failed:`,
+          error?.message ||
+          error
+        );
       }
     }
 
-    if (lastError) {
-      throw lastError;
-    }
-
     return {
-      searchQuery:
-        queryItem.searchQuery,
+      searchQuery,
       subgroup,
-      sourceUrl:
-        null,
-      gateway:
-        null,
-      products:
-        []
+      sourceUrl,
+      gateway,
+      products
     };
   }
 
@@ -6420,13 +6508,18 @@ async function loadAmazonRanking({
           )
       );
 
+  const sourceLimit =
+    refinementKey
+      ? 50
+      : 150;
+
   let selectedProducts = [];
 
   if (refinementKey) {
     selectedProducts =
       rankedProducts.slice(
         0,
-        50
+        sourceLimit
       );
   } else {
     const categoryGroups =
@@ -6480,26 +6573,22 @@ async function loadAmazonRanking({
       }
     }
 
-    const maxPerSubgroup =
-      Math.max(
-        6,
-        Math.ceil(
-          50 /
-          Math.max(
-            categoryGroups.length,
-            1
-          )
-        )
-      );
-
     const selectedAsins =
       new Set();
 
-    let round = 0;
+    const subgroupCursors =
+      new Map(
+        categoryGroups.map(
+          group => [
+            group.key,
+            0
+          ]
+        )
+      );
 
     while (
       selectedProducts.length <
-      50
+      sourceLimit
     ) {
       let addedInRound =
         false;
@@ -6513,57 +6602,62 @@ async function loadAmazonRanking({
             group.key
           ) || [];
 
-        let addedFromGroup =
-          0;
+        let cursor =
+          subgroupCursors.get(
+            group.key
+          ) || 0;
 
-        for (
-          const product
-          of groupProducts
+        while (
+          cursor <
+          groupProducts.length &&
+          selectedAsins.has(
+            groupProducts[
+              cursor
+            ].asin
+          )
         ) {
-          if (
-            selectedAsins.has(
-              product.asin
-            )
-          ) {
-            continue;
-          }
-
-          if (
-            addedFromGroup >=
-            maxPerSubgroup
-          ) {
-            break;
-          }
-
-          if (
-            round >
-            addedFromGroup
-          ) {
-            addedFromGroup +=
-              1;
-
-            continue;
-          }
-
-          selectedAsins.add(
-            product.asin
-          );
-
-          selectedProducts.push({
-            ...product,
-            subgroup:
-              group.key
-          });
-
-          addedInRound =
-            true;
-
-          break;
+          cursor += 1;
         }
+
+        subgroupCursors.set(
+          group.key,
+          cursor
+        );
+
+        if (
+          cursor >=
+          groupProducts.length
+        ) {
+          continue;
+        }
+
+        const product =
+          groupProducts[
+            cursor
+          ];
+
+        subgroupCursors.set(
+          group.key,
+          cursor + 1
+        );
+
+        selectedAsins.add(
+          product.asin
+        );
+
+        selectedProducts.push({
+          ...product,
+
+          subgroup:
+            group.key
+        });
+
+        addedInRound =
+          true;
 
         if (
           selectedProducts.length >=
-          50
+          sourceLimit
         ) {
           break;
         }
@@ -6572,13 +6666,11 @@ async function loadAmazonRanking({
       if (!addedInRound) {
         break;
       }
-
-      round += 1;
     }
 
     if (
       selectedProducts.length <
-      50
+      sourceLimit
     ) {
       for (
         const product
@@ -6602,7 +6694,7 @@ async function loadAmazonRanking({
 
         if (
           selectedProducts.length >=
-          50
+          sourceLimit
         ) {
           break;
         }
@@ -6614,7 +6706,7 @@ async function loadAmazonRanking({
     selectedProducts
       .slice(
         0,
-        50
+        sourceLimit
       )
       .map(
         (product, index) => ({
@@ -6685,6 +6777,11 @@ async function loadAmazonTrendCandidates({
     ])
   );
 
+  const trendLimit =
+    refinementKey
+      ? 50
+      : 150;  
+
   const trendProducts =
     newReleasesResult.products
       .map(newProduct => {
@@ -6733,7 +6830,10 @@ async function loadAmazonTrendCandidates({
           first.trendScore -
           second.trendScore
       )
-      .slice(0, 30);
+      .slice(
+        0,
+        trendLimit
+      );
 
   return {
     source:
