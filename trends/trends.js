@@ -542,6 +542,17 @@ async function processTrendSearch() {
           signalType,
           market,
           refinementKey,
+          refinementOptions:
+            (
+              TREND_REFINEMENT_OPTIONS[
+                category
+              ] || []
+            ).map(
+              ([key, label]) => ({
+                key,
+                label
+              })
+            ),
           searchDetails,
           exclusions
         })
