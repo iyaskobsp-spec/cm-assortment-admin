@@ -1377,6 +1377,283 @@ async function loadSource({
   };
 }
 
+const UKRAINE_DUPLICATE_STOP_WORDS =
+  new Set([
+    "для",
+    "та",
+    "і",
+    "й",
+    "або",
+    "з",
+    "зі",
+    "із",
+    "на",
+    "у",
+    "в",
+    "до",
+    "від",
+    "по",
+    "під",
+    "над",
+    "при",
+    "що",
+    "який",
+    "яка",
+    "яке",
+    "цей",
+    "ця",
+    "це",
+    "the",
+    "and",
+    "with",
+    "for",
+    "комплект",
+    "набір",
+    "товар",
+    "штук",
+    "колір",
+    "розмір",
+    "модель",
+    "серія",
+    "професійний",
+    "домашній",
+    "універсальний",
+    "багатофункціональний",
+    "новий",
+    "нова",
+    "новинка",
+    "якісний",
+    "сучасний",
+    "преміум",
+    "оригінальний",
+    "білий",
+    "біла",
+    "чорний",
+    "чорна",
+    "сірий",
+    "сіра",
+    "синій",
+    "синя",
+    "зелений",
+    "зелена",
+    "рожевий",
+    "рожева"
+  ]);
+
+function getUkraineDuplicateTokens(
+  title
+) {
+  const tokens =
+    cleanText(
+      title,
+      500
+    )
+      .toLocaleLowerCase(
+        "uk-UA"
+      )
+      .replace(
+        /['’`]/g,
+        ""
+      )
+      .replace(
+        /[^a-zа-яіїєґё0-9]+/gi,
+        " "
+      )
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter(token =>
+        !UKRAINE_DUPLICATE_STOP_WORDS
+          .has(token)
+      )
+      .filter(token =>
+        !/\d/.test(token)
+      )
+      .filter(token =>
+        token.length >= 3
+      )
+      .map(token =>
+        token.length >= 6
+          ? token.slice(0, 5)
+          : token
+      );
+
+  return [
+    ...new Set(tokens)
+  ];
+}
+
+function areUkraineIdeasDuplicates(
+  firstIdea,
+  secondIdea
+) {
+  const firstTokens =
+    getUkraineDuplicateTokens(
+      firstIdea.title
+    );
+
+  const secondTokens =
+    getUkraineDuplicateTokens(
+      secondIdea.title
+    );
+
+  if (
+    firstTokens.length < 2 ||
+    secondTokens.length < 2
+  ) {
+    return false;
+  }
+
+  const secondTokenSet =
+    new Set(
+      secondTokens
+    );
+
+  const sharedCount =
+    firstTokens.filter(token =>
+      secondTokenSet.has(token)
+    ).length;
+
+  const smallerTokenCount =
+    Math.min(
+      firstTokens.length,
+      secondTokens.length
+    );
+
+  const overlap =
+    sharedCount /
+    smallerTokenCount;
+
+  const sameSubgroup =
+    Boolean(
+      firstIdea.subgroup &&
+      secondIdea.subgroup &&
+      firstIdea.subgroup ===
+        secondIdea.subgroup
+    );
+
+  return (
+    sharedCount >= 4 &&
+    overlap >= 0.5
+  ) || (
+    sameSubgroup &&
+    sharedCount >= 3 &&
+    overlap >= 0.45
+  ) || (
+    sameSubgroup &&
+    smallerTokenCount <= 4 &&
+    sharedCount >= 2 &&
+    overlap >= 0.66
+  );
+}
+
+function mergeUkraineDuplicateIdeas(
+  targetIdea,
+  duplicateIdea
+) {
+  targetIdea.sources = [
+    ...new Set([
+      ...(targetIdea.sources || []),
+      ...(duplicateIdea.sources || [])
+    ])
+  ];
+
+  const linksByUrl =
+    new Map();
+
+  for (
+    const link
+    of [
+      ...(targetIdea.links || []),
+      ...(duplicateIdea.links || [])
+    ]
+  ) {
+    if (link?.url) {
+      linksByUrl.set(
+        link.url,
+        link
+      );
+    }
+  }
+
+  targetIdea.links = [
+    ...linksByUrl.values()
+  ];
+
+  targetIdea.varietyKeys = [
+    ...new Set([
+      ...(targetIdea.varietyKeys || []),
+      ...(duplicateIdea.varietyKeys || [])
+    ])
+  ];
+
+  targetIdea.relevanceScore =
+    Math.max(
+      Number(
+        targetIdea.relevanceScore
+      ) || 0,
+      Number(
+        duplicateIdea.relevanceScore
+      ) || 0
+    );
+
+  targetIdea.sourcePosition =
+    Math.min(
+      Number(
+        targetIdea.sourcePosition
+      ) || 999,
+      Number(
+        duplicateIdea.sourcePosition
+      ) || 999
+    );
+}
+
+function deduplicateUkraineIdeas(
+  ideas
+) {
+  const uniqueIdeas = [];
+
+  for (
+    const idea
+    of ideas
+  ) {
+    const duplicate =
+      uniqueIdeas.find(
+        currentIdea =>
+          areUkraineIdeasDuplicates(
+            currentIdea,
+            idea
+          )
+      );
+
+    if (duplicate) {
+      mergeUkraineDuplicateIdeas(
+        duplicate,
+        idea
+      );
+
+      continue;
+    }
+
+    uniqueIdeas.push({
+      ...idea,
+
+      sources: [
+        ...(idea.sources || [])
+      ],
+
+      links: [
+        ...(idea.links || [])
+      ],
+
+      varietyKeys: [
+        ...(idea.varietyKeys || [])
+      ]
+    });
+  }
+
+  return uniqueIdeas;
+}
+
 function buildIdeas(
   sourceResult,
   sourceConfig
@@ -1521,9 +1798,11 @@ export async function searchUkraineMarketplaceTrends(
       ),
 
     ideas:
-      results.flatMap(
-        result =>
-          result.ideas
+      deduplicateUkraineIdeas(
+        results.flatMap(
+          result =>
+            result.ideas
+        )
       )
   };
 }
