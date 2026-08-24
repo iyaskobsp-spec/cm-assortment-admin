@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { searchUkraineMarketplaceTrends } from "./ukraine-trends-service.js";
 
 const ALLOWED_CATEGORIES = new Set([
   "home-kitchen",
@@ -34,6 +35,7 @@ const ALLOWED_MARKETS = new Set([
   "poland",
   "france",
   "italy",
+  "ukraine",
   "china"
 ]);
 
@@ -15095,6 +15097,7 @@ function selectBalancedTrendIdeas({
 
     world: [
       "Китай",
+      "Україна",
       "США",
       "Велика Британія",
       "Німеччина",
@@ -15482,6 +15485,29 @@ export async function searchProductTrends(
       requestBody.refinementKey,
       80
     );
+
+  const refinementOptions =
+    Array.isArray(
+      requestBody.refinementOptions
+    )
+      ? requestBody.refinementOptions
+          .slice(
+            0,
+            40
+          )
+          .map(option => ({
+            key:
+              cleanTrendText(
+                option?.key,
+                80
+              ),
+            label:
+              cleanTrendText(
+                option?.label,
+                140
+              )
+          }))
+      : [];
 
   const searchDetails = cleanTrendText(
     requestBody.searchDetails,
@@ -15911,6 +15937,61 @@ export async function searchProductTrends(
     );
   }
 
+  if (
+    market === "ukraine" ||
+    market === "world"
+  ) {
+    chinaTasks.push(
+      (async () => {
+        try {
+          const ukraineResult =
+            await searchUkraineMarketplaceTrends({
+              category,
+              signalType,
+              refinementKey,
+              refinementOptions,
+              searchDetails,
+              exclusions
+            });
+
+          sources.push(
+            ...ukraineResult.sources
+          );
+
+          ideas = ideas.concat(
+            ukraineResult.ideas
+          );
+        } catch (error) {
+          console.error(
+            "[Ukraine marketplaces]",
+            error
+          );
+
+          for (
+            const sourceName
+            of [
+              "Prom.ua",
+              "Rozetka"
+            ]
+          ) {
+            sources.push({
+              source:
+                sourceName,
+              sourceType:
+                signalType,
+              status:
+                "error",
+              message:
+                `${sourceName} тимчасово не повернув товарну видачу.`,
+              products:
+                []
+            });
+          }
+        }
+      })()
+    );
+  }  
+
   await Promise.all(
     chinaTasks
   );
@@ -16093,7 +16174,8 @@ export async function searchProductTrends(
       "Результати сформовано з джерел, які фактично повернули товарну видачу.";
   } else if (
     !amazonConfigs.length &&
-    !chinaConfigs.length
+    !chinaConfigs.length &&
+    market !== "ukraine"
   ) {
     summary =
       "Для вибраного ринку ще не підключено товарне джерело.";
