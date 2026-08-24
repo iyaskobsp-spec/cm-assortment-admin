@@ -5025,16 +5025,18 @@ function getChinaCategoryScore(
   const includeMatches =
     categoryConfig.include.filter(
       word =>
-        normalizedTitle.includes(
-          normalizeChinaText(word)
+        matchesChinaProductPhrase(
+          normalizedTitle,
+          word
         )
     );
 
   const excludeMatches =
     categoryConfig.exclude.filter(
       word =>
-        normalizedTitle.includes(
-          normalizeChinaText(word)
+        matchesChinaProductPhrase(
+          normalizedTitle,
+          word
         )
     );
 
@@ -5652,18 +5654,18 @@ function extractAmazonProductsFromJina(
   const seenAsins =
     new Set();
 
-  const productLinkPattern =
-    /\[([^\]]{4,600})\]\((https?:\/\/[^)\s]*\/(?:dp|gp\/product)\/([A-Z0-9]{10})[^)]*)\)/gi;
+  const pairedProductPattern =
+    /\[!\[Image(?:\s+\d+)?(?:\s*:\s*([^\]]{4,600}))?\]\((https?:\/\/(?:m\.media-amazon\.com|images-na\.ssl-images-amazon\.com)\/[^)\s]+)\)\]\((https?:\/\/[^)\s]*\/(?:dp|gp\/product)\/([A-Z0-9]{10})[^)]*)\)/gi;
 
   for (
     const match
     of sourceText.matchAll(
-      productLinkPattern
+      pairedProductPattern
     )
   ) {
     const asin =
       String(
-        match[3] || ""
+        match[4] || ""
       ).trim();
 
     if (
@@ -5675,15 +5677,11 @@ function extractAmazonProductsFromJina(
       continue;
     }
 
-    let title =
+    const title =
       cleanTrendText(
         String(
           match[1] || ""
         )
-          .replace(
-            /^!\[/,
-            ""
-          )
           .replace(
             /[*_`#]+/g,
             " "
@@ -5699,70 +5697,19 @@ function extractAmazonProductsFromJina(
     }
 
     const link =
-      buildAbsoluteAmazonUrl(
-        match[2],
-        amazonConfig.domain
-      );
+      `${amazonConfig.domain}/dp/${asin}`;
 
-    if (!link) {
-      continue;
-    }
+    const imageUrl =
+      String(
+        match[2] || ""
+      ).trim();
 
-    const matchIndex =
-      Number(
-        match.index || 0
-      );
-
-    const contextStart =
-      Math.max(
-        0,
-        matchIndex - 900
-      );
-
-    const contextEnd =
-      Math.min(
-        sourceText.length,
-        matchIndex +
-          match[0].length +
-          900
-      );
-
-    const contextText =
-      sourceText.slice(
-        contextStart,
-        contextEnd
-      );
-
-    const imageMatches = [
-      ...contextText.matchAll(
-        /!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/gi
+    if (
+      !isUsableChinaProductImageUrl(
+        imageUrl
       )
-    ];
-
-    let imageUrl = null;
-
-    for (
-      const imageMatch
-      of imageMatches
     ) {
-      const candidate =
-        String(
-          imageMatch[1] || ""
-        );
-
-      if (
-        candidate.includes(
-          "m.media-amazon.com"
-        ) ||
-        candidate.includes(
-          "images-na.ssl-images-amazon.com"
-        )
-      ) {
-        imageUrl =
-          candidate;
-
-        break;
-      }
+      continue;
     }
 
     seenAsins.add(
@@ -5782,7 +5729,7 @@ function extractAmazonProductsFromJina(
 
     if (
       products.length >=
-      30
+      50
     ) {
       break;
     }
@@ -6071,9 +6018,8 @@ async function loadAmazonRanking({
         false
       );
 
-    async function loadAmazonSearchPage(
-      sourceUrl,
-      attempt = 1
+    async function loadAmazonDirectPage(
+      sourceUrl
     ) {
       const response =
         await fetch(
@@ -6097,29 +6043,6 @@ async function loadAmazonRanking({
           }
         );
 
-      if (
-        [429, 503].includes(
-          response.status
-        ) &&
-        attempt < 2
-      ) {
-        await new Promise(
-          resolve =>
-            setTimeout(
-              resolve,
-              450 +
-                Math.floor(
-                  Math.random() * 250
-                )
-            )
-        );
-
-        return loadAmazonSearchPage(
-          sourceUrl,
-          attempt + 1
-        );
-      }
-
       if (!response.ok) {
         throw new Error(
           `AMAZON_${amazonConfig.code.toUpperCase()}_REQUEST_FAILED_${response.status}`
@@ -6137,17 +6060,106 @@ async function loadAmazonRanking({
       );
     }
 
+    async function loadAmazonJinaPage(
+      sourceUrl
+    ) {
+      const response =
+        await fetch(
+          `https://r.jina.ai/${sourceUrl}`,
+          {
+            method:
+              "GET",
+            headers: {
+              Accept:
+                "text/plain,text/markdown,*/*",
+              "User-Agent":
+                "Mozilla/5.0"
+            },
+            signal:
+              AbortSignal.timeout(
+                15000
+              )
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          `AMAZON_${amazonConfig.code.toUpperCase()}_JINA_FAILED_${response.status}`
+        );
+      }
+
+      const text =
+        await response.text();
+
+      return extractAmazonProductsFromJina(
+        text,
+        amazonConfig
+      );
+    }
+
+    function mergeAmazonProducts(
+      currentProducts,
+      additionalProducts
+    ) {
+      const productsByAsin =
+        new Map(
+          currentProducts.map(
+            product => [
+              product.asin,
+              product
+            ]
+          )
+        );
+
+      for (
+        const additionalProduct
+        of additionalProducts
+      ) {
+        const currentProduct =
+          productsByAsin.get(
+            additionalProduct.asin
+          );
+
+        if (!currentProduct) {
+          productsByAsin.set(
+            additionalProduct.asin,
+            additionalProduct
+          );
+
+          continue;
+        }
+
+        if (
+          !currentProduct.imageUrl &&
+          additionalProduct.imageUrl
+        ) {
+          currentProduct.imageUrl =
+            additionalProduct.imageUrl;
+        }
+      }
+
+      return [
+        ...productsByAsin.values()
+      ];
+    }
+
     let products = [];
-    let scopedFailed = false;
+
+    let sourceUrl =
+      scopedSourceUrl;
+
+    const usedGateways = [];
 
     try {
       products =
-        await loadAmazonSearchPage(
+        await loadAmazonDirectPage(
           scopedSourceUrl
         );
-    } catch (error) {
-      scopedFailed = true;
 
+      usedGateways.push(
+        "direct-scoped"
+      );
+    } catch (error) {
       console.warn(
         `[${amazonConfig.sourceName}] scoped search failed:`,
         error?.message ||
@@ -6155,69 +6167,63 @@ async function loadAmazonRanking({
       );
     }
 
-    let sourceUrl =
-      scopedSourceUrl;
-
-    let gateway =
-      "direct";
-
     const shouldTryFallback =
       fallbackSourceUrl !==
         scopedSourceUrl &&
-      (
-        scopedFailed ||
-        products.length < 12
-      );
+      products.length < 12;
 
     if (shouldTryFallback) {
       try {
         const fallbackProducts =
-          await loadAmazonSearchPage(
+          await loadAmazonDirectPage(
             fallbackSourceUrl
           );
 
-        if (
-          fallbackProducts.length
-        ) {
-          const productsByAsin =
-            new Map(
-              products.map(
-                product => [
-                  product.asin,
-                  product
-                ]
-              )
-            );
+        products =
+          mergeAmazonProducts(
+            products,
+            fallbackProducts
+          );
 
-          for (
-            const fallbackProduct
-            of fallbackProducts
-          ) {
-            if (
-              !productsByAsin.has(
-                fallbackProduct.asin
-              )
-            ) {
-              productsByAsin.set(
-                fallbackProduct.asin,
-                fallbackProduct
-              );
-            }
-          }
+        sourceUrl =
+          fallbackSourceUrl;
 
-          products = [
-            ...productsByAsin.values()
-          ];
-
-          sourceUrl =
-            fallbackSourceUrl;
-
-          gateway =
-            "direct+fallback";
-        }
+        usedGateways.push(
+          "direct-fallback"
+        );
       } catch (error) {
         console.warn(
           `[${amazonConfig.sourceName}] fallback search failed:`,
+          error?.message ||
+          error
+        );
+      }
+    }
+
+    if (
+      products.length < 12
+    ) {
+      try {
+        const jinaProducts =
+          await loadAmazonJinaPage(
+            fallbackSourceUrl
+          );
+
+        products =
+          mergeAmazonProducts(
+            products,
+            jinaProducts
+          );
+
+        sourceUrl =
+          fallbackSourceUrl;
+
+        usedGateways.push(
+          "jina"
+        );
+      } catch (error) {
+        console.warn(
+          `[${amazonConfig.sourceName}] Jina fallback failed:`,
           error?.message ||
           error
         );
@@ -6228,7 +6234,9 @@ async function loadAmazonRanking({
       searchQuery,
       subgroup,
       sourceUrl,
-      gateway,
+      gateway:
+        usedGateways.join("+") ||
+        "failed",
       products
     };
   }
@@ -7052,15 +7060,10 @@ function buildMadeInChinaQueries(
         : [];
 
     const selectedGroupQueries =
-      refinementKey
-        ? groupQueries.slice(
-            0,
-            2
-          )
-        : groupQueries.slice(
-            0,
-            1
-          );
+      groupQueries.slice(
+        0,
+        2
+      );
 
     for (
       const categoryQuery
@@ -7101,7 +7104,7 @@ function buildMadeInChinaQueries(
 
   return queryItems.slice(
     0,
-    12
+    24
   );
 }
 
@@ -8060,8 +8063,30 @@ function filterTrendIdeasByCategory({
         return false;
       }
 
+      const sourceName =
+        Array.isArray(
+          idea.sources
+        )
+          ? idea.sources[0] || ""
+          : "";
+
+      const categoryVerifiedBySource =
+        [
+          "Made-in-China",
+          "Alibaba",
+          "1688"
+        ].includes(
+          sourceName
+        );
+
+      const subgroupVerifiedBySource =
+        categoryVerifiedBySource &&
+        idea.subgroup ===
+          refinementKey;
+
       if (
         !idea.categoryVerified &&
+        !categoryVerifiedBySource &&
         !matchesTrendCategory(
           title,
           category
@@ -8073,6 +8098,7 @@ function filterTrendIdeasByCategory({
       if (
         refinementKey &&
         !idea.refinementVerified &&
+        !subgroupVerifiedBySource &&
         !matchesTrendRefinement(
           title,
           category,
@@ -9424,12 +9450,64 @@ async function loadMadeInChinaProductImage(
   );
 }
 
+async function loadChinaProductImages(
+  products,
+  imageLoader
+) {
+  const sourceProducts =
+    Array.isArray(products)
+      ? products
+      : [];
+
+  const result =
+    new Array(
+      sourceProducts.length
+    );
+
+  let nextProductIndex = 0;
+
+  async function loadNextImage() {
+    while (
+      nextProductIndex <
+        sourceProducts.length
+    ) {
+      const currentIndex =
+        nextProductIndex;
+
+      nextProductIndex += 1;
+
+      result[currentIndex] =
+        await imageLoader(
+          sourceProducts[
+            currentIndex
+          ]
+        );
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      {
+        length:
+          Math.min(
+            8,
+            sourceProducts.length
+          )
+      },
+      () =>
+        loadNextImage()
+    )
+  );
+
+  return result;
+}
+
 function getChinaSourcePoolLimit(
   refinementKey
 ) {
   return refinementKey
     ? 75
-    : 50;
+    : 100;
 }
 
 function selectBalancedMadeInChinaProducts(
@@ -10100,13 +10178,9 @@ async function loadMadeInChinaSignal({
     );
 
   const productsWithImages =
-    await Promise.all(
-      selectedProducts.map(
-        product =>
-          loadMadeInChinaProductImage(
-            product
-          )
-      )
+    await loadChinaProductImages(
+      selectedProducts,
+      loadMadeInChinaProductImage
     );
 
   const products =
@@ -10223,15 +10297,10 @@ function buildAlibabaSearchQueries(
         : [];
 
     const selectedGroupQueries =
-      refinementKey
-        ? groupQueries.slice(
-            0,
-            2
-          )
-        : groupQueries.slice(
-            0,
-            1
-          );
+      groupQueries.slice(
+        0,
+        2
+      );
 
     for (
       const baseQuery
@@ -10272,7 +10341,7 @@ function buildAlibabaSearchQueries(
 
   return queryItems.slice(
     0,
-    12
+    24
   );
 }
 
@@ -10959,13 +11028,9 @@ async function loadAlibabaSignal({
     );
 
   const productsWithImages =
-    await Promise.all(
-      selectedProducts.map(
-        product =>
-          loadAlibabaProductImage(
-            product
-          )
-      )
+    await loadChinaProductImages(
+      selectedProducts,
+      loadAlibabaProductImage
     );
 
   const products =
@@ -11369,7 +11434,7 @@ async function executeChina1688Request(
     beginPage:
       1,
     pageSize:
-      40,
+      80,
     method:
       "getOfferList",
     verticalProductFlag:
@@ -12057,7 +12122,7 @@ function extractChina1688Products(
 
     if (
       products.length >=
-      40
+      80
     ) {
       break;
     }
@@ -12405,15 +12470,10 @@ function buildYiwugoSearchQueries(
         : [];
 
     const selectedGroupQueries =
-      refinementKey
-        ? groupQueries.slice(
-            0,
-            2
-          )
-        : groupQueries.slice(
-            0,
-            1
-          );
+      groupQueries.slice(
+        0,
+        2
+      );
 
     for (
       const baseQuery
@@ -12453,7 +12513,7 @@ function buildYiwugoSearchQueries(
 
   return queries.slice(
     0,
-    12
+    24
   );
 }
 
@@ -12693,7 +12753,7 @@ async function loadYiwugoProductImage(
           },
           signal:
             AbortSignal.timeout(
-              4500
+              9000
             )
         }
       );
@@ -15855,6 +15915,9 @@ export async function searchProductTrends(
     chinaTasks
   );
 
+  const collectedIdeasCount =
+    ideas.length;  
+
   ideas =
     applyChinaCrossSourceRanking(
       ideas
@@ -15867,12 +15930,18 @@ export async function searchProductTrends(
       refinementKey
     });
 
+  const categoryFilteredIdeasCount =
+    ideas.length;  
+
   ideas =
     ideas.filter(idea =>
       isUsableChinaProductImageUrl(
         idea.imageUrl
       )
     );
+
+  const photoReadyIdeasCount =
+    ideas.length;  
 
   const uniqueIdeas = [];
 
@@ -15951,6 +16020,39 @@ export async function searchProductTrends(
       category,
       refinementKey
     });
+
+  console.log(
+    "[Trends] result counts:",
+    {
+      market,
+      category,
+      refinementKey:
+        refinementKey || null,
+      collected:
+        collectedIdeasCount,
+      afterCategoryFilter:
+        categoryFilteredIdeasCount,
+      withProductPhoto:
+        photoReadyIdeasCount,
+      unique:
+        uniqueIdeas.length,
+      selected:
+        ideas.length,
+      sources:
+        sources.map(source => ({
+          source:
+            source.source,
+          status:
+            source.status,
+          products:
+            Array.isArray(
+              source.products
+            )
+              ? source.products.length
+              : 0
+        }))
+    }
+  );  
 
   let summary = "";
 
