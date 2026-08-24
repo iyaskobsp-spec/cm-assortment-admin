@@ -17,6 +17,50 @@ const CACHE_TTL_MS = 15 * 60 * 1000;
 const requestLog = new Map();
 const monitoringCache = new Map();
 
+const SEARCH_TOKEN_ALIAS_GROUPS = [
+  "підгуз|підгузок|памперс|diaper",
+  "склянка|стакан|tumbler",
+  "чашка|горнятко|кружка|mug|cup",
+  "пляшка|бутилка|бутылка|bottle",
+  "рушник|полотенце|towel",
+  "серветка|салфетка|wipe|napkin",
+  "контейнер|ємність|емкость",
+  "вішалка|вешалка|hanger",
+  "щітка|щетка|brush",
+  "губка|спонж|sponge",
+  "крем|cream|creme",
+  "сироватка|сыворотка|serum",
+  "шампунь|shampoo",
+  "мило|мыло|soap",
+  "парфуми|парфюм|духи|perfume",
+  "іграшка|игрушка|toy",
+  "корм|feed",
+  "сумка|торба|bag",
+  "рюкзак|backpack",
+  "гаманець|кошелек|wallet",
+  "парасолька|зонт|umbrella",
+  "шкарпетки|носки|socks",
+  "тапочки|капці|slippers",
+  "устілка|стелька|insole",
+  "тарілка|тарелка|plate",
+  "ложка|spoon",
+  "виделка|вилка|fork",
+  "сковорода|сковорідка|pan",
+  "каструля|кастрюля|pot",
+  "свічка|свеча|candle",
+  "дзеркало|зеркало|mirror",
+  "навушники|наушники|headphones|earphones",
+  "батарейка|батарея|battery",
+  "зарядка|зарядний|зарядное|charger",
+  "чохол|чехол|case",
+  "олівець|карандаш|pencil",
+  "зошит|тетрадь|notebook",
+  "ножиці|ножницы|scissors",
+  "фарба|краска|paint",
+  "пустушка|соска|pacifier",
+  "прорізувач|прорезыватель|teether"
+].map(group => group.split("|"));
+
 function setCorsHeaders(request, response) {
   const origin = request.headers.origin;
 
@@ -838,6 +882,11 @@ async function monitorProduct(requestBody) {
     return previousRow[secondValue.length];
   }
 
+  const searchTokenAliasRoots =
+    SEARCH_TOKEN_ALIAS_GROUPS.map(group =>
+      group.map(alias => getTokenRoot(alias))
+    );
+
   function tokensMatch(firstToken, secondToken) {
     const firstBase = getTokenRoot(firstToken);
     const secondBase = getTokenRoot(secondToken);
@@ -847,6 +896,15 @@ async function monitorProduct(requestBody) {
     }
 
     if (firstBase === secondBase) {
+      return true;
+    }
+
+    if (
+      searchTokenAliasRoots.some(group =>
+        group.includes(firstBase) &&
+        group.includes(secondBase)
+      )
+    ) {
       return true;
     }
 
@@ -888,6 +946,163 @@ async function monitorProduct(requestBody) {
     }
 
     return shorterLength >= 4 && editDistance <= 1;
+  }
+
+  const semanticContextMap = {
+    careTarget: {
+      face: ["для обличчя", "обличчя|лице|лиця|face|facial"],
+      hands: ["для рук", "рук|руки|hands|hand"],
+      feet: ["для ніг", "ніг|ног|стоп|feet|foot"],
+      body: ["для тіла", "тіла|тіло|тела|body"],
+      hair: ["для волосся", "волосся|волос|hair"],
+      lips: ["для губ", "губ|губи|lips|lip"],
+      eyes: ["для очей", "очей|глаз|eyes|eye"],
+      nails: ["для нігтів", "нігтів|ногтей|nails|nail"],
+      oral: [
+        "для ротової порожнини",
+        "ротової порожнини|порожнини рота|зубів|зубні|полости рта|oral|dental"
+      ],
+      intimate: [
+        "для інтимної гігієни",
+        "інтимної|интимной|intimate"
+      ],
+      footwear: [
+        "для взуття",
+        "взуття|обуви|обувь|shoe|shoes|footwear"
+      ]
+    },
+    cleaningTarget: {
+      laundry: [
+        "для прання",
+        "прання|білизни|белья|стирки|laundry"
+      ],
+      dishes: [
+        "для посуду",
+        "миття посуду|посуду|посуды|dish|dishes"
+      ],
+      kitchen: [
+        "для кухні",
+        "кухні|кухни|кухонний|кухонный|kitchen"
+      ],
+      bathroom: [
+        "для ванної кімнати",
+        "ванної|ванной|ванних кімнат|bathroom"
+      ],
+      toilet: [
+        "для туалету",
+        "туалету|туалета|унітаз|унитаз|toilet|wc"
+      ],
+      glassSurface: [
+        "для скла",
+        "скляних поверхонь|скла|стекол|стекла|window cleaner"
+      ],
+      furniture: [
+        "для меблів",
+        "меблів|мебели|furniture"
+      ],
+      floor: [
+        "для підлоги",
+        "підлоги|полов|пола|floor"
+      ],
+      auto: [
+        "для автомобіля",
+        "автомобіля|автомобиля|авто|car|auto"
+      ],
+      electronics: [
+        "для техніки",
+        "техніки|техники|екранів|экранов|electronics"
+      ]
+    },
+    audience: {
+      pets: [
+        "для тварин",
+        "тварин|животных|собак|кішок|котов|котів|pet|pets"
+      ],
+      baby: [
+        "для малюків",
+        "малюків|малюка|младенцев|немовлят|baby|infant"
+      ],
+      children: [
+        "дитячий",
+        "дитячий|дитячі|детский|детские|children|kids"
+      ],
+      women: [
+        "жіночий",
+        "жіночий|жіночі|женский|женские|women|woman"
+      ],
+      men: [
+        "чоловічий",
+        "чоловічий|чоловічі|мужской|мужские|men|man"
+      ]
+    },
+    deviceTarget: {
+      phone: [
+        "для телефону",
+        "телефону|телефона|смартфона|phone|smartphone"
+      ],
+      computer: [
+        "для комп'ютера",
+        "комп'ютера|компьютера|ноутбука|computer|laptop"
+      ],
+      audio: [
+        "аудіо",
+        "аудіо|аудио|навушники|наушники|audio|headphones"
+      ]
+    },
+    useArea: {
+      garden: [
+        "для саду",
+        "саду|сада|город|рослин|растений|garden"
+      ],
+      school: [
+        "шкільний",
+        "шкільний|шкільні|школьный|школьные|school"
+      ],
+      travel: [
+        "дорожній",
+        "дорожній|дорожные|подорожей|путешествий|travel"
+      ],
+      sport: [
+        "спортивний",
+        "спортивний|спортивные|спорт|sport"
+      ],
+      holiday: [
+        "святковий",
+        "святковий|праздничный|нового року|пасхи|хеллоуин|holiday"
+      ]
+    }
+  };
+
+  const semanticContextRules =
+    Object.entries(semanticContextMap).flatMap(
+      ([axis, concepts]) =>
+        Object.entries(concepts).map(
+          ([key, [hint, aliasText]]) => ({
+            axis,
+            key,
+            hint,
+            aliasTokens: aliasText
+              .split("|")
+              .map(alias => getMeaningfulTokens(alias))
+          })
+        )
+    );
+
+  function getSemanticContextKeys(value) {
+    const valueTokens = getMeaningfulTokens(value);
+
+    return semanticContextRules
+      .filter(rule =>
+        rule.aliasTokens.some(aliasTokens =>
+          aliasTokens.length > 0 &&
+          aliasTokens.every(aliasToken =>
+            valueTokens.some(valueToken =>
+              tokensMatch(aliasToken, valueToken)
+            )
+          )
+        )
+      )
+      .map(rule => rule.key);
   }
 
   function extractPackages(value) {
@@ -954,15 +1169,137 @@ async function monitorProduct(requestBody) {
 
   const queryPackages = extractPackages(productName);
 
+  const productContextKeys =
+    getSemanticContextKeys(productName);
+
+  const typeContextKeys =
+    getSemanticContextKeys(type);
+
+  const categoryContextKeys =
+    getSemanticContextKeys(category);
+
+  const segmentContextKeys =
+    getSemanticContextKeys(segment);
+
+  const expectedSemanticContexts = [
+    ...new Set(
+      semanticContextRules.map(rule => rule.axis)
+    )
+  ].map(axis => {
+    const axisKeys = keys =>
+      keys.filter(key =>
+        semanticContextRules.some(rule =>
+          rule.key === key && rule.axis === axis
+        )
+      );
+
+    const selectedSource = [
+      ["product", axisKeys(productContextKeys)],
+      ["type", axisKeys(typeContextKeys)],
+      ["category", axisKeys(categoryContextKeys)],
+      ["segment", axisKeys(segmentContextKeys)]
+    ].find(([, keys]) => keys.length > 0);
+
+    return {
+      axis,
+      source: selectedSource?.[0] || null,
+      keys: selectedSource?.[1] || []
+    };
+  }).filter(context => context.keys.length > 0);
+
+  function assessSemanticContext(title) {
+    const titleContextKeys =
+      getSemanticContextKeys(title);
+
+    let contextBonus = 0;
+    let conflictPenalty = 0;
+    let matchedContexts = 0;
+    let strongConflict = false;
+
+    expectedSemanticContexts.forEach(context => {
+      const titleAxisKeys =
+        titleContextKeys.filter(key =>
+          semanticContextRules.some(rule =>
+            rule.key === key &&
+            rule.axis === context.axis
+          )
+        );
+
+      if (!titleAxisKeys.length) {
+        return;
+      }
+
+      if (
+        titleAxisKeys.some(key =>
+          context.keys.includes(key)
+        )
+      ) {
+        matchedContexts += 1;
+
+        contextBonus += {
+          product: 0.14,
+          type: 0.1,
+          category: 0.06,
+          segment: 0.03
+        }[context.source] || 0;
+
+        return;
+      }
+
+      const basePenalty = {
+        product: 0.42,
+        type: 0.32,
+        category: 0.2,
+        segment: 0.08
+      }[context.source] || 0;
+
+      const axisMultiplier = {
+        careTarget: 1,
+        cleaningTarget: 1,
+        audience: 0.55,
+        deviceTarget: 0.45,
+        useArea: 0.35
+      }[context.axis] || 0.5;
+
+      conflictPenalty +=
+        basePenalty * axisMultiplier;
+
+      if (
+        ["careTarget", "cleaningTarget"]
+          .includes(context.axis) &&
+        ["product", "type"]
+          .includes(context.source)
+      ) {
+        strongConflict = true;
+      }
+    });
+
+    return {
+      contextBonus:
+        Math.min(contextBonus, 0.22),
+      conflictPenalty:
+        Math.min(conflictPenalty, 0.65),
+      matchedContexts,
+      strongConflict
+    };
+  }
+
   function getMatchScore(title, matchedQuery = "") {
     const titleTokens = getMeaningfulTokens(title);
     const matchedQueryTokens =
       getMeaningfulTokens(matchedQuery);
 
+    const semanticContext =
+      assessSemanticContext(title);
+
     if (
       !titleTokens.length ||
       !productTokensForMatching.length
     ) {
+      return 0;
+    }
+
+    if (semanticContext.strongConflict) {
       return 0;
     }
 
@@ -1052,7 +1389,8 @@ async function monitorProduct(requestBody) {
       productCoverage === 1 &&
       supplierCoverage === 1 &&
       !packageMissing &&
-      !packageDifferent;
+      !packageDifferent &&
+      semanticContext.conflictPenalty === 0;
 
     if (isFullMatch) {
       return 1;
@@ -1085,6 +1423,9 @@ async function monitorProduct(requestBody) {
     if (packageMissing) {
       score -= 0.04;
     }
+
+    score += semanticContext.contextBonus;
+    score -= semanticContext.conflictPenalty;
 
     return Math.max(
       0,
@@ -1124,8 +1465,47 @@ async function monitorProduct(requestBody) {
       .filter(Boolean)
       .join(" ");
 
+    const contextPriority = [
+      "careTarget",
+      "cleaningTarget",
+      "deviceTarget",
+      "audience",
+      "useArea"
+    ];
+
+    const semanticHintContext =
+      [...expectedSemanticContexts]
+        .filter(context =>
+          ["type", "category"].includes(
+            context.source
+          )
+        )
+        .sort((first, second) =>
+          contextPriority.indexOf(first.axis) -
+          contextPriority.indexOf(second.axis)
+        )[0];
+
+    const classificationSearchHint =
+      semanticHintContext
+        ? semanticContextRules.find(rule =>
+            rule.key ===
+            semanticHintContext.keys[0]
+          )?.hint || ""
+        : "";
+
+    const contextQuery = [
+      supplierAlreadyInProductName
+        ? ""
+        : supplier,
+      productWithoutPackage,
+      classificationSearchHint
+    ]
+      .filter(Boolean)
+      .join(" ");
+
     const queryCandidates = [
       exactQuery,
+      contextQuery,
       productName,
       supplierProductWithoutPackage,
       productWithoutPackage
@@ -1141,7 +1521,8 @@ async function monitorProduct(requestBody) {
 
       if (
         cleanedCandidate.length < 2 ||
-        seenQueries.has(cleanedCandidate)
+        seenQueries.has(cleanedCandidate) ||
+        uniqueQueries.length >= 4
       ) {
         return;
       }
@@ -1307,9 +1688,13 @@ async function monitorProduct(requestBody) {
       const titleTokens =
         getMeaningfulTokens(offer.title);
 
+      const semanticContext =
+        assessSemanticContext(offer.title);
+
       if (
         !titleTokens.length ||
-        !productIdentityTokens.length
+        !productIdentityTokens.length ||
+        semanticContext.strongConflict
       ) {
         return null;
       }
@@ -1321,7 +1706,24 @@ async function monitorProduct(requestBody) {
           )
         );
 
-      if (matchedIndexes.some(index => index < 0)) {
+      const matchedIdentityCount =
+        matchedIndexes
+          .filter(index => index >= 0)
+          .length;
+
+      const identityCoverage =
+        matchedIdentityCount /
+        productIdentityTokens.length;
+
+      const minimumIdentityCoverage =
+        productIdentityTokens.length === 1
+          ? 1
+          : 0.5;
+
+      if (
+        identityCoverage <
+        minimumIdentityCoverage
+      ) {
         return null;
       }
 
@@ -1331,7 +1733,9 @@ async function monitorProduct(requestBody) {
         ).length;
 
       const firstMatchedIndex = Math.min(
-        ...matchedIndexes
+        ...matchedIndexes.filter(
+          index => index >= 0
+        )
       );
 
       const tokensBeforeIdentity =
@@ -1377,13 +1781,15 @@ async function monitorProduct(requestBody) {
           exactIndex === 0 ||
           firstMatchedIndex === 0 ||
           hasTypeAnchor ||
-          hasSupplierAnchor;
+          hasSupplierAnchor ||
+          semanticContext.matchedContexts > 0;
       } else {
         hasValidIdentity =
           hasDirectPhrase ||
           firstMatchedIndex === 0 ||
           hasTypeAnchor ||
-          hasSupplierAnchor;
+          hasSupplierAnchor ||
+          semanticContext.matchedContexts > 0;
       }
 
       if (!hasValidIdentity) {
@@ -1458,7 +1864,7 @@ async function monitorProduct(requestBody) {
           offer.matchedQuery
         );
 
-      const identityCoverage =
+      const exactIdentityCoverage =
         exactMatchedTokens /
         productIdentityTokens.length;
 
@@ -1467,8 +1873,11 @@ async function monitorProduct(requestBody) {
           (
             matchScore +
             identityCoverage * 0.08 +
+            exactIdentityCoverage * 0.03 +
             (hasDirectPhrase ? 0.06 : 0) +
-            (hasTypeAnchor ? 0.03 : 0)
+            (hasTypeAnchor ? 0.03 : 0) +
+            semanticContext.contextBonus -
+            semanticContext.conflictPenalty
           ) * 1000
         ) / 1000;
 
