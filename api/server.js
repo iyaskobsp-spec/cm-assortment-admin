@@ -281,8 +281,7 @@ function extractPromOffers(html) {
         };
       });
     })
-    .filter(Boolean)
-    .sort((first, second) => first.price - second.price);
+    .filter(Boolean);
 
   const uniqueOffers = [];
   const seen = new Set();
@@ -296,7 +295,7 @@ function extractPromOffers(html) {
     }
   }
 
-  return uniqueOffers.slice(0, 10);
+  return uniqueOffers.slice(0, 40);
 }
 
 async function monitorProm(productName, supplier) {
@@ -1070,6 +1069,28 @@ async function monitorProduct(requestBody) {
         "святковий",
         "святковий|праздничный|нового року|пасхи|хеллоуин|holiday"
       ]
+    },
+    productPurpose: {
+      skincare: [
+        "доглядова косметика",
+        "крем для обличчя|крема для обличчя|креми для обличчя|сироватка|сыворотка|serum|догляд за обличчям|уход за лицом|зволожувальний|увлажняющий|живильний|питательный|денний крем|нічний крем|botanical cream"
+      ],
+      makeup: [
+        "декоративна косметика",
+        "декоративна косметика|декоративная косметика|макіяж|макияж|тональний|тональный|foundation|bb cream|cc cream|праймер|primer|консилер|concealer|пудра|румяна"
+      ],
+      soap: [
+        "мило",
+        "крем-мило|крем мыло|мило|мыло|soap"
+      ],
+      hairColor: [
+        "фарба для волосся",
+        "фарба для волосся|краска для волос|крем-фарба|крем краска|hair color|color sensation"
+      ],
+      cleansing: [
+        "очищення обличчя",
+        "очищення обличчя|очищение лица|вмивання|умывания|міцелярна|мицеллярная|cleanser|cleansing"
+      ]
     }
   };
 
@@ -1162,10 +1183,21 @@ async function monitorProduct(requestBody) {
       /\p{L}/u.test(token)
     );
 
+  const aliasProductTokens =
+    productTokensForMatching.filter(token => {
+      const tokenRoot = getTokenRoot(token);
+
+      return searchTokenAliasRoots.some(group =>
+        group.includes(tokenRoot)
+      );
+    });
+
   const coreProductTokens =
-    classificationProductTokens.length
-      ? classificationProductTokens
-      : lexicalProductTokens.slice(0, 1);
+    aliasProductTokens.length
+      ? aliasProductTokens
+      : classificationProductTokens.length
+        ? classificationProductTokens
+        : lexicalProductTokens.slice(0, 1);
 
   const queryPackages = extractPackages(productName);
 
@@ -1180,6 +1212,44 @@ async function monitorProduct(requestBody) {
 
   const segmentContextKeys =
     getSemanticContextKeys(segment);
+
+  const embeddedBrandCandidates =
+    supplierTokensForMatching.length
+      ? []
+      : productTokensForMatching.filter(token => {
+          if (!/^[a-z][a-z0-9-]{2,}$/i.test(token)) {
+            return false;
+          }
+
+          const tokenRoot = getTokenRoot(token);
+
+          const isProductAlias =
+            searchTokenAliasRoots.some(group =>
+              group.includes(tokenRoot)
+            );
+
+          const isSemanticAlias =
+            semanticContextRules.some(rule =>
+              rule.aliasTokens.some(aliasTokens =>
+                aliasTokens.some(aliasToken =>
+                  tokensMatch(aliasToken, token)
+                )
+              )
+            );
+
+          return !isProductAlias && !isSemanticAlias;
+        });
+
+  const likelyEmbeddedBrandTokens =
+    embeddedBrandCandidates.length === 1 &&
+    (
+      aliasProductTokens.length > 0 ||
+      productContextKeys.length > 0 ||
+      typeContextKeys.length > 0 ||
+      categoryContextKeys.length > 0
+    )
+      ? embeddedBrandCandidates
+      : [];
 
   const expectedSemanticContexts = [
     ...new Set(
@@ -1229,10 +1299,20 @@ async function monitorProduct(requestBody) {
         return;
       }
 
-      if (
+      const hasExpectedContext =
         titleAxisKeys.some(key =>
           context.keys.includes(key)
-        )
+        );
+
+      const hasExclusiveConflict =
+        context.axis === "productPurpose" &&
+        titleAxisKeys.some(key =>
+          !context.keys.includes(key)
+        );
+
+      if (
+        hasExpectedContext &&
+        !hasExclusiveConflict
       ) {
         matchedContexts += 1;
 
@@ -1256,6 +1336,7 @@ async function monitorProduct(requestBody) {
       const axisMultiplier = {
         careTarget: 1,
         cleaningTarget: 1,
+        productPurpose: 1,
         audience: 0.55,
         deviceTarget: 0.45,
         useArea: 0.35
@@ -1265,9 +1346,13 @@ async function monitorProduct(requestBody) {
         basePenalty * axisMultiplier;
 
       if (
-        ["careTarget", "cleaningTarget"]
+        [
+          "careTarget",
+          "cleaningTarget",
+          "productPurpose"
+        ]
           .includes(context.axis) &&
-        ["product", "type"]
+        ["product", "type", "category"]
           .includes(context.source)
       ) {
         strongConflict = true;
@@ -1318,8 +1403,7 @@ async function monitorProduct(requestBody) {
 
     if (
       coreProductTokens.length &&
-      !matchedCoreTokens &&
-      !matchedSearchTokens
+      !matchedCoreTokens
     ) {
       return 0;
     }
@@ -1451,6 +1535,18 @@ async function monitorProduct(requestBody) {
         .replace(/\s+/g, " ")
         .trim();
 
+    const productWithoutLikelyBrand =
+      productWithoutPackage
+        .split(" ")
+        .filter(token =>
+          !likelyEmbeddedBrandTokens.some(
+            brandToken =>
+              tokensMatch(token, brandToken)
+          )
+        )
+        .join(" ")
+        .trim();
+
     const exactQuery = [
       supplierAlreadyInProductName ? "" : supplier,
       productName
@@ -1503,9 +1599,18 @@ async function monitorProduct(requestBody) {
       .filter(Boolean)
       .join(" ");
 
+    const contextWithoutBrandQuery = [
+      productWithoutLikelyBrand,
+      classificationSearchHint
+    ]
+      .filter(Boolean)
+      .join(" ");
+
     const queryCandidates = [
       exactQuery,
       contextQuery,
+      contextWithoutBrandQuery,
+      productWithoutLikelyBrand,
       productName,
       supplierProductWithoutPackage,
       productWithoutPackage
@@ -1667,6 +1772,9 @@ async function monitorProduct(requestBody) {
         /\p{L}/u.test(productToken) &&
         !supplierTokensForMatching.some(supplierToken =>
           tokensMatch(productToken, supplierToken)
+        ) &&
+        !likelyEmbeddedBrandTokens.some(brandToken =>
+          tokensMatch(productToken, brandToken)
         )
       );
 
@@ -1696,6 +1804,17 @@ async function monitorProduct(requestBody) {
         !productIdentityTokens.length ||
         semanticContext.strongConflict
       ) {
+        return null;
+      }
+
+      const hasCoreIdentityMatch =
+        coreProductTokens.some(coreToken =>
+          titleTokens.some(titleToken =>
+            tokensMatch(coreToken, titleToken)
+          )
+        );
+
+      if (!hasCoreIdentityMatch) {
         return null;
       }
 
@@ -1927,15 +2046,7 @@ async function monitorProduct(requestBody) {
           Number(second.price || 0)
         );
 
-      const fullOffers = relevantOffers.filter(
-        offer =>
-          offer.semanticMatchType === "full"
-      );
-
-      const preferredOffers =
-        fullOffers.length
-          ? fullOffers
-          : relevantOffers;
+      const preferredOffers = relevantOffers;
 
       let packageMatchedOffers =
         preferredOffers;
