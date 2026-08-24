@@ -1648,14 +1648,39 @@ async function monitorProduct(requestBody) {
     let successfulRequests = 0;
     let firstError = null;
 
-    for (const searchQuery of searchQueries) {
-      attemptedQueries.push(searchQuery);
+    const queryConcurrency = 2;
 
-      try {
-        const loadedOffers =
-          await loadOffers(searchQuery);
+    for (
+      let startIndex = 0;
+      startIndex < searchQueries.length;
+      startIndex += queryConcurrency
+    ) {
+      const queryBatch = searchQueries.slice(
+        startIndex,
+        startIndex + queryConcurrency
+      );
+
+      attemptedQueries.push(...queryBatch);
+
+      const batchResults = await Promise.allSettled(
+        queryBatch.map(async searchQuery => ({
+          searchQuery,
+          loadedOffers: await loadOffers(searchQuery)
+        }))
+      );
+
+      batchResults.forEach(result => {
+        if (result.status === "rejected") {
+          firstError ||= result.reason;
+          return;
+        }
 
         successfulRequests += 1;
+
+        const {
+          searchQuery,
+          loadedOffers
+        } = result.value;
 
         const offers = Array.isArray(loadedOffers)
           ? loadedOffers
@@ -1680,9 +1705,7 @@ async function monitorProduct(requestBody) {
             });
           }
         });
-      } catch (error) {
-        firstError ||= error;
-      }
+      });
     }
 
     if (!successfulRequests && firstError) {
