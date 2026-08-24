@@ -39,6 +39,73 @@ const UKRAINE_SIGNAL_CONFIG = {
   }
 };
 
+const UKRAINE_CATEGORY_SEARCH_CONTEXTS = {
+  "home-kitchen":
+    "товари для кухні посуд кухонне приладдя",
+
+  "storage-organization":
+    "товари для зберігання органайзери для дому",
+
+  decor:
+    "декор для дому інтер'єрні аксесуари",
+
+  household:
+    "побутові товари для дому прибирання та догляд",
+
+  "beauty-care":
+    "косметика товари для краси та особистого догляду",
+
+  kids:
+    "дитячі товари для немовлят і малюків",
+
+  toys:
+    "дитячі іграшки та ігрові набори",
+
+  stationery:
+    "канцелярські товари для навчання і творчості",
+
+  accessories:
+    "особисті модні аксесуари",
+
+  pets:
+    "зоотовари для котів собак і домашніх тварин",
+
+  seasonal:
+    "сезонні та святкові товари",
+
+  gifts:
+    "подарунки та подарункові товари",
+
+  "electronics-accessories":
+    "електронні аксесуари для телефону та комп'ютера",
+
+  other:
+    "корисні компактні споживчі товари"
+};
+
+const UKRAINE_OUT_OF_SCOPE_MARKERS = [
+  "для інвалідів",
+  "для людей з інвалідністю",
+  "реабілітаційн",
+  "медичне обладнання",
+  "медичний туалет",
+  "стілець-туалет",
+  "туалетний стілець",
+  "промислов",
+  "виробнича лінія",
+  "виробниче обладнання",
+  "торгове обладнання",
+  "обладнання для підприємств",
+  "верстат",
+  "будівельний матеріал",
+  "сантехнічне обладнання",
+  "душова кабіна",
+  "підвісний унітаз",
+  "унітаз-компакт",
+  "унітаз з бачком",
+  "автозапчаст"
+];
+
 const pageCache = new Map();
 
 const CACHE_TTL_MS =
@@ -84,7 +151,28 @@ function matchesExclusions(
   );
 }
 
+function isUkraineProductOutOfScope(
+  title
+) {
+  const normalizedTitle =
+    cleanText(
+      title,
+      500
+    )
+      .toLocaleLowerCase(
+        "uk-UA"
+      );
+
+  return UKRAINE_OUT_OF_SCOPE_MARKERS
+    .some(marker =>
+      normalizedTitle.includes(
+        marker
+      )
+    );
+}
+
 function buildQueries({
+  category,
   refinementKey,
   refinementOptions,
   searchDetails
@@ -127,6 +215,14 @@ function buildQueries({
       120
     );
 
+  const categoryContext =
+    cleanText(
+      UKRAINE_CATEGORY_SEARCH_CONTEXTS[
+        category
+      ],
+      160
+    );
+
   return options
     .slice(
       0,
@@ -139,6 +235,7 @@ function buildQueries({
       searchQuery:
         cleanText(
           [
+            categoryContext,
             option.label,
             details
           ]
@@ -1021,6 +1118,7 @@ async function loadSource({
 }) {
   const queries =
     buildQueries({
+      category,
       refinementKey,
       refinementOptions,
       searchDetails
@@ -1111,8 +1209,15 @@ async function loadSource({
     for (
       const product
       of queryResult.products
+        .slice(
+          0,
+          32
+        )
     ) {
       if (
+        isUkraineProductOutOfScope(
+          product.title
+        ) ||
         matchesExclusions(
           product.title,
           exclusions
