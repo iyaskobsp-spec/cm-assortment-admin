@@ -670,7 +670,8 @@ async function loadPage({
   sourceConfig,
   searchQuery,
   signalType,
-  page
+  page,
+  skipDirectProm = false
 }) {
   const sourceUrl =
     buildSearchUrl(
@@ -703,7 +704,8 @@ async function loadPage({
 
   if (
     sourceConfig.code ===
-    "prom"
+      "prom" &&
+    !skipDirectProm
   ) {
     try {
       const response =
@@ -1070,7 +1072,10 @@ async function loadSource({
 
             signalType,
 
-            page
+            page,
+
+            skipDirectProm:
+              !refinementKey
           }),
 
           searchQuery:
