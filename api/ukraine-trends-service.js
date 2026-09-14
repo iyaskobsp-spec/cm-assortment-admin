@@ -1172,8 +1172,7 @@ async function loadSource({
 
             page,
 
-            skipDirectProm:
-              !refinementKey
+            skipDirectProm: false
           }),
 
           searchQuery:
