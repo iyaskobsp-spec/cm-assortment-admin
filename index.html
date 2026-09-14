@@ -303,9 +303,131 @@
             </article>
           </div>
 
-          <div class="ai-card">
-            <p class="ai-title">Огляд ШІ</p>
-            <p id="trendSearchResult">Замість кубиків тут буде нормальний висновок: що варто перевірити, які позиції можуть зайти в асортимент і що відсіяти.</p>
+          <div class="ai-card ai-review-card">
+            <div>
+              <p class="ai-title">Огляд ШІ</p>
+              <p class="ai-review-intro">
+                Огляд формується окремо після отримання цін — під конкретну мету та вибрані питання.
+              </p>
+            </div>
+
+            <div
+              id="aiReviewControls"
+              class="ai-review-controls"
+              hidden
+            >
+              <div class="field">
+                <label for="aiReviewGoalSelect">Мета огляду</label>
+                <select id="aiReviewGoalSelect">
+                  <option value="new_product">
+                    Введення нового товару
+                  </option>
+                  <option value="price_review">
+                    Перегляд планової ціни
+                  </option>
+                  <option value="product_replacement">
+                    Заміна товарної позиції
+                  </option>
+                  <option value="supplier_negotiation">
+                    Переговори з постачальником
+                  </option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="aiReviewFormatSelect">Формат огляду</label>
+                <select id="aiReviewFormatSelect">
+                  <option value="committee">
+                    Короткий висновок для комітету
+                  </option>
+                  <option value="detailed">
+                    Детальний аналітичний огляд
+                  </option>
+                </select>
+              </div>
+
+              <fieldset class="ai-review-focus field-wide">
+                <legend>Що проаналізувати</legend>
+
+                <div class="ai-review-checks">
+                  <label class="ai-review-checkbox">
+                    <input
+                      type="checkbox"
+                      name="aiReviewFocus"
+                      value="match_quality"
+                      checked
+                    >
+                    <span>Точність аналогів</span>
+                  </label>
+
+                  <label class="ai-review-checkbox">
+                    <input
+                      type="checkbox"
+                      name="aiReviewFocus"
+                      value="market_price"
+                      checked
+                    >
+                    <span>Конкурентність ціни</span>
+                  </label>
+
+                  <label class="ai-review-checkbox">
+                    <input
+                      type="checkbox"
+                      name="aiReviewFocus"
+                      value="market_presence"
+                    >
+                    <span>Представленість у мережах</span>
+                  </label>
+
+                  <label class="ai-review-checkbox">
+                    <input
+                      type="checkbox"
+                      name="aiReviewFocus"
+                      value="profitability"
+                    >
+                    <span>Маржа та закупівля</span>
+                  </label>
+
+                  <label class="ai-review-checkbox">
+                    <input
+                      type="checkbox"
+                      name="aiReviewFocus"
+                      value="risks"
+                      checked
+                    >
+                    <span>Ризики й нестача даних</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <div class="field field-wide">
+                <label for="aiReviewAdditionalContext">
+                  Що додатково врахувати
+                </label>
+                <textarea
+                  id="aiReviewAdditionalContext"
+                  rows="3"
+                  maxlength="600"
+                  placeholder="Необов’язково: умови постачальника, товар для заміни, обмеження або питання комітету"
+                ></textarea>
+              </div>
+
+              <button
+                type="button"
+                id="generateAiReviewButton"
+                class="primary-btn field-wide"
+                disabled
+              >
+                Сформувати огляд ШІ
+              </button>
+            </div>
+
+            <p
+              id="committeeAiSummary"
+              class="ai-review-result"
+            >
+              Спочатку виконайте моніторинг товару.
+            </p>
           </div>
         </aside>
       </div>
@@ -424,6 +546,20 @@
     const marketStatusView = document.getElementById("marketStatusView");
     const competitorRows = document.getElementById("competitorRows");
     const committeeAiSummary = document.getElementById("committeeAiSummary");
+    const aiReviewControls = document.getElementById("aiReviewControls");
+    const aiReviewGoalSelect = document.getElementById("aiReviewGoalSelect");
+    const aiReviewFormatSelect = document.getElementById("aiReviewFormatSelect");
+    const aiReviewAdditionalContext = document.getElementById(
+      "aiReviewAdditionalContext"
+    );
+    const generateAiReviewButton = document.getElementById(
+      "generateAiReviewButton"
+    );
+    const aiReviewFocusInputs = [
+      ...document.querySelectorAll(
+        'input[name="aiReviewFocus"]'
+      )
+    ];
     const batchResultsModal = document.getElementById("batchResultsModal");
     const batchResultsRows = document.getElementById("batchResultsRows");
     const batchResultsCount = document.getElementById("batchResultsCount");
@@ -437,6 +573,7 @@
     let classifierRows = [];
     let monitoringRows = [];
     let batchMonitoringResults = [];
+    let currentReviewContextId = "";
 
     const batchCompetitorNames = [
       "Prom.ua",
@@ -564,6 +701,15 @@
       return 1;
     }
 
+    function resetAiReview(message) {
+      currentReviewContextId = "";
+      aiReviewControls.hidden = true;
+      generateAiReviewButton.disabled = true;
+      generateAiReviewButton.textContent =
+        "Сформувати огляд ШІ";
+      committeeAiSummary.textContent = message;
+    }
+
     function showCommitteeError(message, field) {
       purchasePriceView.textContent = "-";
       plannedRetailPriceView.textContent = "-";
@@ -575,10 +721,14 @@
           <td colspan="5" class="empty-cell">${message}</td>
         </tr>
       `;
-      committeeAiSummary.textContent = "Заповни обов’язкові поля, після цього блок сформує порівняння для комітету.";
+
+      resetAiReview(
+        "Заповни обов’язкові поля, після цього блок сформує порівняння для комітету."
+      );
+
       field.focus();
     }
-
+    
 async function processCommitteeRequest() {
   const segment = segmentSelect.value;
   const category = categorySelect.value;
@@ -747,14 +897,22 @@ async function processCommitteeRequest() {
       `;
     }).join("");
 
-    const aiReviewText =
-      typeof data.aiReview?.review === "string"
-        ? data.aiReview.review.trim()
+    const reviewContextId =
+      typeof data.reviewContextId === "string"
+        ? data.reviewContextId.trim()
         : "";
 
-    committeeAiSummary.textContent =
-      aiReviewText ||
-      "ШІ-огляд не сформувався. Ринкові дані вище залишаються доступними — повтори обробку трохи пізніше.";
+    if (!reviewContextId) {
+      resetAiReview(
+        "Ціни завантажено, але огляд ШІ зараз недоступний. Повтори моніторинг трохи пізніше."
+      );
+    } else {
+      currentReviewContextId = reviewContextId;
+      aiReviewControls.hidden = false;
+      generateAiReviewButton.disabled = false;
+      committeeAiSummary.textContent =
+        "Ціни завантажено. Обери мету й питання, після цього сформуй огляд.";
+    }
   } catch (error) {
     marketRangeView.textContent = "-";
     marketStatusView.textContent = "Помилка перевірки";
@@ -771,6 +929,102 @@ async function processCommitteeRequest() {
   }
 }
 
+    async function generateCommitteeAiReview() {
+      if (!currentReviewContextId) {
+        committeeAiSummary.textContent =
+          "Спочатку виконайте моніторинг товару.";
+        return;
+      }
+
+      const reviewFocus = aiReviewFocusInputs
+        .filter(input => input.checked)
+        .map(input => input.value);
+
+      if (!reviewFocus.length) {
+        committeeAiSummary.textContent =
+          "Оберіть хоча б одне питання для аналізу.";
+        return;
+      }
+
+      const requestedContextId =
+        currentReviewContextId;
+
+      const buttonText =
+        generateAiReviewButton.textContent;
+
+      generateAiReviewButton.disabled = true;
+      generateAiReviewButton.textContent =
+        "Формуємо огляд...";
+      committeeAiSummary.textContent =
+        "ШІ аналізує знайдені товари та ціни...";
+
+      try {
+        const response = await fetch(
+          "https://cm-assortment-admin-production.up.railway.app/api/monitor-review",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              reviewContextId: requestedContextId,
+              reviewGoal: aiReviewGoalSelect.value,
+              reviewFocus,
+              reviewFormat: aiReviewFormatSelect.value,
+              additionalContext:
+                aiReviewAdditionalContext.value.trim()
+            })
+          }
+        );
+
+        const data = await response
+          .json()
+          .catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+            "Не вдалося сформувати огляд ШІ."
+          );
+        }
+
+        if (
+          currentReviewContextId !== requestedContextId
+        ) {
+          return;
+        }
+
+        const reviewText =
+          typeof data.aiReview?.review === "string"
+            ? data.aiReview.review.trim()
+            : "";
+
+        if (!reviewText) {
+          throw new Error(
+            "Сервіс ШІ не повернув текст огляду."
+          );
+        }
+
+        committeeAiSummary.textContent = reviewText;
+      } catch (error) {
+        if (
+          currentReviewContextId === requestedContextId
+        ) {
+          committeeAiSummary.textContent =
+            error.message ||
+            "Не вдалося сформувати огляд ШІ.";
+        }
+      } finally {
+        if (
+          currentReviewContextId === requestedContextId
+        ) {
+          generateAiReviewButton.disabled = false;
+          generateAiReviewButton.textContent =
+            buttonText;
+        }
+      }
+    }
+    
     function getMonitoringCellText(value) {
       return String(value ?? "")
         .replace(/^\uFEFF/, "")
@@ -1532,6 +1786,11 @@ async function processCommitteeRequest() {
     batchMonitorButton.addEventListener(
       "click",
       processBatchMonitoring
+    );
+
+    generateAiReviewButton.addEventListener(
+      "click",
+      generateCommitteeAiReview
     );
 
     committeeProcessButton.addEventListener(
