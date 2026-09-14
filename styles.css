@@ -565,6 +565,130 @@ select:disabled {
   font-weight: 800;
 }
 
+.ai-review-card {
+  display: grid;
+  gap: 14px;
+}
+
+.ai-review-intro {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ai-review-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.ai-review-controls[hidden] {
+  display: none;
+}
+
+.ai-review-focus {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ai-review-focus legend {
+  margin-bottom: 8px;
+  color: rgba(246, 241, 232, 0.76);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ai-review-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ai-review-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(246, 241, 232, 0.76);
+  background: rgba(21, 24, 32, 0.48);
+  cursor: pointer;
+}
+
+.ai-review-checkbox input {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.ai-review-checkbox span {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ai-review-controls textarea {
+  width: 100%;
+  min-height: 92px;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: var(--text);
+  background-color: rgba(21, 24, 32, 0.62);
+  font: inherit;
+  line-height: 1.45;
+  outline: none;
+  resize: vertical;
+}
+
+.ai-review-controls textarea::placeholder {
+  color: rgba(169, 173, 181, 0.62);
+}
+
+.ai-review-controls textarea:focus {
+  border-color: rgba(232, 200, 115, 0.72);
+  background-color: rgba(7, 8, 11, 0.78);
+  box-shadow: 0 0 0 4px rgba(232, 200, 115, 0.12);
+}
+
+.ai-review-controls .primary-btn {
+  width: 100%;
+}
+
+.ai-review-controls .primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  animation: none;
+}
+
+.ai-review-result {
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  white-space: pre-line;
+}
+
+@media (max-width: 700px) {
+  .ai-review-controls,
+  .ai-review-checks {
+    grid-template-columns: 1fr;
+  }
+}
+
 .empty-state {
   background:
     linear-gradient(135deg, rgba(232, 200, 115, 0.1), transparent 46%),
