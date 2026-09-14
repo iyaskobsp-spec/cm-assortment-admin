@@ -1,4 +1,5 @@
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import { URL } from "node:url";
 import { searchProductTrends } from "./trends-service.js";
 
@@ -13,9 +14,11 @@ const MAX_BODY_SIZE = 10 * 1024;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 150;
 const CACHE_TTL_MS = 15 * 60 * 1000;
+const AI_REVIEW_CONTEXT_TTL_MS = 60 * 60 * 1000;
 
 const requestLog = new Map();
 const monitoringCache = new Map();
+const aiReviewContextCache = new Map();
 
 const SEARCH_TOKEN_ALIAS_GROUPS = [
   "підгуз|підгузок|памперс|diaper",
@@ -452,14 +455,88 @@ function calculateBusinessMetrics({
   };
 }
 
+const AI_REVIEW_GOALS = {
+  new_product:
+    "оцінити доцільність введення нового товару",
+  price_review:
+    "оцінити та обґрунтувати планову роздрібну ціну",
+  product_replacement:
+    "оцінити товар як можливу заміну іншої позиції",
+  supplier_negotiation:
+    "підготувати висновки для переговорів із постачальником"
+};
+
+const AI_REVIEW_FOCUS = {
+  match_quality:
+    "точність знайдених товарів-аналогів",
+  market_price:
+    "відповідність планової ціни знайденому ринку",
+  market_presence:
+    "ринкова представленість товару у перевірених мережах",
+  profitability:
+    "закупівельна ціна, планова маржа та економіка товару",
+  risks:
+    "ризики порівняння та дані, які треба уточнити"
+};
+
+const AI_REVIEW_FORMATS = {
+  committee:
+    "короткий предметний висновок для асортиментного комітету",
+  detailed:
+    "детальний аналітичний огляд із поясненням висновків"
+};
+
+function cleanupAiReviewContexts() {
+  const now = Date.now();
+
+  aiReviewContextCache.forEach((record, contextId) => {
+    if (
+      !record ||
+      now - record.savedAt > AI_REVIEW_CONTEXT_TTL_MS
+    ) {
+      aiReviewContextCache.delete(contextId);
+    }
+  });
+}
+
+function saveAiReviewContext(context) {
+  cleanupAiReviewContexts();
+
+  const contextId = randomUUID();
+
+  aiReviewContextCache.set(contextId, {
+    savedAt: Date.now(),
+    context
+  });
+
+  return contextId;
+}
+
+function getAiReviewContext(contextId) {
+  cleanupAiReviewContexts();
+
+  const record = aiReviewContextCache.get(contextId);
+
+  if (!record) {
+    return null;
+  }
+
+  return record.context;
+}
+
 async function generateAiBusinessReview({
   productName,
   supplier,
   segment,
   category,
   type,
+  purchasePrice,
   plannedRetailPrice,
-  sources
+  sources,
+  reviewGoal,
+  reviewFocus,
+  reviewFormat,
+  additionalContext
 }) {
   const apiKey = process.env.GROQ_API_KEY;
 
@@ -472,7 +549,26 @@ async function generateAiBusinessReview({
       ? Math.round(value * 100) / 100
       : null;
 
-  const plannedPrice = parsePrice(plannedRetailPrice);
+  const selectedGoal =
+    AI_REVIEW_GOALS[reviewGoal] ||
+    AI_REVIEW_GOALS.new_product;
+
+  const selectedFocusKeys = Array.isArray(reviewFocus)
+    ? reviewFocus.filter(key => AI_REVIEW_FOCUS[key])
+    : [];
+
+  const effectiveFocusKeys =
+    selectedFocusKeys.length
+      ? selectedFocusKeys
+      : ["match_quality", "market_price", "risks"];
+
+  const selectedFocus = effectiveFocusKeys.map(
+    key => AI_REVIEW_FOCUS[key]
+  );
+
+  const selectedFormat =
+    AI_REVIEW_FORMATS[reviewFormat] ||
+    AI_REVIEW_FORMATS.committee;
 
   const relevantSources = (Array.isArray(sources) ? sources : [])
     .filter(source =>
@@ -483,11 +579,41 @@ async function generateAiBusinessReview({
 
   const marketOffers = relevantSources
     .flatMap(source =>
-      source.offers.slice(0, 5).map(offer => ({
-        source: cleanText(source.source, 80),
-        title: cleanText(offer.title, 240),
-        price: round(Number(offer.price))
-      }))
+      [...source.offers]
+        .sort((first, second) =>
+          Number(second.semanticMatchType === "full") -
+            Number(first.semanticMatchType === "full") ||
+          (
+            Number.isFinite(first.packageDistance)
+              ? first.packageDistance
+              : Number.POSITIVE_INFINITY
+          ) -
+            (
+              Number.isFinite(second.packageDistance)
+                ? second.packageDistance
+                : Number.POSITIVE_INFINITY
+            ) ||
+          Number(second.semanticScore || second.matchScore || 0) -
+            Number(first.semanticScore || first.matchScore || 0)
+        )
+        .slice(0, 6)
+        .map(offer => ({
+          source: cleanText(source.source, 80),
+          title: cleanText(offer.title, 240),
+          price: round(Number(offer.price)),
+          matchType:
+            offer.semanticMatchType ||
+            (Number(offer.matchScore) === 1
+              ? "full"
+              : "partial"),
+          matchScore: round(
+            Number(offer.semanticScore || offer.matchScore)
+          ),
+          packageDifferencePercent:
+            Number.isFinite(offer.packageDistance)
+              ? round(offer.packageDistance * 100)
+              : null
+        }))
     )
     .filter(offer =>
       offer.title &&
@@ -495,64 +621,32 @@ async function generateAiBusinessReview({
       offer.price > 0
     );
 
-  const marketPrices = marketOffers
-    .map(offer => offer.price)
-    .sort((first, second) => first - second);
-
-  const lowestPrice =
-    marketPrices.length ? marketPrices[0] : null;
-
-  const highestPrice =
-    marketPrices.length
-      ? marketPrices[marketPrices.length - 1]
-      : null;
-
-  const averagePrice = marketPrices.length
-    ? round(
-      marketPrices.reduce((sum, price) => sum + price, 0) /
-      marketPrices.length
-    )
-    : null;
-
-  let plannedPricePosition = "недостатньо даних";
-
-  if (
-    Number.isFinite(plannedPrice) &&
-    Number.isFinite(lowestPrice) &&
-    Number.isFinite(highestPrice)
-  ) {
-    if (plannedPrice < lowestPrice) {
-      plannedPricePosition =
-        "нижче знайденого ринкового діапазону";
-    } else if (plannedPrice > highestPrice) {
-      plannedPricePosition =
-        "вище знайденого ринкового діапазону";
-    } else if (lowestPrice === highestPrice) {
-      plannedPricePosition =
-        "на рівні знайдених пропозицій";
-    } else {
-      const position =
-        (plannedPrice - lowestPrice) /
-        (highestPrice - lowestPrice);
-
-      plannedPricePosition =
-        position <= 0.33
-          ? "у нижній частині знайденого діапазону"
-          : position <= 0.67
-            ? "у середній частині знайденого діапазону"
-            : "у верхній частині знайденого діапазону";
-    }
-  }
+  const businessMetrics = calculateBusinessMetrics({
+    purchasePrice,
+    plannedRetailPrice,
+    sources: relevantSources
+  });
 
   const marketEvidence = {
-    matchedSourcesCount: relevantSources.length,
-    offersCount: marketOffers.length,
-    plannedRetailPrice: round(plannedPrice),
-    lowestFoundPrice: lowestPrice,
-    averageFoundPrice: averagePrice,
-    highestFoundPrice: highestPrice,
-    plannedPricePosition,
-    offers: marketOffers
+    ...businessMetrics,
+    sources: relevantSources.map(source => ({
+      source: cleanText(source.source, 80),
+      matchType: source.matchType || "partial",
+      offersCount: Number(source.offersCount) || 0,
+      lowestPrice:
+        Number(source.market?.lowestPrice) > 0
+          ? round(Number(source.market.lowestPrice))
+          : null,
+      averagePrice:
+        Number(source.market?.averagePrice) > 0
+          ? round(Number(source.market.averagePrice))
+          : null,
+      highestPrice:
+        Number(source.market?.highestPrice) > 0
+          ? round(Number(source.market.highestPrice))
+          : null
+    })),
+    bestOffers: marketOffers
   };
 
   const groqResponse = await fetch(
@@ -565,31 +659,38 @@ async function generateAiBusinessReview({
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        temperature: 0.45,
-        max_completion_tokens: 360,
+        temperature: 0.35,
+        max_completion_tokens:
+          reviewFormat === "detailed" ? 700 : 420,
         messages: [
           {
             role: "system",
             content:
               "Ти аналітик асортиментного комітету роздрібної мережі. " +
-              "Дай простий практичний огляд товару українською мовою у 3–4 природних реченнях суцільним текстом. " +
-              "Оціни: чи представлений товар на ринку за кількістю знайдених релевантних пропозицій; " +
-              "чи вписується планова роздрібна ціна у ціни справді схожих товарів; " +
-              "наскільки надійне це порівняння; і чи варто товар розглядати, тестувати або спочатку уточнити дані. " +
-              "Перед висновком обов’язково порівняй назви знайдених товарів. Якщо вони відрізняються за видом, " +
-              "матеріалом, розміром, фасуванням або призначенням, прямо скажи, що цінове порівняння орієнтовне. " +
-              "Широкий діапазон цін сам по собі не означає високу ринкову ціну — він може означати різні товари. " +
-              "Актуальність оцінюй лише як ринкову представленість у знайдених пропозиціях, " +
-              "а не як доведений попит, популярність або тренд. " +
-              "Не аналізуй закупівельну ціну, маржу, націнку, граничну закупку чи переговори з постачальником. " +
-              "Не вигадуй продажі, попит, якість, сезонність або характеристики, яких немає у вхідних даних. " +
-              "Не використовуй назви технічних полів, службові інструкції чи англомовні терміни. " +
-              "Не переказуй усі цифри: назви лише планову роздрібну ціну та доречний ринковий орієнтир. " +
-              "Заверш короткою конкретною рекомендацією без канцеляризмів."
+              "Сформуй українською мовою змістовний огляд саме під вибрану мету й акценти. " +
+              "Не використовуй однаковий шаблон і не заповнюй відповідь загальними фразами. " +
+              "Спочатку оціни, наскільки знайдені позиції справді є аналогами товару. " +
+              "Враховуй вид, бренд, призначення, фасування, розмір та показники відповідності. " +
+              "Якщо аналоги часткові або відрізняються фасуванням, прямо поясни, що цінове порівняння орієнтовне. " +
+              "Ринкова представленість означає лише наявність релевантних пропозицій у перевірених джерелах, " +
+              "а не доведений попит, популярність чи тренд. " +
+              "Економіку товару аналізуй лише тоді, коли це вибрано у фокусі та є закупівельна і планова ціни. " +
+              "Не вигадуй продажі, попит, якість, сезонність, характеристики або дані конкурентів. " +
+              "Не переказуй механічно всі цифри — використовуй лише ті, що впливають на висновок. " +
+              "Відокрем факти від припущень і заверши конкретною рекомендацією для вибраної мети. " +
+              "Для короткого формату пиши стисло без зайвих заголовків. " +
+              "Для детального формату структуруй відповідь за змістом, але додавай лише доречні блоки."
           },
           {
             role: "user",
             content: JSON.stringify({
+              task: {
+                goal: selectedGoal,
+                focus: selectedFocus,
+                format: selectedFormat,
+                additionalContext:
+                  cleanText(additionalContext, 600) || null
+              },
               product: {
                 name: productName,
                 supplier: supplier || null,
@@ -620,7 +721,7 @@ async function generateAiBusinessReview({
 
   const review = cleanText(
     groqData?.choices?.[0]?.message?.content,
-    1800
+    reviewFormat === "detailed" ? 5000 : 2600
   );
 
   if (!review) {
@@ -630,6 +731,9 @@ async function generateAiBusinessReview({
   return {
     review,
     marketEvidence,
+    goal: reviewGoal || "new_product",
+    focus: effectiveFocusKeys,
+    format: reviewFormat || "committee",
     model:
       cleanText(groqData.model, 100) ||
       "llama-3.3-70b-versatile"
@@ -3144,22 +3248,19 @@ async function monitorProduct(requestBody) {
     console.error("[Offer relevance]", error);
   }
 
-  let aiReview = null;
+  const checkedAt = new Date().toISOString();
 
-  try {
-    aiReview = await generateAiBusinessReview({
-      productName,
-      supplier,
-      segment,
-      category,
-      type,
-      purchasePrice,
-      plannedRetailPrice,
-      sources
-    });
-  } catch (error) {
-    console.error("[Groq AI]", error);
-  }
+  const reviewContextId = saveAiReviewContext({
+    productName,
+    supplier,
+    segment,
+    category,
+    type,
+    purchasePrice,
+    plannedRetailPrice,
+    checkedAt,
+    sources
+  });
 
   const filteredPromSource = sources.find(
     source => source.source === "Prom.ua"
@@ -3167,7 +3268,7 @@ async function monitorProduct(requestBody) {
 
   return {
     query,
-    checkedAt: new Date().toISOString(),
+    checkedAt,
     cached: sources.every(
       source => source.cached === true
     ),
@@ -3179,7 +3280,7 @@ async function monitorProduct(requestBody) {
       filteredPromSource.market ||
       calculateMarket([]),
     sources,
-    aiReview
+    reviewContextId
   };
 }
 
@@ -3255,6 +3356,106 @@ const server = http.createServer(async (request, response) => {
 
     return;
   }
+
+  if (
+    request.method === "POST" &&
+    requestUrl.pathname === "/api/monitor-review"
+  ) {
+    const rateLimit = checkRateLimit(getClientIp(request));
+
+    if (!rateLimit.allowed) {
+      response.setHeader("Retry-After", String(rateLimit.retryAfter));
+      sendJson(response, 429, {
+        error: "RATE_LIMITED",
+        message: "Забагато запитів. Спробуйте пізніше."
+      });
+      return;
+    }
+
+    try {
+      const requestBody = await readJsonBody(request);
+      const reviewContextId = cleanText(
+        requestBody.reviewContextId,
+        100
+      );
+
+      if (!reviewContextId) {
+        throw new Error("REVIEW_CONTEXT_REQUIRED");
+      }
+
+      const reviewContext = getAiReviewContext(
+        reviewContextId
+      );
+
+      if (!reviewContext) {
+        throw new Error("REVIEW_CONTEXT_EXPIRED");
+      }
+
+      const aiReview = await generateAiBusinessReview({
+        ...reviewContext,
+        reviewGoal: cleanText(requestBody.reviewGoal, 80),
+        reviewFocus: requestBody.reviewFocus,
+        reviewFormat: cleanText(requestBody.reviewFormat, 80),
+        additionalContext: cleanText(
+          requestBody.additionalContext,
+          600
+        )
+      });
+
+      sendJson(response, 200, {
+        checkedAt: reviewContext.checkedAt,
+        aiReview
+      });
+    } catch (error) {
+      const errorCode = String(error.message || "")
+        .split(":")[0];
+
+      const knownErrors = {
+        REQUEST_TOO_LARGE: {
+          statusCode: 413,
+          message: "Запит завеликий."
+        },
+        INVALID_JSON: {
+          statusCode: 400,
+          message: "Некоректний формат запиту."
+        },
+        REVIEW_CONTEXT_REQUIRED: {
+          statusCode: 400,
+          message: "Спочатку виконайте моніторинг товару."
+        },
+        REVIEW_CONTEXT_EXPIRED: {
+          statusCode: 410,
+          message:
+            "Результат моніторингу застарів. Оновіть ціни й повторіть огляд."
+        },
+        GROQ_API_KEY_MISSING: {
+          statusCode: 503,
+          message: "Сервіс ШІ зараз не налаштований."
+        },
+        GROQ_REQUEST_FAILED: {
+          statusCode: 502,
+          message: "Сервіс ШІ тимчасово не відповідає."
+        },
+        GROQ_EMPTY_RESPONSE: {
+          statusCode: 502,
+          message: "Сервіс ШІ не сформував огляд."
+        }
+      };
+
+      const knownError = knownErrors[errorCode];
+
+      console.error("[monitor-review-api]", error);
+
+      sendJson(response, knownError?.statusCode || 500, {
+        error: errorCode || "INTERNAL_ERROR",
+        message:
+          knownError?.message ||
+          "Не вдалося сформувати огляд ШІ."
+      });
+    }
+
+    return;
+  } 
 
     if (
     request.method === "POST" &&
