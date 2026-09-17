@@ -526,6 +526,60 @@
     </section>
   </div>
 
+  <div
+    id="supplierResultsModal"
+    class="trend-results-modal"
+    hidden
+  >
+    <section
+      class="trend-results-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="supplierResultsTitle"
+    >
+      <div class="trend-results-header">
+        <div>
+          <p class="eyebrow">
+            Постачальники в Україні
+          </p>
+
+          <h2 id="supplierResultsTitle">
+            Знайдені постачальники
+          </h2>
+
+          <span
+            id="supplierResultsProduct"
+            class="trend-results-count"
+          ></span>
+
+          <span
+            id="supplierResultsCount"
+            class="trend-results-count"
+          ></span>
+        </div>
+
+        <button
+          type="button"
+          id="closeSupplierResultsButton"
+          class="trend-results-close"
+          aria-label="Закрити постачальників"
+        >
+          ×
+        </button>
+      </div>
+
+      <div
+        id="supplierResultsSummary"
+        class="trend-results-summary"
+      ></div>
+
+      <div
+        id="supplierResultsGrid"
+        class="trend-results-grid"
+      ></div>
+    </section>
+  </div>
+
   <script>
     const segmentSelect = document.getElementById("segmentSelect");
     const categorySelect = document.getElementById("categorySelect");
