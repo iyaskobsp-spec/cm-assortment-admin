@@ -55,6 +55,32 @@ const closeTrendResultsButton = document.getElementById(
   "closeTrendResultsButton"
 );
 
+const supplierResultsModal = document.getElementById(
+  "supplierResultsModal"
+);
+
+const supplierResultsProduct = document.getElementById(
+  "supplierResultsProduct"
+);
+
+const supplierResultsCount = document.getElementById(
+  "supplierResultsCount"
+);
+
+const supplierResultsSummary = document.getElementById(
+  "supplierResultsSummary"
+);
+
+const supplierResultsGrid = document.getElementById(
+  "supplierResultsGrid"
+);
+
+const closeSupplierResultsButton = document.getElementById(
+  "closeSupplierResultsButton"
+);
+
+let currentTrendIdeas = [];
+
 const TREND_REFINEMENT_OPTIONS = {
   "home-kitchen": [
     ["kitchen-gadgets", "Кухонні гаджети та інструменти"],
@@ -327,7 +353,23 @@ function openTrendResultsModal() {
 
 function closeTrendResultsModal() {
   trendResultsModal.hidden = true;
-  document.body.classList.remove("trend-modal-open");
+
+  if (supplierResultsModal.hidden) {
+    document.body.classList.remove("trend-modal-open");
+  }
+}
+
+function openSupplierResultsModal() {
+  supplierResultsModal.hidden = false;
+  document.body.classList.add("trend-modal-open");
+}
+
+function closeSupplierResultsModal() {
+  supplierResultsModal.hidden = true;
+
+  if (trendResultsModal.hidden) {
+    document.body.classList.remove("trend-modal-open");
+  }
 }
 
 function getTrendPrimaryLink(idea) {
@@ -352,6 +394,8 @@ function getTrendPrimaryLink(idea) {
 }
 
 function renderTrendResults(ideas, summary) {
+  currentTrendIdeas = ideas;
+
   trendResultsCount.textContent =
     `Знайдено товарних ідей: ${ideas.length}`;
 
@@ -431,6 +475,16 @@ function renderTrendResults(ideas, summary) {
         `
         : "";
 
+      const supplierButton = `
+        <button
+          type="button"
+          class="trend-product-link supplier-search-button"
+          data-trend-index="${index}"
+        >
+          Знайти постачальників в Україні
+        </button>
+      `;
+
       return `
         <article class="trend-product-card">
           <div class="trend-product-image-wrap">
@@ -468,6 +522,7 @@ function renderTrendResults(ideas, summary) {
             </div>
 
             ${linkContent}
+            ${supplierButton}
           </div>
         </article>
       `;
@@ -475,6 +530,241 @@ function renderTrendResults(ideas, summary) {
     .join("");
 
   openTrendResultsModal();
+}
+
+function renderSupplierResults(data) {
+  const suppliers = Array.isArray(data?.suppliers)
+    ? data.suppliers
+    : [];
+
+  supplierResultsCount.textContent =
+    `Знайдено кандидатів: ${suppliers.length}`;
+
+  supplierResultsSummary.textContent =
+    data?.summary ||
+    "Перевірте роль компанії та умови співпраці перед зверненням.";
+
+  if (!suppliers.length) {
+    supplierResultsGrid.innerHTML = `
+      <article class="trend-product-card">
+        <div class="trend-product-content">
+          <h3 class="trend-product-title">
+            Постачальників поки не знайдено
+          </h3>
+
+          <p class="trend-product-description">
+            Для цього товару у відкритій українській видачі немає достатньо релевантних результатів.
+          </p>
+        </div>
+      </article>
+    `;
+
+    return;
+  }
+
+  supplierResultsGrid.innerHTML = suppliers
+    .map((supplier, index) => {
+      const link = getSafeTrendUrl(
+        supplier.link
+      );
+
+      const evidence = Array.isArray(
+        supplier.evidence
+      ) && supplier.evidence.length
+        ? supplier.evidence
+            .map(item =>
+              escapeTrendHtml(item)
+            )
+            .join(", ")
+        : "відкритих підтверджень ролі недостатньо";
+
+      const linkContent = link
+        ? `
+          <a
+            class="trend-product-link"
+            href="${escapeTrendHtml(link)}"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Відкрити постачальника
+          </a>
+        `
+        : "";
+
+      return `
+        <article class="trend-product-card">
+          <div class="trend-product-content">
+            <span class="trend-results-count">
+              №${index + 1}
+            </span>
+
+            <h3 class="trend-product-title">
+              ${escapeTrendHtml(
+                supplier.name ||
+                "Українська компанія"
+              )}
+            </h3>
+
+            <p class="trend-product-description">
+              ${escapeTrendHtml(
+                supplier.description ||
+                "Опис компанії у відкритій видачі відсутній."
+              )}
+            </p>
+
+            <div class="trend-product-meta">
+              <span>
+                <strong>Тип:</strong>
+                ${escapeTrendHtml(
+                  supplier.role ||
+                  "Потребує перевірки"
+                )}
+              </span>
+
+              <span>
+                <strong>Перевірка:</strong>
+                ${escapeTrendHtml(
+                  supplier.verification ||
+                  "Потребує перевірки умов співпраці"
+                )}
+              </span>
+
+              <span>
+                <strong>Збіг товару:</strong>
+                ${Number(supplier.productMatch) || 0}%
+              </span>
+
+              <span>
+                <strong>Знайдений товар:</strong>
+                ${escapeTrendHtml(
+                  supplier.matchedProduct || "—"
+                )}
+              </span>
+
+              <span>
+                <strong>Ознаки:</strong>
+                ${evidence}
+              </span>
+
+              <span>
+                <strong>Джерело:</strong>
+                ${escapeTrendHtml(
+                  supplier.source || "—"
+                )}
+              </span>
+            </div>
+
+            ${linkContent}
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+async function searchSuppliersForIdea(
+  idea,
+  button
+) {
+  const productTitle = String(
+    idea?.title || ""
+  ).trim();
+
+  if (!productTitle) {
+    return;
+  }
+
+  const originalButtonText =
+    button.textContent;
+
+  button.disabled = true;
+  button.textContent = "Шукаємо...";
+
+  supplierResultsProduct.textContent =
+    productTitle;
+
+  supplierResultsCount.textContent = "";
+
+  supplierResultsSummary.textContent =
+    "Шукаємо виробників, імпортерів, дистриб’юторів та оптових продавців в Україні.";
+
+  supplierResultsGrid.innerHTML = `
+    <article class="trend-product-card">
+      <div class="trend-product-content">
+        <h3 class="trend-product-title">
+          Пошук запущено
+        </h3>
+
+        <p class="trend-product-description">
+          Перевіряємо українські сайти та пропозиції Prom.ua.
+        </p>
+      </div>
+    </article>
+  `;
+
+  openSupplierResultsModal();
+
+  try {
+    const categoryLabel =
+      trendCategorySelect.options[
+        trendCategorySelect.selectedIndex
+      ]?.textContent?.trim() || "";
+
+    const response = await fetch(
+      "https://cm-assortment-admin-production.up.railway.app/api/suppliers",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          productTitle,
+          description:
+            String(
+              idea.description || ""
+            ).trim(),
+          categoryLabel
+        })
+      }
+    );
+
+    const data = await response
+      .json()
+      .catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data.message ||
+        "Не вдалося знайти постачальників."
+      );
+    }
+
+    renderSupplierResults(data);
+  } catch (error) {
+    supplierResultsCount.textContent = "";
+
+    supplierResultsSummary.textContent =
+      error.message ||
+      "Не вдалося знайти постачальників в Україні.";
+
+    supplierResultsGrid.innerHTML = `
+      <article class="trend-product-card">
+        <div class="trend-product-content">
+          <h3 class="trend-product-title">
+            Пошук не виконано
+          </h3>
+
+          <p class="trend-product-description">
+            Спробуйте повторити пошук трохи пізніше.
+          </p>
+        </div>
+      </article>
+    `;
+  } finally {
+    button.disabled = false;
+    button.textContent =
+      originalButtonText;
+  }
 }
 
 async function processTrendSearch() {
@@ -629,8 +919,57 @@ closeTrendResultsButton.addEventListener(
 trendResultsModal.addEventListener(
   "click",
   event => {
-    if (event.target === trendResultsModal) {
+    if (
+      event.target ===
+        trendResultsModal
+    ) {
       closeTrendResultsModal();
+    }
+  }
+);
+
+trendResultsGrid.addEventListener(
+  "click",
+  event => {
+    const button = event.target.closest(
+      ".supplier-search-button"
+    );
+
+    if (!button) {
+      return;
+    }
+
+    const ideaIndex = Number(
+      button.dataset.trendIndex
+    );
+
+    const idea =
+      currentTrendIdeas[ideaIndex];
+
+    if (!idea) {
+      return;
+    }
+
+    searchSuppliersForIdea(
+      idea,
+      button
+    );
+  }
+);
+
+closeSupplierResultsButton.addEventListener(
+  "click",
+  closeSupplierResultsModal
+);
+
+supplierResultsModal.addEventListener(
+  "click",
+  event => {
+    if (
+      event.target ===
+        supplierResultsModal
+    ) {
+      closeSupplierResultsModal();
     }
   }
 );
@@ -638,6 +977,14 @@ trendResultsModal.addEventListener(
 document.addEventListener(
   "keydown",
   event => {
+    if (
+      event.key === "Escape" &&
+      !supplierResultsModal.hidden
+    ) {
+      closeSupplierResultsModal();
+      return;
+    }
+
     if (
       event.key === "Escape" &&
       !trendResultsModal.hidden
