@@ -46,6 +46,8 @@ const SUPPLIER_ROLE_RULES = [
       "оптовий продаж",
       "оптові ціни",
       "оптовий постачальник",
+      "гурт",
+      "гуртовий",
       "гуртом",
       "дрібний опт",
       "мелкий опт",
@@ -100,6 +102,43 @@ const SEARCH_STOP_WORDS = new Set([
   "з",
   "по"
 ]);
+
+const HOROSHOP_EXTERNAL_NOISE_HOSTS = [
+  "horoshop.ua",
+  "cartum.io",
+  "cartum.md",
+  "facebook.com",
+  "instagram.com",
+  "linkedin.com",
+  "tiktok.com",
+  "youtube.com",
+  "youtu.be",
+  "t.me",
+  "work.ua",
+  "google.com"
+];
+
+const HOROSHOP_CATEGORY_LABELS = {
+  "dishware-wholesale": "посуд товари для кухні",
+  "home-goods": "товари для дому інвентар для дому",
+  clothes: "одяг",
+  shoes: "взуття",
+  "baby-products": "дитячі товари",
+  cosmetics: "косметика краса догляд",
+  electronics: "електроніка",
+  "home-appliances": "побутова техніка",
+  groceries: "продукти харчування",
+  "pet-supplies": "зоотовари",
+  "home-garden-and-tools": "дім сад город",
+  "sports-and-outdoor-recreation":
+    "спорт активний відпочинок",
+  "construction-and-renovation":
+    "будівництво ремонт",
+  tools: "інструменти",
+  "office-supplies": "канцтовари",
+  "auto-parts-and-accessories":
+    "запчастини автотовари"
+};
 
 function cleanSupplierText(value, maxLength = 500) {
   return String(value || "")
@@ -286,6 +325,81 @@ function buildFallbackSearchTerms(productTitle) {
     title
   ], 3);
 }
+
+function inferHoroshopDirectoryCategory(value) {
+  const text = normalizeSupplierText(value);
+
+  const rules = [
+    [
+      "dishware-wholesale",
+      /посуд|таріл|мисоч|миска|чашк|склян|бокал|соусниц|піал|сушарк.{0,12}посуд|столов.{0,12}прилад/u
+    ],
+    [
+      "cosmetics",
+      /космет|макіяж|крем|шампун|парфум|догляд.{0,12}(облич|волос|тіл)|манікюр/u
+    ],
+    [
+      "home-appliances",
+      /побутов.{0,12}технік|холодиль|пральн|пилосос|мікрохв|кавовар|блендер|електрочайн/u
+    ],
+    [
+      "electronics",
+      /електрон|телефон|смартфон|ноутбук|комп'ютер|навушник|планшет|power bank|павербанк/u
+    ],
+    [
+      "groceries",
+      /продукт|їжа|напій|кава|чай|солодощ|соус|спеці|бакалі/u
+    ],
+    [
+      "pet-supplies",
+      /зоотовар|тварин|собак|кот|кіш|гризун|акварі|корм/u
+    ],
+    [
+      "baby-products",
+      /дитяч|немовля|іграш|підгуз|коляск/u
+    ],
+    [
+      "clothes",
+      /одяг|білизн|футбол|сукн|куртк|штани|шкарпет/u
+    ],
+    [
+      "shoes",
+      /взут|кросів|черевик|туфл|сандал|капц/u
+    ],
+    [
+      "auto-parts-and-accessories",
+      /авто|автомоб|запчаст|шина|акумулятор/u
+    ],
+    [
+      "office-supplies",
+      /канцтовар|офісн|папір|ручк|олів|зошит/u
+    ],
+    [
+      "construction-and-renovation",
+      /будів|ремонт|сантех|плитк|фарба.{0,12}стін|будматері/u
+    ],
+    [
+      "tools",
+      /інструмент|дриль|шуруповерт|пилк|викрутк/u
+    ],
+    [
+      "sports-and-outdoor-recreation",
+      /спорт|фітнес|туризм|рибал|велосипед|тренажер/u
+    ],
+    [
+      "home-garden-and-tools",
+      /сад|город|рослин|горщик|полив|дач/u
+    ]
+  ];
+
+  return (
+    rules.find(([, pattern]) =>
+      pattern.test(text)
+    )?.[0] ||
+    "home-goods"
+  );
+}
+
 
 async function prepareSupplierSearchContext({
   productTitle,
@@ -832,6 +946,298 @@ async function searchBigOptSuppliers(term) {
   return enrichedCandidates;
 }
 
+function resolveHoroshopUrl(value) {
+  try {
+    return getSafeSupplierUrl(
+      new URL(
+        decodeSupplierHtml(value),
+        "https://horoshop.ua"
+      ).toString()
+    );
+  } catch {
+    return "";
+  }
+}
+
+function extractHoroshopSupplierCandidates(
+  html,
+  query
+) {
+  const candidates = [];
+
+  const itemPattern =
+    /<div[^>]+class=["'][^"']*\bsuppliers__item-title\b[^"']*["'][^>]*>([\s\S]*?)(?=<div[^>]+class=["'][^"']*\bsuppliers__item-title\b|<div[^>]+class=["'][^"']*\bsuppliers__pagination\b|$)/gi;
+
+  for (
+    const itemMatch
+    of String(html || "").matchAll(
+      itemPattern
+    )
+  ) {
+    const block = itemMatch[1];
+
+    const titleMatch = block.match(
+      /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i
+    );
+
+    const link = resolveHoroshopUrl(
+      titleMatch?.[1]
+    );
+
+    const supplierName =
+      cleanSupplierText(
+        decodeSupplierHtml(
+          titleMatch?.[2]
+        ),
+        140
+      );
+
+    if (
+      !link ||
+      !supplierName ||
+      !link.includes(
+        "horoshop.ua/ua/suppliers/"
+      )
+    ) {
+      continue;
+    }
+
+    const tags = uniqueSupplierValues(
+      [...block.matchAll(
+        /<li[^>]*>([\s\S]*?)<\/li>/gi
+      )].map(match =>
+        cleanSupplierText(
+          decodeSupplierHtml(match[1]),
+          100
+        )
+      ),
+      30
+    );
+
+    const tagText = tags.join(". ");
+
+    candidates.push({
+      title:
+        `${supplierName} — ${tagText || query}`,
+      snippet:
+        `${tagText}. Перевірений каталог постачальників Хорошоп.`,
+      link,
+      supplierName,
+      query,
+      source: "Хорошоп",
+      ukraineVerified: true
+    });
+
+    if (candidates.length >= 10) {
+      break;
+    }
+  }
+
+  return candidates;
+}
+
+function extractHoroshopExternalWebsite(html) {
+  const links = [];
+
+  for (
+    const match
+    of String(html || "").matchAll(
+      /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi
+    )
+  ) {
+    const link = resolveHoroshopUrl(
+      match[1]
+    );
+
+    const hostname =
+      getSupplierHostname(link)
+        .replace(/^www\./, "");
+
+    if (
+      !link ||
+      !hostname ||
+      HOROSHOP_EXTERNAL_NOISE_HOSTS.some(
+        noiseHost =>
+          hostname === noiseHost ||
+          hostname.endsWith(
+            `.${noiseHost}`
+          )
+      )
+    ) {
+      continue;
+    }
+
+    const anchorText =
+      cleanSupplierText(
+        decodeSupplierHtml(match[2]),
+        180
+      )
+        .toLocaleLowerCase("uk-UA")
+        .replace(/^https?:\/\//, "")
+        .replace(/^www\./, "")
+        .replace(/\/$/, "");
+
+    const exactDomainLabel =
+      anchorText === hostname ||
+      anchorText.includes(hostname);
+
+    links.push({
+      link,
+      exactDomainLabel
+    });
+  }
+
+  return (
+    links.find(item =>
+      item.exactDomainLabel
+    )?.link ||
+    links[0]?.link ||
+    ""
+  );
+}
+
+async function loadHoroshopSupplierCandidate(
+  candidate
+) {
+  try {
+    const response = await fetch(
+      candidate.link,
+      {
+        headers: {
+          Accept:
+            "text/html,application/xhtml+xml",
+          "Accept-Language":
+            "uk-UA,uk;q=0.9,en;q=0.6",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+        },
+        signal: AbortSignal.timeout(10000)
+      }
+    );
+
+    if (!response.ok) {
+      return candidate;
+    }
+
+    const html = await response.text();
+
+    const pageText = cleanSupplierText(
+      decodeSupplierHtml(html),
+      30000
+    );
+
+    if (
+      !pageText
+        .toLocaleLowerCase("uk-UA")
+        .replace(/\s*:\s*/g, " ")
+        .includes(
+          "країна співпраці україна"
+        )
+    ) {
+      return candidate;
+    }
+
+    const descriptionMatch =
+      pageText.match(
+        /Країна співпраці\s*:?\s*Україна\s*([\s\S]*?)(?=Відгуки(?:\s+\d+)?|Новий відгук|Бажаєте змінити|Хочете сайт)/i
+      );
+
+    const supplierDescription =
+      cleanSupplierText(
+        descriptionMatch?.[1],
+        1000
+      );
+
+    return {
+      ...candidate,
+      snippet: cleanSupplierText(
+        `${candidate.snippet} ${supplierDescription}`,
+        1400
+      ),
+      supplierLink:
+        extractHoroshopExternalWebsite(
+          html
+        ) || candidate.link,
+      ukraineVerified: true
+    };
+  } catch {
+    return candidate;
+  }
+}
+
+async function searchHoroshopSuppliers(
+  searchContext
+) {
+  const directoryCategory =
+    inferHoroshopDirectoryCategory(
+      `${searchContext.productName} ${searchContext.searchTerms.join(" ")}`
+    );
+
+  const filteredCategory =
+    directoryCategory.replace(
+      /-(?:wholesale|dropshipping)$/,
+      ""
+    );
+
+  const url =
+    "https://horoshop.ua/ua/suppliers/" +
+    `${filteredCategory}/filter/` +
+    "supplier_country=5/";
+
+  const response = await fetch(url, {
+    headers: {
+      Accept:
+        "text/html,application/xhtml+xml",
+      "Accept-Language":
+        "uk-UA,uk;q=0.9,en;q=0.6",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+        "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+    },
+    signal: AbortSignal.timeout(12000)
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `HOROSHOP_${response.status}`
+    );
+  }
+
+  const candidates =
+    extractHoroshopSupplierCandidates(
+      await response.text(),
+      searchContext.productName
+    );
+
+  const enrichedCandidates = [];
+
+  for (
+    let index = 0;
+    index < candidates.length;
+    index += 4
+  ) {
+    const batch = candidates.slice(
+      index,
+      index + 4
+    );
+
+    const batchResults =
+      await Promise.all(
+        batch.map(
+          loadHoroshopSupplierCandidate
+        )
+      );
+
+    enrichedCandidates.push(
+      ...batchResults.filter(Boolean)
+    );
+  }
+
+  return enrichedCandidates;
+}
+
+
 async function runSupplierTasks(
   tasks,
   concurrency = 3
@@ -863,12 +1269,22 @@ function calculateSupplierMatch(
   candidate,
   searchContext
 ) {
+  const directoryCategory =
+    inferHoroshopDirectoryCategory(
+      `${searchContext.productName} ${searchContext.searchTerms.join(" ")}`
+    );
+
   const expectedTokens = [
     ...getSupplierTokens(
       searchContext.productName
     ),
     ...searchContext.searchTerms.flatMap(
       getSupplierTokens
+    ),
+    ...getSupplierTokens(
+      HOROSHOP_CATEGORY_LABELS[
+        directoryCategory
+      ]
     )
   ];
 
@@ -1046,10 +1462,12 @@ function normalizeSupplierCandidates(
       name,
       role: classification.role,
       verification:
-        classification.rolePriority >= 2 &&
-        productMatch >= 0.34
-          ? "Є ознаки оптового постачання"
-          : "Потребує перевірки умов співпраці",
+        candidate.source === "Хорошоп"
+          ? "Перевірений у каталозі Хорошоп; точний асортимент треба уточнити"
+          : classification.rolePriority >= 2 &&
+              productMatch >= 0.34
+            ? "Є ознаки оптового постачання"
+            : "Потребує перевірки умов співпраці",
       evidence:
         classification.evidence,
       matchedProduct:
@@ -1176,6 +1594,10 @@ export async function searchUkraineSuppliers(
     );
 
   const tasks = [
+    () =>
+      searchHoroshopSuppliers(
+        searchContext
+      ),
     ...webQueries.map(query =>
       () =>
         searchDuckDuckGo(query)
