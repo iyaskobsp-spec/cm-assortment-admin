@@ -2,6 +2,7 @@ import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { URL } from "node:url";
 import { searchProductTrends } from "./trends-service.js";
+import { searchUkraineSuppliers } from "./supplier-service.js";
 
 const PORT = Number.parseInt(process.env.PORT || "3000", 10);
 
@@ -3456,9 +3457,100 @@ const server = http.createServer(async (request, response) => {
     }
 
     return;
-  } 
+  }
 
-    if (
+  if (
+    request.method === "POST" &&
+    requestUrl.pathname === "/api/suppliers"
+  ) {
+    const rateLimit = checkRateLimit(
+      getClientIp(request)
+    );
+
+    if (!rateLimit.allowed) {
+      response.setHeader(
+        "Retry-After",
+        String(rateLimit.retryAfter)
+      );
+
+      sendJson(response, 429, {
+        error: "RATE_LIMITED",
+        message:
+          "Забагато запитів. Спробуйте пізніше."
+      });
+
+      return;
+    }
+
+    try {
+      const requestBody =
+        await readJsonBody(request);
+
+      const result =
+        await searchUkraineSuppliers({
+          productTitle: cleanText(
+            requestBody.productTitle,
+            240
+          ),
+          description: cleanText(
+            requestBody.description,
+            500
+          ),
+          categoryLabel: cleanText(
+            requestBody.categoryLabel,
+            140
+          )
+        });
+
+      sendJson(response, 200, result);
+    } catch (error) {
+      const errorCode = String(
+        error.message || ""
+      ).split(":")[0];
+
+      const knownErrors = {
+        REQUEST_TOO_LARGE: {
+          statusCode: 413,
+          message: "Запит завеликий."
+        },
+        INVALID_JSON: {
+          statusCode: 400,
+          message:
+            "Некоректний формат запиту."
+        },
+        SUPPLIER_PRODUCT_REQUIRED: {
+          statusCode: 400,
+          message:
+            "Не вдалося визначити товар для пошуку постачальників."
+        }
+      };
+
+      const knownError =
+        knownErrors[errorCode];
+
+      console.error(
+        "[suppliers-api]",
+        error
+      );
+
+      sendJson(
+        response,
+        knownError?.statusCode || 500,
+        {
+          error:
+            errorCode ||
+            "INTERNAL_ERROR",
+          message:
+            knownError?.message ||
+            "Не вдалося знайти постачальників в Україні."
+        }
+      );
+    }
+
+    return;
+  }
+
+  if (
     request.method === "POST" &&
     requestUrl.pathname === "/api/trends"
   ) {
