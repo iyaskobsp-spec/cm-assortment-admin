@@ -125,6 +125,9 @@ function decodeSupplierHtml(value) {
       /&(amp|lt|gt|quot|#039|#39|nbsp);/gi,
       entity => entities[entity.toLowerCase()] || entity
     )
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
+      String.fromCodePoint(parseInt(code, 16))
+    )
     .replace(/&#(\d+);/g, (_, code) =>
       String.fromCodePoint(Number(code))
     );
@@ -175,6 +178,8 @@ function isUkrainianSupplierUrl(value) {
 
   return (
     hostname.endsWith(".ua") ||
+    hostname === "bigopt.com" ||
+    hostname.endsWith(".bigopt.com") ||
     hostname === "zakupka.com" ||
     hostname.endsWith(".zakupka.com")
   );
@@ -665,6 +670,168 @@ async function searchPromSuppliers(term) {
   );
 }
 
+function extractBigOptSearchCandidates(
+  html,
+  query
+) {
+  const candidates = [];
+
+  const productPattern =
+    /<div[^>]+class=["'][^"']*\bpg-sup\b[^"']*["'][^>]*>([\s\S]*?)<\/div>\s*<a[^>]+href=["']([^"']+)["'][^>]+class=["'][^"']*\bpg-name\b[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+  for (
+    const match
+    of String(html || "").matchAll(
+      productPattern
+    )
+  ) {
+    const supplierName =
+      cleanSupplierText(
+        decodeSupplierHtml(match[1]),
+        140
+      );
+
+    const link = getSafeSupplierUrl(
+      decodeSupplierHtml(match[2])
+    );
+
+    const title = cleanSupplierText(
+      decodeSupplierHtml(match[3]),
+      220
+    );
+
+    if (
+      !supplierName ||
+      !link ||
+      !title
+    ) {
+      continue;
+    }
+
+    candidates.push({
+      title,
+      snippet:
+        `${supplierName}. Оптовий постачальник. Товар: ${title}`,
+      link,
+      supplierName,
+      query,
+      source: "BigOpt",
+      ukraineVerified: true
+    });
+
+    if (candidates.length >= 8) {
+      break;
+    }
+  }
+
+  return candidates;
+}
+
+function extractBigOptSupplierLink(html) {
+  const linkMatch = String(html || "").match(
+    /<a[^>]+href=["']([^"']+)["'][^>]*>\s*(?:<[^>]+>\s*)*Перейти на сайт постачальника[\s\S]*?<\/a>/i
+  );
+
+  return getSafeSupplierUrl(
+    decodeSupplierHtml(linkMatch?.[1])
+  );
+}
+
+async function loadBigOptSupplierCandidate(
+  candidate
+) {
+  try {
+    const response = await fetch(
+      candidate.link,
+      {
+        headers: {
+          Accept:
+            "text/html,application/xhtml+xml",
+          "Accept-Language":
+            "uk-UA,uk;q=0.9,en;q=0.6",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+        },
+        signal: AbortSignal.timeout(10000)
+      }
+    );
+
+    if (!response.ok) {
+      return candidate;
+    }
+
+    const html = await response.text();
+
+    return {
+      ...candidate,
+      supplierLink:
+        extractBigOptSupplierLink(html)
+    };
+  } catch {
+    return candidate;
+  }
+}
+
+async function searchBigOptSuppliers(term) {
+  const query = cleanSupplierText(
+    term,
+    180
+  );
+
+  const url =
+    "https://bigopt.com/search/?m=2&terms=" +
+    encodeURIComponent(query);
+
+  const response = await fetch(url, {
+    headers: {
+      Accept:
+        "text/html,application/xhtml+xml",
+      "Accept-Language":
+        "uk-UA,uk;q=0.9,en;q=0.6",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+        "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+    },
+    signal: AbortSignal.timeout(12000)
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `BIGOPT_${response.status}`
+    );
+  }
+
+  const candidates =
+    extractBigOptSearchCandidates(
+      await response.text(),
+      query
+    );
+
+  const enrichedCandidates = [];
+
+  for (
+    let index = 0;
+    index < candidates.length;
+    index += 4
+  ) {
+    const batch = candidates.slice(
+      index,
+      index + 4
+    );
+
+    enrichedCandidates.push(
+      ...await Promise.all(
+        batch.map(
+          loadBigOptSupplierCandidate
+        )
+      )
+    );
+  }
+
+  return enrichedCandidates;
+}
+
 async function runSupplierTasks(
   tasks,
   concurrency = 3
@@ -838,7 +1005,10 @@ function normalizeSupplierCandidates(
 
     if (
       !link ||
-      !isUkrainianSupplierUrl(link)
+      (
+        !candidate.ukraineVerified &&
+        !isUkrainianSupplierUrl(link)
+      )
     ) {
       continue;
     }
@@ -1010,6 +1180,12 @@ export async function searchUkraineSuppliers(
       () =>
         searchDuckDuckGo(query)
     ),
+    ...searchContext.searchTerms
+      .slice(0, 2)
+      .map(term =>
+        () =>
+          searchBigOptSuppliers(term)
+      ),
     ...searchContext.searchTerms
       .slice(0, 3)
       .map(term =>
