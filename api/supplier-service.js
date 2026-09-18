@@ -85,6 +85,19 @@ const SEARCH_STOP_WORDS = new Set([
   "hot",
   "товар",
   "товари",
+  "виріб",
+  "вироби",
+  "продукція",
+  "набір",
+  "комплект",
+  "аксесуар",
+  "аксесуари",
+  "універсальний",
+  "універсальна",
+  "універсальне",
+  "новинка",
+  "популярний",
+  "модель",
   "купити",
   "ціна",
   "україна",
@@ -329,6 +342,39 @@ function buildFallbackSearchTerms(productTitle) {
   ], 3);
 }
 
+function normalizeSupplierIdentityGroups(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map(group =>
+      uniqueSupplierValues(
+        Array.isArray(group)
+          ? group
+          : [group],
+        6
+      )
+    )
+    .filter(group => group.length)
+    .slice(0, 5);
+}
+
+function buildFallbackIdentityGroups(
+  productTitle
+) {
+  const tokens = uniqueSupplierValues(
+    buildFallbackSearchTerms(
+      productTitle
+    ).flatMap(getSupplierTokens),
+    6
+  );
+
+  return tokens
+    .slice(0, 5)
+    .map(token => [token]);
+}
+
 function inferHoroshopDirectoryCategory(value) {
   const text = normalizeSupplierText(value);
 
@@ -403,7 +449,6 @@ function inferHoroshopDirectoryCategory(value) {
   );
 }
 
-
 async function prepareSupplierSearchContext({
   productTitle,
   description,
@@ -412,6 +457,11 @@ async function prepareSupplierSearchContext({
   const fallbackTerms =
     buildFallbackSearchTerms(productTitle);
 
+  const fallbackIdentityGroups =
+    buildFallbackIdentityGroups(
+      productTitle
+    );
+
   const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey) {
@@ -419,6 +469,8 @@ async function prepareSupplierSearchContext({
       productName:
         fallbackTerms[0] || productTitle,
       searchTerms: fallbackTerms,
+      identityGroups:
+        fallbackIdentityGroups,
       preparedByAi: false
     };
   }
@@ -438,7 +490,7 @@ async function prepareSupplierSearchContext({
             "openai/gpt-oss-120b",
           reasoning_effort: "low",
           temperature: 0.1,
-          max_completion_tokens: 280,
+          max_completion_tokens: 480,
           response_format: {
             type: "json_object"
           },
@@ -448,9 +500,15 @@ async function prepareSupplierSearchContext({
               content:
                 "Ти готуєш пошукові формулювання для пошуку постачальників в Україні. " +
                 "Визнач сам товар, відкинь рекламні слова, рейтинг, кількість продажів і назву іноземного майданчика. " +
-                "Переклади загальний тип товару українською, але збережи бренд, модель, матеріал, розмір та ключову функцію, якщо вони важливі. " +
-                "Поверни лише JSON: {\"productName\":\"...\",\"searchTerms\":[\"...\",\"...\",\"...\"]}. " +
-                "Дай від одного до трьох коротких формулювань. Не вигадуй характеристик."
+                "Переклади загальний тип товару українською, але збережи модель, матеріал, розмір та ключову функцію, якщо вони важливі. " +
+                "Окремо виділи 1–5 обов'язкових смислових ознак товару в identityGroups. " +
+                "Кожна група — це один окремий зміст: вид товару, його цільове призначення, об'єкт використання або критична відмінність. " +
+                "Усередині групи дай українські й російські синоніми та поширені словоформи одного змісту. " +
+                "Не роби бренд обов'язковою ознакою, якщо шукаються постачальники аналогічного виду товару. " +
+                "Не включай до identityGroups загальні слова товар, набір, модель, новинка, для дому, дитячий або популярний. " +
+                "Наприклад, для дощовика на коляску потрібні окремі групи [\"дощовик\",\"чохол від дощу\",\"накидка від дощу\"] та [\"коляска\",\"візочок\",\"детская коляска\"]. " +
+                "Поверни лише JSON: {\"productName\":\"...\",\"searchTerms\":[\"...\",\"...\",\"...\"],\"identityGroups\":[[\"...\"],[\"...\"]]}. " +
+                "Дай від одного до трьох коротких пошукових формулювань. Не вигадуй характеристик."
             },
             {
               role: "user",
@@ -502,7 +560,16 @@ async function prepareSupplierSearchContext({
       ...fallbackTerms
     ], 4);
 
-    if (!productName || !searchTerms.length) {
+    const identityGroups =
+      normalizeSupplierIdentityGroups(
+        parsed?.identityGroups
+      );
+
+    if (
+      !productName ||
+      !searchTerms.length ||
+      !identityGroups.length
+    ) {
       throw new Error(
         "INVALID_AI_SEARCH_CONTEXT"
       );
@@ -511,6 +578,7 @@ async function prepareSupplierSearchContext({
     return {
       productName,
       searchTerms,
+      identityGroups,
       preparedByAi: true
     };
   } catch (error) {
@@ -523,6 +591,8 @@ async function prepareSupplierSearchContext({
       productName:
         fallbackTerms[0] || productTitle,
       searchTerms: fallbackTerms,
+      identityGroups:
+        fallbackIdentityGroups,
       preparedByAi: false
     };
   }
@@ -1398,6 +1468,211 @@ async function runSupplierTasks(
   return results;
 }
 
+function getSupplierEditDistance(
+  firstValue,
+  secondValue,
+  maximumDistance = 1
+) {
+  const first = String(firstValue || "");
+  const second = String(secondValue || "");
+
+  if (
+    Math.abs(first.length - second.length) >
+      maximumDistance
+  ) {
+    return maximumDistance + 1;
+  }
+
+  let previousRow = Array.from(
+    { length: second.length + 1 },
+    (_, index) => index
+  );
+
+  for (
+    let firstIndex = 1;
+    firstIndex <= first.length;
+    firstIndex += 1
+  ) {
+    const currentRow = [firstIndex];
+    let smallestValue = currentRow[0];
+
+    for (
+      let secondIndex = 1;
+      secondIndex <= second.length;
+      secondIndex += 1
+    ) {
+      const substitutionCost =
+        first[firstIndex - 1] ===
+          second[secondIndex - 1]
+          ? 0
+          : 1;
+
+      const distance = Math.min(
+        currentRow[secondIndex - 1] + 1,
+        previousRow[secondIndex] + 1,
+        previousRow[secondIndex - 1] +
+          substitutionCost
+      );
+
+      currentRow.push(distance);
+      smallestValue = Math.min(
+        smallestValue,
+        distance
+      );
+    }
+
+    if (smallestValue > maximumDistance) {
+      return maximumDistance + 1;
+    }
+
+    previousRow = currentRow;
+  }
+
+  return previousRow[second.length];
+}
+
+function supplierTokensMatch(
+  expectedToken,
+  candidateToken
+) {
+  if (expectedToken === candidateToken) {
+    return true;
+  }
+
+  if (
+    expectedToken.length >= 4 &&
+    candidateToken.length >= 4 &&
+    (
+      candidateToken.startsWith(
+        expectedToken.slice(0, 4)
+      ) ||
+      expectedToken.startsWith(
+        candidateToken.slice(0, 4)
+      )
+    )
+  ) {
+    return true;
+  }
+
+  return (
+    expectedToken.length >= 5 &&
+    candidateToken.length >= 5 &&
+    getSupplierEditDistance(
+      expectedToken,
+      candidateToken,
+      1
+    ) <= 1
+  );
+}
+
+function getSupplierAliasMatchIndexes(
+  alias,
+  candidateTokens
+) {
+  const aliasTokens =
+    getSupplierTokens(alias);
+
+  if (!aliasTokens.length) {
+    return [];
+  }
+
+  const matchedIndexes = [];
+
+  for (const aliasToken of aliasTokens) {
+    const candidateIndex =
+      candidateTokens.findIndex(
+        (candidateToken, index) =>
+          !matchedIndexes.includes(index) &&
+          supplierTokensMatch(
+            aliasToken,
+            candidateToken
+          )
+      );
+
+    if (candidateIndex === -1) {
+      return [];
+    }
+
+    matchedIndexes.push(candidateIndex);
+  }
+
+  return matchedIndexes;
+}
+
+function countMatchedIdentityGroups(
+  identityGroups,
+  candidateTokens
+) {
+  const groupOptions =
+    identityGroups.map(group =>
+      group
+        .map(alias =>
+          getSupplierAliasMatchIndexes(
+            alias,
+            candidateTokens
+          )
+        )
+        .filter(indexes =>
+          indexes.length
+        )
+    );
+
+  let bestMatchCount = 0;
+
+  function visitGroup(
+    groupIndex,
+    usedIndexes,
+    matchCount
+  ) {
+    if (groupIndex >= groupOptions.length) {
+      bestMatchCount = Math.max(
+        bestMatchCount,
+        matchCount
+      );
+      return;
+    }
+
+    visitGroup(
+      groupIndex + 1,
+      usedIndexes,
+      matchCount
+    );
+
+    groupOptions[groupIndex].forEach(
+      indexes => {
+        if (
+          indexes.some(index =>
+            usedIndexes.has(index)
+          )
+        ) {
+          return;
+        }
+
+        const nextUsedIndexes =
+          new Set(usedIndexes);
+
+        indexes.forEach(index =>
+          nextUsedIndexes.add(index)
+        );
+
+        visitGroup(
+          groupIndex + 1,
+          nextUsedIndexes,
+          matchCount + 1
+        );
+      }
+    );
+  }
+
+  visitGroup(
+    0,
+    new Set(),
+    0
+  );
+
+  return bestMatchCount;
+}
+
 function calculateSupplierMatch(
   candidate,
   searchContext
@@ -1407,59 +1682,120 @@ function calculateSupplierMatch(
       `${searchContext.productName} ${searchContext.searchTerms.join(" ")}`
     );
 
-  const expectedTokens = [
-    ...getSupplierTokens(
-      searchContext.productName
-    ),
-    ...searchContext.searchTerms.flatMap(
-      getSupplierTokens
-    ),
-    ...getSupplierTokens(
-      HOROSHOP_CATEGORY_LABELS[
-        directoryCategory
-      ]
-    )
-  ];
-
-  const uniqueExpectedTokens = [
-    ...new Set(expectedTokens)
-  ];
-
-  const candidateTokens = new Set(
+  const candidateTokens =
     getSupplierTokens(
       `${candidate.title} ${candidate.snippet}`
-    )
-  );
+    );
 
-  if (!uniqueExpectedTokens.length) {
+  if (!candidateTokens.length) {
     return 0;
   }
 
-  const matchedTokens =
-    uniqueExpectedTokens.filter(token =>
-      candidateTokens.has(token) ||
-      [...candidateTokens].some(
-        candidateToken =>
-          token.length >= 5 &&
-          candidateToken.length >= 5 &&
-          (
-            candidateToken.startsWith(
-              token.slice(0, 5)
-            ) ||
-            token.startsWith(
-              candidateToken.slice(0, 5)
+  const identityGroups =
+    normalizeSupplierIdentityGroups(
+      searchContext.identityGroups
+    );
+
+  const effectiveIdentityGroups =
+    identityGroups.length
+      ? identityGroups
+      : buildFallbackIdentityGroups(
+          searchContext.productName
+        );
+
+  if (!effectiveIdentityGroups.length) {
+    return 0;
+  }
+
+  const matchedIdentityGroups =
+    countMatchedIdentityGroups(
+      effectiveIdentityGroups,
+      candidateTokens
+    );
+
+  const requiredIdentityMatches =
+    effectiveIdentityGroups.length >= 2
+      ? 2
+      : 1;
+
+  if (
+    matchedIdentityGroups <
+      requiredIdentityMatches
+  ) {
+    return 0;
+  }
+
+  const identityScore =
+    matchedIdentityGroups /
+    Math.min(
+      effectiveIdentityGroups.length,
+      4
+    );
+
+  const queryPhrases =
+    uniqueSupplierValues([
+      searchContext.productName,
+      ...searchContext.searchTerms
+    ], 5);
+
+  const lexicalScore = Math.max(
+    0,
+    ...queryPhrases.map(phrase => {
+      const phraseTokens = [
+        ...new Set(
+          getSupplierTokens(phrase)
+        )
+      ];
+
+      if (!phraseTokens.length) {
+        return 0;
+      }
+
+      const matchedTokens =
+        phraseTokens.filter(
+          phraseToken =>
+            candidateTokens.some(
+              candidateToken =>
+                supplierTokensMatch(
+                  phraseToken,
+                  candidateToken
+                )
             )
+        );
+
+      return (
+        matchedTokens.length /
+        Math.min(
+          phraseTokens.length,
+          5
+        )
+      );
+    })
+  );
+
+  const categoryTokens =
+    getSupplierTokens(
+      HOROSHOP_CATEGORY_LABELS[
+        directoryCategory
+      ]
+    );
+
+  const hasCategoryMatch =
+    categoryTokens.some(categoryToken =>
+      candidateTokens.some(
+        candidateToken =>
+          supplierTokensMatch(
+            categoryToken,
+            candidateToken
           )
       )
     );
 
   return Math.min(
     1,
-    matchedTokens.length /
-      Math.min(
-        uniqueExpectedTokens.length,
-        6
-      )
+    identityScore * 0.75 +
+      lexicalScore * 0.2 +
+      (hasCategoryMatch ? 0.05 : 0)
   );
 }
 
