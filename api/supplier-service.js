@@ -10,6 +10,9 @@ const SUPPLIER_ROLE_RULES = [
       "виробник",
       "виробництво",
       "власне виробництво",
+      "виробнича компанія",
+      "виготовляє",
+      "виробляє",
       "производитель",
       "производство",
       "собственное производство"
@@ -1237,6 +1240,136 @@ async function searchHoroshopSuppliers(
   return enrichedCandidates;
 }
 
+function resolveMadeInUaUrl(value) {
+  try {
+    return getSafeSupplierUrl(
+      new URL(
+        decodeSupplierHtml(value),
+        "https://madeinua.org"
+      ).toString()
+    );
+  } catch {
+    return "";
+  }
+}
+
+function extractMadeInUaSupplierCandidates(
+  html,
+  query
+) {
+  const candidates = [];
+
+  const resultPattern =
+    /<div\s+class=["']col-sm-12["']>\s*<a\s+href=["']([^"']*\/company\/[^"']+)["'][^>]*>\s*<h3>([\s\S]*?)<\/h3>\s*<\/a>\s*<\/div>\s*<div\s+class=["']col-sm-3["'][^>]*>[\s\S]*?<\/div>\s*<div\s+class=["']col-sm-9["'][^>]*>([\s\S]*?)<p>\s*<br\s*\/?>\s*<a/gi;
+
+  for (
+    const match
+    of String(html || "").matchAll(
+      resultPattern
+    )
+  ) {
+    const link = resolveMadeInUaUrl(
+      match[1]
+    );
+
+    const supplierName =
+      cleanSupplierText(
+        decodeSupplierHtml(match[2]),
+        140
+      );
+
+    const description =
+      cleanSupplierText(
+        decodeSupplierHtml(match[3]),
+        700
+      );
+
+    const normalizedDescription =
+      normalizeSupplierText(
+        description
+      );
+
+    const normalizedQuery =
+      normalizeSupplierText(query);
+
+    const dishwashingConflict =
+      normalizedQuery.includes("посуд") &&
+      /миття посуд|миюч.{0,24}посуд|побутов.{0,18}хімі/u.test(
+        normalizedDescription
+      ) &&
+      !/чавун|керамі|алюміні|склян|таріл|мисоч|миска|чашк|кухонн.{0,12}посуд|столов.{0,12}посуд/u.test(
+        normalizedDescription
+      );
+
+    const foreignProductionWarning =
+      /виготовлен.{0,20}рф|не в україні|російськ.{0,15}виробниц/u.test(
+        normalizedDescription
+      );
+
+    if (
+      !link ||
+      !supplierName ||
+      !description ||
+      dishwashingConflict ||
+      foreignProductionWarning
+    ) {
+      continue;
+    }
+
+    candidates.push({
+      title:
+        `${supplierName} — ${description}`,
+      snippet:
+        `${description} Каталог українських виробників.`,
+      link,
+      supplierName,
+      query,
+      source: "Зроблено в Україні",
+      ukraineVerified: true
+    });
+
+    if (candidates.length >= 10) {
+      break;
+    }
+  }
+
+  return candidates;
+}
+
+async function searchMadeInUaSuppliers(term) {
+  const query = cleanSupplierText(
+    term,
+    180
+  );
+
+  const url =
+    "https://madeinua.org/search/?q=" +
+    encodeURIComponent(query);
+
+  const response = await fetch(url, {
+    headers: {
+      Accept:
+        "text/html,application/xhtml+xml",
+      "Accept-Language":
+        "uk-UA,uk;q=0.9,en;q=0.6",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+        "AppleWebKit/537.36 Chrome/124 Safari/537.36"
+    },
+    signal: AbortSignal.timeout(12000)
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `MADE_IN_UA_${response.status}`
+    );
+  }
+
+  return extractMadeInUaSupplierCandidates(
+    await response.text(),
+    query
+  );
+}
 
 async function runSupplierTasks(
   tasks,
@@ -1464,10 +1597,12 @@ function normalizeSupplierCandidates(
       verification:
         candidate.source === "Хорошоп"
           ? "Перевірений у каталозі Хорошоп; точний асортимент треба уточнити"
-          : classification.rolePriority >= 2 &&
-              productMatch >= 0.34
-            ? "Є ознаки оптового постачання"
-            : "Потребує перевірки умов співпраці",
+          : candidate.source === "Зроблено в Україні"
+            ? "Український виробник; актуальність контактів і оптові умови треба перевірити"
+            : classification.rolePriority >= 2 &&
+                productMatch >= 0.34
+              ? "Є ознаки оптового постачання"
+              : "Потребує перевірки умов співпраці",
       evidence:
         classification.evidence,
       matchedProduct:
@@ -1597,6 +1732,12 @@ export async function searchUkraineSuppliers(
     () =>
       searchHoroshopSuppliers(
         searchContext
+      ),
+    ...searchContext.searchTerms
+      .slice(0, 2)
+      .map(term =>
+        () =>
+          searchMadeInUaSuppliers(term)
       ),
     ...webQueries.map(query =>
       () =>
