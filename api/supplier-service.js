@@ -1585,6 +1585,12 @@ function normalizeSupplierCandidates(
     const hostname =
       getSupplierHostname(link);
 
+    const directSourcePriority =
+      candidate.source === "Prom.ua" ||
+      MARKETPLACE_HOSTS.has(hostname)
+        ? 0
+        : 1;
+
     const normalizedName =
       normalizeSupplierText(name);
 
@@ -1623,7 +1629,8 @@ function normalizeSupplierCandidates(
           productMatch * 100
         ),
       rolePriority:
-        classification.rolePriority
+        classification.rolePriority,
+      directSourcePriority
     };
 
     const previous =
@@ -1631,13 +1638,21 @@ function normalizeSupplierCandidates(
 
     if (
       !previous ||
-      supplier.rolePriority >
-        previous.rolePriority ||
+      supplier.directSourcePriority >
+        previous.directSourcePriority ||
       (
-        supplier.rolePriority ===
-          previous.rolePriority &&
-        supplier.productMatch >
-          previous.productMatch
+        supplier.directSourcePriority ===
+          previous.directSourcePriority &&
+        (
+          supplier.rolePriority >
+            previous.rolePriority ||
+          (
+            supplier.rolePriority ===
+              previous.rolePriority &&
+            supplier.productMatch >
+              previous.productMatch
+          )
+        )
       )
     ) {
       suppliersByKey.set(
@@ -1649,6 +1664,8 @@ function normalizeSupplierCandidates(
 
   return [...suppliersByKey.values()]
     .sort((first, second) =>
+      second.directSourcePriority -
+        first.directSourcePriority ||
       second.rolePriority -
         first.rolePriority ||
       second.productMatch -
@@ -1658,10 +1675,11 @@ function normalizeSupplierCandidates(
         "uk"
       )
     )
-    .slice(0, 15)
+    .slice(0, 30)
     .map(
       ({
         rolePriority,
+        directSourcePriority,
         ...supplier
       }) => supplier
     );
